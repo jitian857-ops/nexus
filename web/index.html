@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="NEXUS — Study / Money / Life / Health をひとつにまとめるパーソナルハブ">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#050916">
+
+  <meta property="og:title" content="NEXUS">
+  <meta property="og:description" content="Study / Money / Life / Health をひとつにまとめるパーソナルハブ">
+  <meta property="og:type" content="website">
+
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="NEXUS">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>NEXUS</title>
+  <link rel="manifest" href="manifest.json">
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background: #050916;
+      color: #ffffff;
+      font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+    }
+    .loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+      opacity: 0.7;
+    }
+  </style>
+</head>
+<body>
+  <div class="loading" id="loading">NEXUS</div>
+  <script>
+    window.addEventListener('flutter-first-frame', function () {
+      var el = document.getElementById('loading');
+      if (el) el.remove();
+    });
+  </script>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>
