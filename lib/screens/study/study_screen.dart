@@ -8,10 +8,12 @@ import '../../app/theme.dart';
 import '../../core/format.dart';
 import '../../data/app_store.dart';
 import '../../data/models.dart';
+import '../../data/nexus_icons.dart';
 import '../../domain/money_calc.dart';
 import '../../widgets/duration_picker.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/progress_ring.dart';
+import '../../widgets/study_week_chart.dart';
 import '../../widgets/ui_bits.dart';
 import 'focus_timer_page.dart';
 
@@ -24,19 +26,35 @@ class StudyScreen extends StatefulWidget {
 
 class _StudyScreenState extends State<StudyScreen> {
   Timer? _tick;
+  AppStore? _store;
 
   @override
-  void initState() {
-    super.initState();
-    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted) return;
-      final store = AppScope.of(context);
-      if (store.timerRunning) setState(() {});
-    });
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final store = AppScope.of(context);
+    if (_store != store) {
+      _store?.removeListener(_syncTick);
+      _store = store;
+      _store!.addListener(_syncTick);
+      _syncTick();
+    }
+  }
+
+  void _syncTick() {
+    final running = _store?.timerRunning ?? false;
+    if (running && _tick == null) {
+      _tick = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() {});
+      });
+    } else if (!running && _tick != null) {
+      _tick?.cancel();
+      _tick = null;
+    }
   }
 
   @override
   void dispose() {
+    _store?.removeListener(_syncTick);
     _tick?.cancel();
     super.dispose();
   }
@@ -61,49 +79,113 @@ class _StudyScreenState extends State<StudyScreen> {
           const SizedBox(height: 4),
           Text(
             jpDate(store.focusedDate),
-            style: const TextStyle(color: NexusColors.textSecondary, fontSize: 13),
+            style: TextStyle(color: NexusColors.textSecondary, fontSize: 13),
           ),
           const SizedBox(height: 14),
           _TotalStudyCard(store: store),
           const SizedBox(height: 12),
-          const SectionRow(title: '科目別・今週の勉強時間'),
+          SectionRow(
+            title: '科目別・今週の勉強時間',
+            trailing: AddChip(
+              label: '教科を追加',
+              onTap: () => promptNewSubject(context, store),
+            ),
+          ),
           const SizedBox(height: 8),
           if (store.subjects.isEmpty)
-            const SizedBox(
-              height: 108,
+            SizedBox(
+              height: 124,
               child: Center(
                 child: Text('教科はまだありません', style: TextStyle(color: NexusColors.textMuted)),
               ),
             )
           else
             SizedBox(
-            height: 108,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: store.subjects.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 10),
-              itemBuilder: (context, i) {
-                final s = store.subjects[i];
-                return GlassCard(
-                  child: SizedBox(
-                    width: 132,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(s.icon, color: s.color, size: 18),
-                        const Spacer(),
-                        Text(s.name, style: const TextStyle(fontWeight: FontWeight.w700)),
-                        Text(
-                          '${s.weekHours}h',
-                          style: TextStyle(color: s.color, fontWeight: FontWeight.w600),
-                        ),
-                      ],
+              height: 124,
+              child: ReorderableListView.builder(
+                scrollDirection: Axis.horizontal,
+                buildDefaultDragHandles: false,
+                padding: EdgeInsets.zero,
+                itemCount: store.subjects.length,
+                onReorder: store.reorderSubjects,
+                proxyDecorator: (child, index, animation) {
+                  return AnimatedBuilder(
+                    animation: animation,
+                    builder: (context, _) => Transform.scale(scale: 1.05, child: child),
+                  );
+                },
+                itemBuilder: (context, i) {
+                  final s = store.subjects[i];
+                  final hours = store.subjectWeekHours(s.id);
+                  return Padding(
+                    key: ValueKey(s.id),
+                    padding: const EdgeInsets.only(right: 10),
+                    child: SizedBox(
+                      width: 132,
+                      child: Stack(
+                        children: [
+                          Positioned.fill(
+                            child: ReorderableTapDragListener(
+                              index: i,
+                              enabled: store.subjects.length > 1,
+                              onTap: () => openSubjectWeek(context, store, s.id),
+                              child: GlassCard(
+                                borderColor: s.color.withValues(alpha: 0.35),
+                                glowColor: s.color,
+                                padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                      width: 30,
+                                      height: 30,
+                                      alignment: Alignment.center,
+                                      decoration: BoxDecoration(
+                                        color: s.color.withValues(alpha: 0.14),
+                                        borderRadius: BorderRadius.circular(9),
+                                      ),
+                                      child: Icon(s.icon, color: s.color, size: 17),
+                                    ),
+                                    const Spacer(),
+                                    Text(s.name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                                    Text(
+                                      formatStudyHours(s.weekHours),
+                                      style: TextStyle(color: s.color, fontWeight: FontWeight.w700),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    _WeekDots(hours: hours, color: s.color),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            top: 4,
+                            right: 4,
+                            child: _TinyDelete(
+                              onTap: () async {
+                                final ok = await _confirmDelete(context, title: '教科を削除', body: '「${s.name}」を削除します。');
+                                if (!ok || !context.mounted) return;
+                                store.deleteSubject(s.id);
+                                showNexusToast(context, store.lastToast);
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
-          ),
+          if (store.subjects.length > 1)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                'つかんでドロップすると順番を変えられます',
+                style: TextStyle(color: NexusColors.textMuted, fontSize: 11),
+              ),
+            ),
           const SizedBox(height: 12),
           GlassCard(
             child: Column(
@@ -117,8 +199,8 @@ class _StudyScreenState extends State<StudyScreen> {
                 ),
                 const SizedBox(height: 8),
                 if (store.assignments.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
                     child: Text('提出物はまだありません', style: TextStyle(color: NexusColors.textMuted)),
                   ),
                 for (final a in store.assignments)
@@ -136,11 +218,11 @@ class _StudyScreenState extends State<StudyScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('復習カード', style: TextStyle(fontWeight: FontWeight.w700)),
+                      Text('復習カード', style: TextStyle(fontWeight: FontWeight.w700)),
                       const SizedBox(height: 4),
                       Text(
                         '今日のキュー ${store.reviewDueCount()}枚',
-                        style: const TextStyle(color: NexusColors.textSecondary),
+                        style: TextStyle(color: NexusColors.textSecondary),
                       ),
                     ],
                   ),
@@ -166,7 +248,7 @@ class _StudyScreenState extends State<StudyScreen> {
                 ),
                 const SizedBox(height: 8),
                 if (store.goals.isEmpty)
-                  const Text('目標はまだありません', style: TextStyle(color: NexusColors.textMuted)),
+                  Text('目標はまだありません', style: TextStyle(color: NexusColors.textMuted)),
                 for (final goal in store.goals) ...[
                   _GoalBlock(goal: goal, store: store),
                   const SizedBox(height: 12),
@@ -187,18 +269,35 @@ class _StudyScreenState extends State<StudyScreen> {
                 ),
                 const SizedBox(height: 12),
                 if (store.exams.isEmpty)
-                  const Text('試験日はまだありません', style: TextStyle(color: NexusColors.textMuted))
+                  Text('試験日はまだありません', style: TextStyle(color: NexusColors.textMuted))
                 else
-                  SizedBox(
+                SizedBox(
                     height: 128,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       itemCount: store.exams.length,
                       separatorBuilder: (_, _) => const SizedBox(width: 12),
                       itemBuilder: (context, i) {
+                        final exam = store.exams[i];
                         return SizedBox(
                           width: 96,
-                          child: _ExamRing(exam: store.exams[i], today: store.focusedDate),
+                          child: Stack(
+                            children: [
+                              _ExamRing(exam: exam, today: store.focusedDate),
+                              Positioned(
+                                top: 0,
+                                right: 0,
+                                child: _TinyDelete(
+                                  onTap: () async {
+                                    final ok = await _confirmDelete(context, title: '試験日を削除', body: '「${exam.title}」を削除します。');
+                                    if (!ok || !context.mounted) return;
+                                    store.deleteExam(exam.id);
+                                    showNexusToast(context, store.lastToast);
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
                         );
                       },
                     ),
@@ -213,7 +312,7 @@ class _StudyScreenState extends State<StudyScreen> {
               children: [
                 const SectionRow(title: '今日の問題'),
                 const SizedBox(height: 4),
-                const Text(
+                Text(
                   '写真で記録すると、1日後と5日後の復習カードが作られます。',
                   style: TextStyle(color: NexusColors.textMuted, fontSize: 12),
                 ),
@@ -225,6 +324,41 @@ class _StudyScreenState extends State<StudyScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _PulsingPlay extends StatelessWidget {
+  const _PulsingPlay({required this.running});
+
+  final bool running;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 52,
+      height: 52,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [NexusColors.cyan, NexusColors.purple],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: NexusColors.cyan.withValues(alpha: 0.28),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Icon(
+        running ? Icons.pause_rounded : Icons.play_arrow_rounded,
+        color: NexusColors.isLight ? Colors.white : Colors.black,
+        size: 28,
       ),
     );
   }
@@ -245,9 +379,29 @@ class _TotalStudyCard extends StatelessWidget {
           const SizedBox(height: 8),
           Row(
             children: [
-              _Hours(label: '今週', value: '${store.weekStudyHours}h', color: NexusColors.purple),
-              const SizedBox(width: 24),
-              _Hours(label: '累計', value: '${store.totalStudyHours}h', color: NexusColors.cyan),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: NexusColors.purple.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: NexusColors.purple.withValues(alpha: 0.25)),
+                  ),
+                  child: _Hours(label: '今週', value: formatStudyHours(store.weekStudyHours), color: NexusColors.purple),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: NexusColors.cyan.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: NexusColors.cyan.withValues(alpha: 0.25)),
+                  ),
+                  child: _Hours(label: '累計', value: formatStudyHours(store.totalStudyHours), color: NexusColors.cyan),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 10),
@@ -257,90 +411,44 @@ class _TotalStudyCard extends StatelessWidget {
             children: [
               for (final s in store.subjects)
                 Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
+              mainAxisSize: MainAxisSize.min,
+              children: [
                     Container(
                       width: 8,
                       height: 8,
                       decoration: BoxDecoration(color: s.color, shape: BoxShape.circle),
                     ),
                     const SizedBox(width: 4),
-                    Text(s.name, style: const TextStyle(color: NexusColors.textMuted, fontSize: 11)),
+                    Text(s.name, style: TextStyle(color: NexusColors.textMuted, fontSize: 11)),
                   ],
                 ),
             ],
-          ),
-          const SizedBox(height: 12),
+                ),
+                const SizedBox(height: 12),
           SizedBox(
             height: 126,
-            child: CustomPaint(
-              painter: _StackedBarPainter(
-                stacks: store.weekStackedHours(),
-                colors: [for (final s in store.subjects) s.color],
-              ),
-              child: const SizedBox.expand(),
+            child: StudyWeekChart(
+              stacks: store.weekStackedHours(),
+              colors: [for (final s in store.subjects) s.color],
             ),
           ),
-          const SizedBox(height: 6),
+            const SizedBox(height: 6),
           Row(
-            children: [
+              children: [
+              const SizedBox(width: 34),
               for (final label in weekLabels)
                 Expanded(
                   child: Text(
                     label,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: NexusColors.textMuted, fontSize: 11),
+                    style: TextStyle(color: NexusColors.textMuted, fontSize: 11),
                   ),
-                ),
-            ],
-          ),
-        ],
+                  ),
+              ],
+            ),
+          ],
       ),
     );
-  }
-}
-
-class _StackedBarPainter extends CustomPainter {
-  _StackedBarPainter({required this.stacks, required this.colors});
-
-  final List<List<double>> stacks;
-  final List<Color> colors;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (stacks.isEmpty) return;
-    var maxTotal = 0.0;
-    for (final day in stacks) {
-      final total = day.fold<double>(0, (a, b) => a + b);
-      if (total > maxTotal) maxTotal = total;
-    }
-    if (maxTotal <= 0) maxTotal = 1;
-
-    final slot = size.width / stacks.length;
-    final barWidth = slot * 0.48;
-    for (var i = 0; i < stacks.length; i++) {
-      final x = slot * i + (slot - barWidth) / 2;
-      var y = size.height;
-      for (var s = 0; s < stacks[i].length; s++) {
-        final hours = stacks[i][s];
-        if (hours <= 0) continue;
-        final h = size.height * (hours / maxTotal);
-        y -= h;
-        final rect = RRect.fromRectAndRadius(
-          Rect.fromLTWH(x, y, barWidth, h),
-          const Radius.circular(3),
-        );
-        canvas.drawRRect(
-          rect,
-          Paint()..color = colors[s % colors.length],
-        );
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _StackedBarPainter oldDelegate) {
-    return oldDelegate.stacks != stacks || oldDelegate.colors != colors;
   }
 }
 
@@ -351,26 +459,52 @@ class _TimerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final selectedId = store.selectedTimerSubjectId;
+    final subject = selectedId == null ? null : store.subjectById(selectedId);
     return InkWell(
       onTap: () => openFocusTimer(context),
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(NexusColors.cardRadius),
       child: GlassCard(
+        glowColor: NexusColors.cyan,
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SectionRow(title: '集中タイマー'),
             const SizedBox(height: 8),
-            Text(
-              mmss(store.timerRemainingSeconds()),
-              style: const TextStyle(
-                fontSize: 40,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 1,
-              ),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'タップして全画面で集中',
-              style: TextStyle(color: NexusColors.textMuted, fontSize: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ShaderMask(
+                        shaderCallback: (rect) =>
+                            LinearGradient(colors: NexusColors.accentSweep)
+                                .createShader(rect),
+                        child: Text(
+                          mmss(store.timerRemainingSeconds()),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 40,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        subject == null ? 'タップして教科を選んで集中' : '${subject.name}  ・  タップして全画面で集中',
+                        style: TextStyle(
+                          color: subject?.color ?? NexusColors.textMuted,
+                          fontSize: 12,
+                          fontWeight: subject == null ? FontWeight.w400 : FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                _PulsingPlay(running: store.timerRunning),
+              ],
             ),
           ],
         ),
@@ -410,7 +544,7 @@ class _AssignmentRow extends StatelessWidget {
                 Text(assignment.title),
                 Text(
                   subject,
-                  style: const TextStyle(color: NexusColors.textMuted, fontSize: 11),
+                  style: TextStyle(color: NexusColors.textMuted, fontSize: 11),
                 ),
               ],
             ),
@@ -424,7 +558,7 @@ class _AssignmentRow extends StatelessWidget {
               ),
               Text(
                 '${assignment.dueAt.month}/${assignment.dueAt.day}まで',
-                style: const TextStyle(color: NexusColors.textMuted, fontSize: 10),
+                style: TextStyle(color: NexusColors.textMuted, fontSize: 10),
               ),
             ],
           ),
@@ -432,6 +566,52 @@ class _AssignmentRow extends StatelessWidget {
       ),
     );
   }
+}
+
+class _TinyDelete extends StatelessWidget {
+  const _TinyDelete({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: Container(
+          width: 20,
+          height: 20,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: NexusColors.surface,
+            shape: BoxShape.circle,
+            border: Border.all(color: NexusColors.border),
+          ),
+          child: Icon(Icons.close, size: 12, color: NexusColors.textMuted),
+        ),
+      ),
+    );
+  }
+}
+
+Future<bool> _confirmDelete(BuildContext context, {required String title, required String body}) async {
+  final result = await showDialog<bool>(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        backgroundColor: NexusColors.card,
+        title: Text(title),
+        content: Text(body),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('やめる')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('削除')),
+        ],
+      );
+    },
+  );
+  return result == true;
 }
 
 class _GoalBlock extends StatelessWidget {
@@ -442,15 +622,90 @@ class _GoalBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final steps = goal.filledSubGoals;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(goal.title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+        Row(
+          children: [
+            Expanded(
+              child: Text(goal.title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+            ),
+            _TinyDelete(
+              onTap: () async {
+                final ok = await _confirmDelete(context, title: '目標を削除', body: '「${goal.title}」を削除します。');
+                if (!ok || !context.mounted) return;
+                store.deleteGoal(goal.id);
+                showNexusToast(context, store.lastToast);
+              },
+            ),
+          ],
+        ),
         const SizedBox(height: 4),
         Text(
-          '現在 ${goal.current}  /  目標 ${goal.target}  /  ${jpDate(goal.dueAt)}まで',
-          style: const TextStyle(color: NexusColors.textSecondary, fontSize: 12),
+          [
+            if (goal.target > 0) '現在 ${goal.current}  /  目標 ${goal.target}',
+            '${jpDate(goal.dueAt)}まで',
+          ].join('  /  '),
+          style: TextStyle(color: NexusColors.textSecondary, fontSize: 12),
         ),
+        const SizedBox(height: 10),
+        if (steps.isNotEmpty)
+          SizedBox(
+            height: 72,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: steps.length,
+              separatorBuilder: (_, _) => Padding(
+                padding: const EdgeInsets.only(top: 14),
+                child: Container(width: 18, height: 2, color: NexusColors.cyan.withValues(alpha: 0.35)),
+              ),
+              itemBuilder: (context, i) {
+                final step = steps[i];
+                final original = goal.subGoals.indexWhere((s) => s.title == step.title);
+                return InkWell(
+                  onTap: () => store.toggleSubGoal(goal.id, original < 0 ? i : original),
+                  child: SizedBox(
+                    width: 72,
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: step.done ? NexusColors.cyan.withValues(alpha: 0.2) : NexusColors.surface,
+                            border: Border.all(
+                              color: step.done ? NexusColors.cyan : NexusColors.border,
+                              width: 2,
+                            ),
+                          ),
+                          child: Icon(
+                            step.done ? Icons.check_rounded : Icons.flag_outlined,
+                            size: 14,
+                            color: step.done ? NexusColors.cyan : NexusColors.textMuted,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          step.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: step.done ? NexusColors.textMuted : NexusColors.text,
+                            decoration: step.done ? TextDecoration.lineThrough : null,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
         const SizedBox(height: 8),
         ClipRRect(
           borderRadius: BorderRadius.circular(6),
@@ -461,34 +716,6 @@ class _GoalBlock extends StatelessWidget {
             backgroundColor: NexusColors.border,
           ),
         ),
-        const SizedBox(height: 8),
-        for (var i = 0; i < goal.subGoals.length; i++)
-          if (goal.subGoals[i].title.trim().isNotEmpty)
-            InkWell(
-              onTap: () => store.toggleSubGoal(goal.id, i),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(
-                  children: [
-                    Icon(
-                      goal.subGoals[i].done
-                          ? Icons.check_box_rounded
-                          : Icons.check_box_outline_blank_rounded,
-                      size: 18,
-                      color: goal.subGoals[i].done ? NexusColors.cyan : NexusColors.textMuted,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'サブゴール ${i + 1}  ${goal.subGoals[i].title}',
-                      style: TextStyle(
-                        color: goal.subGoals[i].done ? NexusColors.textSecondary : NexusColors.text,
-                        decoration: goal.subGoals[i].done ? TextDecoration.lineThrough : null,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
       ],
     );
   }
@@ -507,7 +734,7 @@ class _ExamRing extends StatelessWidget {
     return Column(
       children: [
         ProgressRing(
-          progress: days <= 0 ? 1 : (1 - days / 40).clamp(0.1, 1),
+          progress: exam.countdownProgress(today),
           size: 78,
           stroke: 6,
           child: Text(
@@ -524,7 +751,7 @@ class _ExamRing extends StatelessWidget {
         ),
         Text(
           '${exam.examAt.month}/${exam.examAt.day} (${exam.weekdayLabel})',
-          style: const TextStyle(color: NexusColors.textMuted, fontSize: 10),
+          style: TextStyle(color: NexusColors.textMuted, fontSize: 10),
         ),
       ],
     );
@@ -543,7 +770,7 @@ class _Hours extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: NexusColors.textMuted, fontSize: 12)),
+        Text(label, style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
         Text(value, style: TextStyle(color: color, fontSize: 24, fontWeight: FontWeight.w600)),
       ],
     );
@@ -585,25 +812,32 @@ class _ProblemRow extends StatelessWidget {
             ],
             Expanded(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.check_circle, color: NexusColors.cyan, size: 16),
-                      const SizedBox(width: 6),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.check_circle, color: NexusColors.cyan, size: 16),
+                const SizedBox(width: 6),
                       Expanded(
                         child: Text(
                           '$subject  ${problem.title}',
                           style: const TextStyle(fontWeight: FontWeight.w700),
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    cards.map((c) => '${c.intervalStep}日後').join(' ・ '),
-                    style: const TextStyle(color: NexusColors.textMuted, fontSize: 11),
-                  ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              cards.map((c) => '${c.intervalStep}日後').join(' ・ '),
+              style: TextStyle(color: NexusColors.textMuted, fontSize: 11),
+            ),
+            if (problem.answer.trim().isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                '解答  ${problem.answer}',
+                style: TextStyle(color: NexusColors.textSecondary, fontSize: 12),
+              ),
+            ],
                 ],
               ),
             ),
@@ -614,41 +848,186 @@ class _ProblemRow extends StatelessWidget {
   }
 }
 
-Future<StudySubject?> promptNewSubject(BuildContext context, AppStore store) async {
-  final name = TextEditingController();
+Future<StudySubject?> promptNewSubject(
+  BuildContext context,
+  AppStore store, {
+  StudySubject? existing,
+}) async {
+  final name = TextEditingController(text: existing?.name ?? '');
+  var icon = existing?.icon ?? kStudyIcons.first;
+  var color = existing?.color ?? NexusColors.boxPalette.first;
   final saved = await showNexusSheet<bool>(
     context: context,
     useRootNavigator: true,
     builder: (context) {
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text('教科を追加', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 12),
-          TextField(
-            controller: name,
-            autofocus: true,
-            style: const TextStyle(color: NexusColors.text),
-            decoration: const InputDecoration(labelText: '教科名'),
-          ),
-          const SizedBox(height: 12),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('追加'),
-          ),
-        ],
+      return StatefulBuilder(
+        builder: (context, setSheet) {
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                existing == null ? '教科を追加' : '教科を編集',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: name,
+                autofocus: existing == null,
+                style: TextStyle(color: NexusColors.text),
+                decoration: const InputDecoration(labelText: '教科名'),
+              ),
+              const SizedBox(height: 8),
+              BoxLookPicker(
+                icon: icon,
+                color: color,
+                choices: kStudyIconChoices,
+                iconAreaHeight: 176,
+                onIcon: (value) => setSheet(() => icon = value),
+                onColor: (value) => setSheet(() => color = value),
+              ),
+              const SizedBox(height: 4),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: Text(existing == null ? '追加' : '保存'),
+              ),
+            ],
+          );
+        },
       );
     },
   );
   final text = name.text.trim();
   name.dispose();
-  if (saved == true && text.isNotEmpty) {
-    final subject = store.addSubject(name: text);
+  if (saved != true || text.isEmpty) return null;
+  if (existing == null) {
+    final subject = store.addSubject(name: text, icon: icon, color: color);
     if (context.mounted) showNexusToast(context, store.lastToast);
     return subject;
   }
-  return null;
+  store.updateSubject(existing.copyWith(name: text, icon: icon, color: color));
+  if (context.mounted) showNexusToast(context, store.lastToast);
+  return store.subjectById(existing.id);
+}
+
+Future<void> openSubjectWeek(BuildContext context, AppStore store, String subjectId) async {
+  await showNexusSheet<void>(
+    context: context,
+    builder: (context) {
+      return ListenableBuilder(
+        listenable: store,
+        builder: (context, _) {
+          final subject = store.subjectById(subjectId);
+          if (subject == null) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (Navigator.of(context).canPop()) Navigator.pop(context);
+            });
+            return const SizedBox.shrink();
+          }
+          final hours = store.subjectWeekHours(subject.id);
+          final peak = hours.fold<double>(0, (a, b) => a > b ? a : b);
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Icon(subject.icon, color: subject.color),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      subject.name,
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => promptNewSubject(context, store, existing: subject),
+                    child: const Text('編集'),
+                  ),
+                ],
+              ),
+              Text(
+                '今週 ${formatStudyHours(subject.weekHours)}',
+                style: TextStyle(color: subject.color, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'この週に勉強した曜日',
+                style: TextStyle(color: NexusColors.textMuted, fontSize: 12),
+              ),
+              const SizedBox(height: 10),
+              for (var i = 0; i < 7; i++) ...[
+                Row(
+                  children: [
+                    SizedBox(
+                      width: 22,
+                      child: Text(
+                        weekLabels[i],
+                        style: TextStyle(
+                          color: hours[i] > 0 ? NexusColors.text : NexusColors.textMuted,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          minHeight: 8,
+                          value: peak <= 0 ? 0 : hours[i] / peak,
+                          color: subject.color,
+                          backgroundColor: NexusColors.border.withValues(alpha: 0.45),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: 52,
+                      child: Text(
+                        hours[i] <= 0 ? '—' : formatStudyHours(hours[i]),
+                        textAlign: TextAlign.right,
+                        style: TextStyle(
+                          color: hours[i] > 0 ? subject.color : NexusColors.textMuted,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+              ],
+            ],
+          );
+        },
+      );
+    },
+  );
+}
+
+class _WeekDots extends StatelessWidget {
+  const _WeekDots({required this.hours, required this.color});
+
+  final List<double> hours;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        for (var i = 0; i < 7; i++)
+          Container(
+            width: 7,
+            height: 7,
+            margin: EdgeInsets.only(right: i == 6 ? 0 : 4),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: hours[i] > 0 ? color : NexusColors.border,
+            ),
+          ),
+      ],
+    );
+  }
 }
 
 Future<void> _addStudySession(BuildContext context, AppStore store) async {
@@ -686,9 +1065,9 @@ Future<void> _addStudySession(BuildContext context, AppStore store) async {
                       const SizedBox(width: 8),
                     ],
                     ActionChip(
-                      avatar: const Icon(Icons.add, size: 16, color: NexusColors.cyan),
-                      label: const Text('＋ 教科を追加'),
-                      labelStyle: const TextStyle(
+                      avatar: Icon(Icons.add, size: 16, color: NexusColors.cyan),
+                      label: Text('＋ 教科を追加'),
+                      labelStyle: TextStyle(
                         color: NexusColors.cyan,
                         fontWeight: FontWeight.w700,
                       ),
@@ -706,7 +1085,7 @@ Future<void> _addStudySession(BuildContext context, AppStore store) async {
                 onChanged: (value) => setSheet(() => minutes = value),
               ),
               const SizedBox(height: 8),
-              const Text('集中度', style: TextStyle(color: NexusColors.textSecondary, fontSize: 12)),
+              Text('集中度', style: TextStyle(color: NexusColors.textSecondary, fontSize: 12)),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
@@ -736,7 +1115,7 @@ Future<void> _addStudySession(BuildContext context, AppStore store) async {
       );
     },
   );
-  if (saved == true && subjectId != null) {
+  if (saved == true && subjectId != null && minutes > 0) {
     store.addStudySession(subjectId: subjectId!, minutes: minutes, focus: focus);
     if (context.mounted) {
       nexusHaptic();
@@ -762,7 +1141,7 @@ Future<void> _addAssignment(BuildContext context, AppStore store) async {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('提出物を追加', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+              Text('提出物を追加', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
               const SizedBox(height: 12),
               DropdownButton<String>(
                 value: subjectId,
@@ -776,7 +1155,7 @@ Future<void> _addAssignment(BuildContext context, AppStore store) async {
               ),
               TextField(
                 controller: title,
-                style: const TextStyle(color: NexusColors.text),
+                style: TextStyle(color: NexusColors.text),
                 decoration: const InputDecoration(labelText: '提出物名'),
               ),
               const SizedBox(height: 8),
@@ -822,11 +1201,11 @@ Future<void> _addExam(BuildContext context, AppStore store) async {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('試験日を追加', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+              Text('試験日を追加', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
               const SizedBox(height: 12),
               TextField(
                 controller: title,
-                style: const TextStyle(color: NexusColors.text),
+                style: TextStyle(color: NexusColors.text),
                 decoration: const InputDecoration(labelText: '科目・試験名'),
               ),
               const SizedBox(height: 8),
@@ -862,9 +1241,8 @@ Future<void> _addExam(BuildContext context, AppStore store) async {
 
 Future<void> _addGoal(BuildContext context, AppStore store) async {
   final title = TextEditingController();
-  final current = TextEditingController(text: '0');
-  final target = TextEditingController(text: '100');
-  final subs = List.generate(4, (_) => TextEditingController());
+  final target = TextEditingController();
+  final steps = [TextEditingController(text: '基礎')];
   var due = DateTime(store.focusedDate.year, store.focusedDate.month + 3, store.focusedDate.day);
   final saved = await showNexusSheet<bool>(
     context: context,
@@ -876,33 +1254,23 @@ Future<void> _addGoal(BuildContext context, AppStore store) async {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text('目標を追加', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                Text('目標ロードマップ', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 4),
+                Text(
+                  'ゴールまでの地点を並べて、進んだらタップでチェックできます。',
+                  style: TextStyle(color: NexusColors.textMuted, fontSize: 12),
+                ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: title,
-                  style: const TextStyle(color: NexusColors.text),
+                  style: TextStyle(color: NexusColors.text),
                   decoration: const InputDecoration(labelText: '目標名（例: TOEIC 800）'),
                 ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: current,
-                        keyboardType: TextInputType.number,
-                        style: const TextStyle(color: NexusColors.text),
-                        decoration: const InputDecoration(labelText: '現在'),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextField(
-                        controller: target,
-                        keyboardType: TextInputType.number,
-                        style: const TextStyle(color: NexusColors.text),
-                        decoration: const InputDecoration(labelText: '目標値'),
-                      ),
-                    ),
-                  ],
+                TextField(
+                  controller: target,
+                  keyboardType: TextInputType.number,
+                  style: TextStyle(color: NexusColors.text),
+                  decoration: const InputDecoration(labelText: '目標値（任意）'),
                 ),
                 const SizedBox(height: 8),
                 OutlinedButton(
@@ -918,17 +1286,49 @@ Future<void> _addGoal(BuildContext context, AppStore store) async {
                   child: Text('期限  ${jpDate(due)}'),
                 ),
                 const SizedBox(height: 10),
-                const Text('サブゴール（4つ）', style: TextStyle(color: NexusColors.textSecondary, fontSize: 12)),
-                for (var i = 0; i < 4; i++)
-                  TextField(
-                    controller: subs[i],
-                    style: const TextStyle(color: NexusColors.text),
-                    decoration: InputDecoration(labelText: 'サブゴール ${i + 1}'),
+                Text('ルート', style: TextStyle(color: NexusColors.textSecondary, fontSize: 12)),
+                for (var i = 0; i < steps.length; i++)
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 11,
+                        backgroundColor: NexusColors.cyan.withValues(alpha: 0.16),
+                        child: Text(
+                          '${i + 1}',
+                          style: TextStyle(fontSize: 11, color: NexusColors.cyan, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: steps[i],
+                          style: TextStyle(color: NexusColors.text),
+                          decoration: InputDecoration(labelText: '地点 ${i + 1}'),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: steps.length == 1
+                            ? null
+                            : () => setSheet(() {
+                                steps[i].dispose();
+                                steps.removeAt(i);
+                              }),
+                        icon: Icon(Icons.remove_circle_outline, size: 18, color: NexusColors.textMuted),
+                      ),
+                    ],
                   ),
-                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: () => setSheet(() => steps.add(TextEditingController())),
+                    icon: const Icon(Icons.add_rounded, size: 18),
+                    label: const Text('地点を足す'),
+                  ),
+                ),
+                const SizedBox(height: 8),
                 FilledButton(
                   onPressed: () => Navigator.pop(context, true),
-                  child: const Text('追加'),
+                  child: const Text('ロードマップを作る'),
                 ),
               ],
             ),
@@ -940,17 +1340,16 @@ Future<void> _addGoal(BuildContext context, AppStore store) async {
   if (saved == true && title.text.trim().isNotEmpty) {
     store.addGoal(
       title: title.text.trim(),
-      current: int.tryParse(current.text) ?? 0,
-      target: int.tryParse(target.text) ?? 100,
+      current: 0,
+      target: int.tryParse(target.text) ?? 0,
       dueAt: due,
-      subGoalTitles: [for (final c in subs) c.text],
+      subGoalTitles: [for (final c in steps) c.text],
     );
     if (context.mounted) showNexusToast(context, store.lastToast);
   }
   title.dispose();
-  current.dispose();
   target.dispose();
-  for (final c in subs) {
+  for (final c in steps) {
     c.dispose();
   }
 }
@@ -986,10 +1385,12 @@ Future<void> _recordProblem(BuildContext context, AppStore store) async {
   if (photo == null || !context.mounted) return;
 
   final title = TextEditingController();
+  final answer = TextEditingController();
   if (store.subjects.isEmpty) {
     final created = await promptNewSubject(context, store);
     if (created == null || !context.mounted) {
       title.dispose();
+      answer.dispose();
       return;
     }
   }
@@ -1022,8 +1423,15 @@ Future<void> _recordProblem(BuildContext context, AppStore store) async {
               ),
               TextField(
                 controller: title,
-                style: const TextStyle(color: NexusColors.text),
+                style: TextStyle(color: NexusColors.text),
                 decoration: const InputDecoration(labelText: '問題名（任意）'),
+              ),
+              TextField(
+                controller: answer,
+                minLines: 2,
+                maxLines: 4,
+                style: TextStyle(color: NexusColors.text),
+                decoration: const InputDecoration(labelText: '解答（任意）'),
               ),
               const SizedBox(height: 12),
               FilledButton(
@@ -1038,10 +1446,11 @@ Future<void> _recordProblem(BuildContext context, AppStore store) async {
   );
   if (saved == true) {
     final name = title.text.trim().isEmpty ? '問題 ${store.problems.length + 1}' : title.text.trim();
-    store.addProblem(subjectId: subjectId, title: name, photoBytes: photo);
+    store.addProblem(subjectId: subjectId, title: name, photoBytes: photo, answer: answer.text.trim());
     if (context.mounted) showNexusToast(context, store.lastToast);
   }
   title.dispose();
+  answer.dispose();
 }
 
 Future<void> _openReview(BuildContext context, AppStore store) async {
@@ -1052,8 +1461,8 @@ Future<void> _openReview(BuildContext context, AppStore store) async {
     context: context,
     builder: (context) {
       if (due.isEmpty) {
-        return const Padding(
-          padding: EdgeInsets.all(12),
+        return Padding(
+          padding: const EdgeInsets.all(12),
           child: Text('今日の復習はありません。', style: TextStyle(color: NexusColors.textSecondary)),
         );
       }
@@ -1071,8 +1480,12 @@ Future<void> _openReview(BuildContext context, AppStore store) async {
             const SizedBox(height: 12),
           ],
           Text(problem.title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+          if (problem.answer.trim().isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(problem.answer, style: TextStyle(color: NexusColors.textSecondary)),
+          ],
           const SizedBox(height: 6),
-          Text('${card.intervalStep}日後カード', style: const TextStyle(color: NexusColors.textMuted)),
+          Text('${card.intervalStep}日後カード', style: TextStyle(color: NexusColors.textMuted)),
           const SizedBox(height: 12),
           Wrap(
             spacing: 8,

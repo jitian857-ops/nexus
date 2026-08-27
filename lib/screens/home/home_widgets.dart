@@ -7,6 +7,7 @@ import '../../widgets/count_up_yen.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/nexus_nav_bar.dart';
 import '../../widgets/progress_ring.dart';
+import '../../widgets/study_week_chart.dart';
 import '../../widgets/ui_bits.dart';
 
 class HomeWidgetCarousel extends StatelessWidget {
@@ -43,7 +44,7 @@ class HomeWidgetCarousel extends StatelessWidget {
         const SizedBox(height: 10),
         _StudyTimeCard(
           hours: store.weekStudyHours,
-          bars: store.weekBars,
+          dayHours: store.weekDayHours(),
           onTap: () => store.goTo(NexusTab.study),
         ),
       ],
@@ -61,12 +62,12 @@ class WidgetLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Text(
-          code,
-          style: TextStyle(
-            color: NexusColors.purple.withValues(alpha: 0.9),
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
+        Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(colors: [NexusColors.cyan, NexusColors.purple]),
           ),
         ),
         const SizedBox(width: 6),
@@ -74,7 +75,12 @@ class WidgetLabel extends StatelessWidget {
           child: Text(
             title,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: NexusColors.textSecondary, fontSize: 11),
+            style: TextStyle(
+              color: NexusColors.textSecondary,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.3,
+            ),
           ),
         ),
       ],
@@ -118,7 +124,7 @@ class _GoalCard extends StatelessWidget {
                     children: [
                       Text(
                         done ? '達成' : '残り',
-                        style: const TextStyle(color: NexusColors.textMuted, fontSize: 10),
+                        style: TextStyle(color: NexusColors.textMuted, fontSize: 10),
                       ),
                       Text(
                         done ? '' : remainingLabel,
@@ -135,7 +141,7 @@ class _GoalCard extends StatelessWidget {
                 ),
               ),
             ),
-            Text('目標 $goalLabel', style: const TextStyle(color: NexusColors.textMuted, fontSize: 11)),
+            Text('目標 $goalLabel', style: TextStyle(color: NexusColors.textMuted, fontSize: 11)),
           ],
         ),
       ),
@@ -155,11 +161,11 @@ Future<void> _openStudyGoalEditor(BuildContext context, AppStore store) async {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('今日の勉強時間', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+              Text('今日の勉強時間', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
               const SizedBox(height: 8),
               Text(
                 remaining == '達成' ? '今日の目標は達成しています' : '残り $remaining',
-                style: const TextStyle(color: NexusColors.cyan, fontWeight: FontWeight.w700),
+                style: TextStyle(color: NexusColors.cyan, fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 14),
               Wrap(
@@ -205,12 +211,12 @@ Future<void> _openStudyGoalEditor(BuildContext context, AppStore store) async {
 class _StudyTimeCard extends StatelessWidget {
   const _StudyTimeCard({
     required this.hours,
-    required this.bars,
+    required this.dayHours,
     required this.onTap,
   });
 
   final double hours;
-  final List<double> bars;
+  final List<double> dayHours;
   final VoidCallback onTap;
 
   @override
@@ -224,58 +230,36 @@ class _StudyTimeCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const WidgetLabel(code: 'W04', title: '今週の学習時間'),
-            Text(
-              '${hours}h',
-              style: const TextStyle(
-                color: NexusColors.purple,
-                fontSize: 28,
-                fontWeight: FontWeight.w600,
-                height: 1.1,
+            const SizedBox(height: 2),
+            ShaderMask(
+              shaderCallback: (rect) =>
+                  LinearGradient(colors: NexusColors.accentSweep).createShader(rect),
+              child: Text(
+                formatStudyHours(hours),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                  height: 1.1,
+                ),
               ),
             ),
             const SizedBox(height: 6),
             Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  for (var i = 0; i < weekLabels.length; i++)
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: Column(
-                          children: [
-                            Expanded(
-                              child: Align(
-                                alignment: Alignment.bottomCenter,
-                                child: AnimatedFractionallySizedBox(
-                                  duration: const Duration(milliseconds: 520),
-                                  curve: Curves.easeOutCubic,
-                                  heightFactor: i < bars.length ? bars[i] : 0,
-                                  widthFactor: 1,
-                                  child: const DecoratedBox(
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.all(Radius.circular(4)),
-                                      gradient: LinearGradient(
-                                        begin: Alignment.bottomCenter,
-                                        end: Alignment.topCenter,
-                                        colors: [NexusColors.cyan, NexusColors.purple],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              weekLabels[i],
-                              style: const TextStyle(color: NexusColors.textMuted, fontSize: 11),
-                            ),
-                          ],
-                        ),
-                      ),
+              child: StudyWeekChart(dayHours: dayHours),
+            ),
+            Row(
+              children: [
+                const SizedBox(width: 34),
+                for (final label in weekLabels)
+                  Expanded(
+                    child: Text(
+                      label,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: NexusColors.textMuted, fontSize: 11),
                     ),
-                ],
-              ),
+                  ),
+              ],
             ),
           ],
         ),
@@ -312,20 +296,22 @@ class _BalanceCard extends StatelessWidget {
             const Spacer(),
             CountUpYen(
               value: balance,
-              style: const TextStyle(
+              style: TextStyle(
                 color: NexusColors.gold,
                 fontSize: 24,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w700,
               ),
             ),
             const Spacer(),
             Row(
               children: [
-                const Text('収入', style: TextStyle(color: NexusColors.textMuted, fontSize: 11)),
+                Icon(Icons.arrow_upward_rounded, size: 12, color: NexusColors.income),
+                const SizedBox(width: 3),
+                Text('収入', style: TextStyle(color: NexusColors.textMuted, fontSize: 11)),
                 const Spacer(),
                 Text(
                   yen(income),
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: NexusColors.income,
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
@@ -336,11 +322,13 @@ class _BalanceCard extends StatelessWidget {
             const SizedBox(height: 4),
             Row(
               children: [
-                const Text('支出', style: TextStyle(color: NexusColors.textMuted, fontSize: 11)),
+                Icon(Icons.arrow_downward_rounded, size: 12, color: NexusColors.expense),
+                const SizedBox(width: 3),
+                Text('支出', style: TextStyle(color: NexusColors.textMuted, fontSize: 11)),
                 const Spacer(),
                 Text(
                   yen(-expense),
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: NexusColors.expense,
                     fontSize: 12,
                     fontWeight: FontWeight.w700,

@@ -11,6 +11,9 @@ class NexusPrefs {
 
   static Future<void> save({
     required List<StudySubject> subjects,
+    required List<StudySession> sessions,
+    required List<Exam> exams,
+    required List<StudyGoal> goals,
     required List<BudgetBox> boxes,
     required List<MoneyCard> cards,
     required List<IncomeEntry> incomes,
@@ -18,6 +21,8 @@ class NexusPrefs {
     required List<Habit> habits,
     required List<SleepLog> sleepLogs,
     DateTime? sleepStartedAt,
+    String? userName,
+    UserSettings? settings,
   }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -25,6 +30,9 @@ class NexusPrefs {
         _key,
         jsonEncode({
           'subjects': [for (final s in subjects) s.toJson()],
+          'sessions': [for (final s in sessions) s.toJson()],
+          'exams': [for (final e in exams) e.toJson()],
+          'goals': [for (final g in goals) g.toJson()],
           'boxes': [for (final b in boxes) b.toJson()],
           'cards': [for (final c in cards) c.toJson()],
           'incomes': [for (final i in incomes) i.toJson()],
@@ -32,6 +40,7 @@ class NexusPrefs {
           'habits': [for (final h in habits) h.toJson()],
           'sleepLogs': [for (final s in sleepLogs) s.toJson()],
           'sleepStartedAt': sleepStartedAt?.toIso8601String(),
+          if (settings != null) 'settings': settings.toJson(),
         }),
       );
     } catch (_) {}

@@ -45,6 +45,9 @@ void main() {
 
     await tapTab('設定');
     expect(find.text('Nexusを、自分らしく。'), findsOneWidget);
+    expect(find.text('ミッドナイト'), findsWidgets);
+    expect(find.text('アイボリー'), findsOneWidget);
+    expect(find.text('クリムゾン'), findsOneWidget);
   });
 
   test('問題記録で1・5日の復習カードが作られる', () {
@@ -76,7 +79,7 @@ void main() {
     );
   });
 
-  test('Moneyの残高は収入−支出、使える額は残日数で割る', () {
+  test('Moneyの残高は予算ボックスを引いた残り、使える額は残高を残日数で割る', () {
     final boxes = [
       const BudgetBox(
         id: 'a',
@@ -96,9 +99,10 @@ void main() {
       payments: payments,
       today: DateTime(2026, 8, 14),
     );
-    expect(snap.expense, 3600);
-    expect(snap.balance, 36400);
-    expect(snap.spendableToday >= 0, isTrue);
+    expect(snap.expense, 10000);
+    expect(snap.balance, 30000);
+    expect(snap.spendableToday, 1611);
+    expect(snap.spendableWeek, 1611 * 7);
   });
 
   test('ReviewScheduler は learnedAt から 1/5 日', () {

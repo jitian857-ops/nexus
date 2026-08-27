@@ -10,7 +10,7 @@ class ProgressRing extends StatelessWidget {
     required this.progress,
     this.size = 96,
     this.stroke = 8,
-    this.colors = const [NexusColors.cyan, NexusColors.purple, NexusColors.cyan],
+    this.colors,
     this.child,
     this.animate = true,
   });
@@ -18,19 +18,20 @@ class ProgressRing extends StatelessWidget {
   final double progress;
   final double size;
   final double stroke;
-  final List<Color> colors;
+  final List<Color>? colors;
   final Widget? child;
   final bool animate;
 
   @override
   Widget build(BuildContext context) {
     final target = progress.clamp(0.0, 1.0);
+    final ringColors = colors ?? [NexusColors.cyan, NexusColors.purple, NexusColors.cyan];
     Widget ring(double value) {
       return SizedBox(
         width: size,
         height: size,
         child: CustomPaint(
-          painter: _RingPainter(progress: value, stroke: stroke, colors: colors),
+          painter: _RingPainter(progress: value, stroke: stroke, colors: ringColors),
           child: Center(child: child),
         ),
       );

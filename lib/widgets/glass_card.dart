@@ -21,18 +21,19 @@ class GlassCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final radius = BorderRadius.circular(NexusColors.cardRadius);
-    return Container(
+    final light = NexusColors.isLight;
+    return DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: radius,
-        boxShadow: glowColor == null
-            ? null
-            : [
-                BoxShadow(
-                  color: glowColor!.withValues(alpha: 0.14),
-                  blurRadius: 24,
-                  offset: const Offset(0, 10),
-                ),
-              ],
+        boxShadow: [
+          BoxShadow(
+            color: (glowColor ?? (light ? Colors.black : NexusColors.cyan)).withValues(
+              alpha: glowColor == null ? (light ? 0.06 : 0.05) : 0.16,
+            ),
+            blurRadius: glowColor == null ? 16 : 22,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Material(
         color: Colors.transparent,
@@ -41,7 +42,8 @@ class GlassCard extends StatelessWidget {
         shape: RoundedRectangleBorder(
           borderRadius: radius,
           side: BorderSide(
-            color: borderColor ?? NexusColors.border.withValues(alpha: 0.8),
+            color: borderColor ?? NexusColors.hairline,
+            width: 1,
           ),
         ),
         clipBehavior: Clip.antiAlias,
@@ -49,18 +51,23 @@ class GlassCard extends StatelessWidget {
           height: height,
           child: Stack(
             children: [
-              const Positioned.fill(
+              Positioned.fill(
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [NexusColors.cardTop, NexusColors.card],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        NexusColors.cardTop,
+                        NexusColors.card,
+                        NexusColors.surface,
+                      ],
+                      stops: const [0, 0.5, 1],
                     ),
                   ),
                 ),
               ),
-              const Positioned(
+              Positioned(
                 top: 0,
                 left: 18,
                 right: 18,
@@ -69,16 +76,36 @@ class GlassCard extends StatelessWidget {
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
-                          Color(0x00FFFFFF),
+                          Colors.transparent,
                           NexusColors.hairline,
-                          Color(0x00FFFFFF),
+                          Colors.transparent,
                         ],
                       ),
                     ),
-                    child: SizedBox(height: 1),
+                    child: const SizedBox(height: 1.2),
                   ),
                 ),
               ),
+              if (glowColor != null)
+                Positioned(
+                  top: -46,
+                  left: -36,
+                  child: IgnorePointer(
+                    child: Container(
+                      width: 150,
+                      height: 150,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(
+                          colors: [
+                            glowColor!.withValues(alpha: 0.12),
+                            Colors.transparent,
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               Padding(padding: padding, child: child),
             ],
           ),

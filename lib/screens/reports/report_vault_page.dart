@@ -26,11 +26,11 @@ class ReportVaultPage extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: NexusColors.background,
-      appBar: AppBar(title: const Text('レポート保管庫')),
+      appBar: AppBar(title: Text('レポート保管庫')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
-          const Text('Study / Life / Money の振り返り。AIは使いません。', style: TextStyle(color: NexusColors.textSecondary)),
+          Text('Study / Life / Money の振り返り。AIは使いません。', style: TextStyle(color: NexusColors.textSecondary)),
           const SizedBox(height: 12),
           GlassCard(
             fill: NexusColors.sky,
@@ -69,7 +69,7 @@ class ReportVaultPage extends StatelessWidget {
                       Text(report.title, style: const TextStyle(fontWeight: FontWeight.w800)),
                       Text(
                         jpDate(report.createdAt),
-                        style: const TextStyle(color: NexusColors.textMuted, fontSize: 12),
+                        style: TextStyle(color: NexusColors.textMuted, fontSize: 12),
                       ),
                       const SizedBox(height: 8),
                       Text(report.body, style: const TextStyle(height: 1.45, fontSize: 13)),
@@ -136,9 +136,9 @@ class _Compare extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 6),
       child: Row(
         children: [
-          SizedBox(width: 88, child: Text(label, style: const TextStyle(color: NexusColors.textMuted))),
+          SizedBox(width: 88, child: Text(label, style: TextStyle(color: NexusColors.textMuted))),
           Expanded(child: Text(now, style: const TextStyle(fontWeight: FontWeight.w800))),
-          Text('前月 $then', style: const TextStyle(color: NexusColors.textMuted, fontSize: 12)),
+          Text('前月 $then', style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
         ],
       ),
     );
@@ -186,7 +186,7 @@ class ReportPrintPage extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   'NEXUS  •  ${jpDate(report.createdAt)}',
-                  style: const TextStyle(color: NexusColors.textMuted, fontSize: 12),
+                  style: TextStyle(color: NexusColors.textMuted, fontSize: 12),
                 ),
                 const Divider(height: 28),
                 Text(report.body, style: const TextStyle(height: 1.55, fontSize: 14)),

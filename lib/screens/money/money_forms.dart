@@ -4,17 +4,7 @@ import '../../app/theme.dart';
 import '../../core/format.dart';
 import '../../data/app_store.dart';
 import '../../data/models.dart';
-import '../../domain/money_catalog.dart';
 import '../../widgets/ui_bits.dart';
-
-const _boxColors = [
-  Color(0xFF3DA9FC),
-  NexusColors.purple,
-  NexusColors.cyan,
-  NexusColors.green,
-  Color(0xFFFFC857),
-  Color(0xFFFF8AD2),
-];
 
 Future<void> openAddIncome(BuildContext context, AppStore store) async {
   final name = TextEditingController();
@@ -34,16 +24,16 @@ Future<void> openAddIncome(BuildContext context, AppStore store) async {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text('収入を追加', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                Text('収入を追加', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
                 TextField(
                   controller: name,
-                  style: const TextStyle(color: NexusColors.text),
+                  style: TextStyle(color: NexusColors.text),
                   decoration: const InputDecoration(labelText: '収入名'),
                 ),
                 TextField(
                   controller: amount,
                   keyboardType: TextInputType.number,
-                  style: const TextStyle(color: NexusColors.text),
+                  style: TextStyle(color: NexusColors.text),
                   decoration: const InputDecoration(labelText: '金額'),
                 ),
                 const SizedBox(height: 8),
@@ -55,12 +45,19 @@ Future<void> openAddIncome(BuildContext context, AppStore store) async {
                       firstDate: DateTime(deposited.year - 1),
                       lastDate: DateTime(deposited.year + 2),
                     );
-                    if (picked != null) setSheet(() => deposited = picked);
+                    if (picked != null) {
+                      setSheet(() {
+                        deposited = picked;
+                        final next = nextUseMonth(picked);
+                        useYear = next.year;
+                        useMonth = next.month;
+                      });
+                    }
                   },
                   child: Text('入金日  ${jpDate(deposited)}'),
                 ),
                 const SizedBox(height: 8),
-                const Text('何月分として使うか', style: TextStyle(color: NexusColors.textSecondary, fontSize: 12)),
+                Text('何月分として使うか', style: TextStyle(color: NexusColors.textSecondary, fontSize: 12)),
                 Row(
                   children: [
                     Expanded(
@@ -92,7 +89,7 @@ Future<void> openAddIncome(BuildContext context, AppStore store) async {
                 ),
                 TextField(
                   controller: memo,
-                  style: const TextStyle(color: NexusColors.text),
+                  style: TextStyle(color: NexusColors.text),
                   decoration: const InputDecoration(labelText: 'メモ（任意）'),
                 ),
                 const SizedBox(height: 12),
@@ -141,10 +138,10 @@ Future<void> openAddBox(BuildContext context, AppStore store) async {
           const SizedBox(height: 8),
           OutlinedButton(
             onPressed: () => Navigator.pop(context, BoxKind.savings),
-            child: const Text('貯蓄ボックス'),
+            child: Text('貯蓄ボックス'),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             '予算は毎月リセット、貯蓄は残高を持ち越します。',
             style: TextStyle(color: NexusColors.textMuted, fontSize: 12),
           ),
@@ -160,15 +157,20 @@ Future<void> openAddBox(BuildContext context, AppStore store) async {
   }
 }
 
-Future<void> _openBudgetBoxForm(BuildContext context, AppStore store) async {
-  final name = TextEditingController();
-  final budget = TextEditingController(text: '30000');
-  final memo = TextEditingController();
+Future<void> openEditBox(BuildContext context, AppStore store, BudgetBox box) {
+  if (box.isSavings) return _openSavingsBoxForm(context, store, existing: box);
+  return _openBudgetBoxForm(context, store, existing: box);
+}
+
+Future<void> _openBudgetBoxForm(BuildContext context, AppStore store, {BudgetBox? existing}) async {
+  final name = TextEditingController(text: existing?.name ?? '');
+  final budget = TextEditingController(text: existing == null ? '30000' : '${existing.monthlyBudget}');
+  final memo = TextEditingController(text: existing?.memo ?? '');
   final tag = TextEditingController();
-  var icon = Icons.restaurant_rounded;
-  var color = const Color(0xFF3DA9FC);
-  var renewalDay = 1;
-  var tags = <String>['その他'];
+  var icon = existing?.icon ?? Icons.restaurant_rounded;
+  var color = existing?.color ?? const Color(0xFF3DA9FC);
+  var renewalDay = existing?.renewalDay ?? 1;
+  var tags = [...(existing?.tags ?? const ['その他'])];
   final saved = await showNexusSheet<bool>(
     context: context,
     builder: (context) {
@@ -178,21 +180,21 @@ Future<void> _openBudgetBoxForm(BuildContext context, AppStore store) async {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text('予算ボックス', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                Text(existing == null ? '予算ボックス' : '予算ボックスを編集', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 8),
                 TextField(
                   controller: name,
-                  style: const TextStyle(color: NexusColors.text),
+                  style: TextStyle(color: NexusColors.text),
                   decoration: const InputDecoration(labelText: 'ボックス名'),
                 ),
                 TextField(
                   controller: budget,
                   keyboardType: TextInputType.number,
-                  style: const TextStyle(color: NexusColors.text),
+                  style: TextStyle(color: NexusColors.text),
                   decoration: const InputDecoration(labelText: '月間予算'),
                 ),
                 const SizedBox(height: 8),
-                const Text('更新日', style: TextStyle(color: NexusColors.textSecondary, fontSize: 12)),
+                Text('更新日', style: TextStyle(color: NexusColors.textSecondary, fontSize: 12)),
                 DropdownButton<int>(
                   value: renewalDay,
                   dropdownColor: NexusColors.card,
@@ -203,48 +205,13 @@ Future<void> _openBudgetBoxForm(BuildContext context, AppStore store) async {
                   ],
                   onChanged: (v) => setSheet(() => renewalDay = v ?? 1),
                 ),
-                const Text('アイコン', style: TextStyle(color: NexusColors.textSecondary, fontSize: 12)),
-                SizedBox(
-                  height: 96,
-                  child: SingleChildScrollView(
-                    child: Wrap(
-                      spacing: 8,
-                      children: [
-                        for (final i in boxIconChoices)
-                          IconButton(
-                            onPressed: () => setSheet(() => icon = i),
-                            icon: Icon(i, color: i == icon ? color : NexusColors.textMuted),
-                          ),
-                      ],
-                    ),
-                  ),
+                BoxLookPicker(
+                  icon: icon,
+                  color: color,
+                  onIcon: (value) => setSheet(() => icon = value),
+                  onColor: (value) => setSheet(() => color = value),
                 ),
-                const Text('色', style: TextStyle(color: NexusColors.textSecondary, fontSize: 12)),
-                Padding(
-                  padding: const EdgeInsets.only(top: 6, bottom: 8),
-                  child: Row(
-                    children: [
-                      for (final c in _boxColors)
-                        GestureDetector(
-                          onTap: () => setSheet(() => color = c),
-                          child: Container(
-                            width: 24,
-                            height: 24,
-                            margin: const EdgeInsets.only(right: 8),
-                            decoration: BoxDecoration(
-                              color: c,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: c == color ? NexusColors.text : Colors.transparent,
-                                width: 2,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                const Text('タグ', style: TextStyle(color: NexusColors.textSecondary, fontSize: 12)),
+                Text('タグ', style: TextStyle(color: NexusColors.textSecondary, fontSize: 12)),
                 Wrap(
                   spacing: 6,
                   children: [
@@ -270,16 +237,16 @@ Future<void> _openBudgetBoxForm(BuildContext context, AppStore store) async {
                 ),
                 TextField(
                   controller: tag,
-                  style: const TextStyle(color: NexusColors.text),
+                  style: TextStyle(color: NexusColors.text),
                   decoration: const InputDecoration(labelText: '新しいタグ名'),
                 ),
                 TextField(
                   controller: memo,
-                  style: const TextStyle(color: NexusColors.text),
+                  style: TextStyle(color: NexusColors.text),
                   decoration: const InputDecoration(labelText: 'メモ'),
                 ),
                 const SizedBox(height: 12),
-                FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('作成')),
+                FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(existing == null ? '作成' : '保存')),
               ],
           );
         },
@@ -288,15 +255,29 @@ Future<void> _openBudgetBoxForm(BuildContext context, AppStore store) async {
   );
   final value = int.tryParse(budget.text.replaceAll(',', ''));
   if (saved == true && name.text.trim().isNotEmpty && value != null && value >= 0) {
-    store.addBudgetBox(
-      name: name.text.trim(),
-      icon: icon,
-      color: color,
-      monthlyBudget: value,
-      renewalDay: renewalDay,
-      tags: tags,
-      memo: memo.text.trim(),
-    );
+    if (existing == null) {
+      store.addBudgetBox(
+        name: name.text.trim(),
+        icon: icon,
+        color: color,
+        monthlyBudget: value,
+        renewalDay: renewalDay,
+        tags: tags,
+        memo: memo.text.trim(),
+      );
+    } else {
+      store.updateBox(
+        existing.copyWith(
+          name: name.text.trim(),
+          icon: icon,
+          color: color,
+          monthlyBudget: value,
+          renewalDay: renewalDay,
+          tags: tags,
+          memo: memo.text.trim(),
+        ),
+      );
+    }
     if (context.mounted) showNexusToast(context, store.lastToast);
   }
   name.dispose();
@@ -305,16 +286,16 @@ Future<void> _openBudgetBoxForm(BuildContext context, AppStore store) async {
   tag.dispose();
 }
 
-Future<void> _openSavingsBoxForm(BuildContext context, AppStore store) async {
-  final name = TextEditingController();
-  final target = TextEditingController(text: '150000');
-  final current = TextEditingController(text: '0');
-  final memo = TextEditingController();
+Future<void> _openSavingsBoxForm(BuildContext context, AppStore store, {BudgetBox? existing}) async {
+  final name = TextEditingController(text: existing?.name ?? '');
+  final target = TextEditingController(text: existing == null ? '150000' : '${existing.targetAmount}');
+  final current = TextEditingController(text: existing == null ? '0' : '${existing.openingAmount}');
+  final memo = TextEditingController(text: existing?.memo ?? '');
   final tag = TextEditingController();
-  var icon = Icons.savings_rounded;
-  var color = const Color(0xFFFFC857);
-  DateTime? targetDate;
-  var tags = <String>['積立', 'その他'];
+  var icon = existing?.icon ?? Icons.savings_rounded;
+  var color = existing?.color ?? const Color(0xFFFFC857);
+  DateTime? targetDate = existing?.targetDate;
+  var tags = [...(existing?.tags ?? const ['積立', 'その他'])];
   final saved = await showNexusSheet<bool>(
     context: context,
     builder: (context) {
@@ -324,23 +305,23 @@ Future<void> _openSavingsBoxForm(BuildContext context, AppStore store) async {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-                const Text('貯蓄ボックス', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                Text(existing == null ? '貯蓄ボックス' : '貯蓄ボックスを編集', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 8),
                 TextField(
                   controller: name,
-                  style: const TextStyle(color: NexusColors.text),
+                  style: TextStyle(color: NexusColors.text),
                   decoration: const InputDecoration(labelText: 'ボックス名'),
                 ),
                 TextField(
                   controller: target,
                   keyboardType: TextInputType.number,
-                  style: const TextStyle(color: NexusColors.text),
+                  style: TextStyle(color: NexusColors.text),
                   decoration: const InputDecoration(labelText: '目標金額'),
                 ),
                 TextField(
                   controller: current,
                   keyboardType: TextInputType.number,
-                  style: const TextStyle(color: NexusColors.text),
+                  style: TextStyle(color: NexusColors.text),
                   decoration: const InputDecoration(labelText: '現在金額'),
                 ),
                 OutlinedButton(
@@ -355,48 +336,13 @@ Future<void> _openSavingsBoxForm(BuildContext context, AppStore store) async {
                   },
                   child: Text(targetDate == null ? '目標日（任意）' : '目標日  ${jpDate(targetDate!)}'),
                 ),
-                const Text('アイコン', style: TextStyle(color: NexusColors.textSecondary, fontSize: 12)),
-                SizedBox(
-                  height: 96,
-                  child: SingleChildScrollView(
-                    child: Wrap(
-                      spacing: 8,
-                      children: [
-                        for (final i in boxIconChoices)
-                          IconButton(
-                            onPressed: () => setSheet(() => icon = i),
-                            icon: Icon(i, color: i == icon ? color : NexusColors.textMuted),
-                          ),
-                      ],
-                    ),
-                  ),
+                BoxLookPicker(
+                  icon: icon,
+                  color: color,
+                  onIcon: (value) => setSheet(() => icon = value),
+                  onColor: (value) => setSheet(() => color = value),
                 ),
-                const Text('色', style: TextStyle(color: NexusColors.textSecondary, fontSize: 12)),
-                Padding(
-                  padding: const EdgeInsets.only(top: 6, bottom: 8),
-                  child: Row(
-                    children: [
-                      for (final c in _boxColors)
-                        GestureDetector(
-                          onTap: () => setSheet(() => color = c),
-                          child: Container(
-                            width: 24,
-                            height: 24,
-                            margin: const EdgeInsets.only(right: 8),
-                            decoration: BoxDecoration(
-                              color: c,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: c == color ? NexusColors.text : Colors.transparent,
-                                width: 2,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                const Text('タグ', style: TextStyle(color: NexusColors.textSecondary, fontSize: 12)),
+                Text('タグ', style: TextStyle(color: NexusColors.textSecondary, fontSize: 12)),
                 Wrap(
                   spacing: 6,
                   children: [
@@ -422,16 +368,16 @@ Future<void> _openSavingsBoxForm(BuildContext context, AppStore store) async {
                 ),
                 TextField(
                   controller: tag,
-                  style: const TextStyle(color: NexusColors.text),
+                  style: TextStyle(color: NexusColors.text),
                   decoration: const InputDecoration(labelText: '新しいタグ名'),
                 ),
                 TextField(
                   controller: memo,
-                  style: const TextStyle(color: NexusColors.text),
+                  style: TextStyle(color: NexusColors.text),
                   decoration: const InputDecoration(labelText: 'メモ'),
                 ),
                 const SizedBox(height: 12),
-                FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('作成')),
+                FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(existing == null ? '作成' : '保存')),
               ],
           );
         },
@@ -441,16 +387,31 @@ Future<void> _openSavingsBoxForm(BuildContext context, AppStore store) async {
   final goal = int.tryParse(target.text.replaceAll(',', ''));
   final now = int.tryParse(current.text.replaceAll(',', '')) ?? 0;
   if (saved == true && name.text.trim().isNotEmpty && goal != null && goal > 0) {
-    store.addSavingsBox(
-      name: name.text.trim(),
-      icon: icon,
-      color: color,
-      targetAmount: goal,
-      openingAmount: now,
-      targetDate: targetDate,
-      tags: tags,
-      memo: memo.text.trim(),
-    );
+    if (existing == null) {
+      store.addSavingsBox(
+        name: name.text.trim(),
+        icon: icon,
+        color: color,
+        targetAmount: goal,
+        openingAmount: now,
+        targetDate: targetDate,
+        tags: tags,
+        memo: memo.text.trim(),
+      );
+    } else {
+      store.updateBox(
+        existing.copyWith(
+          name: name.text.trim(),
+          icon: icon,
+          color: color,
+          targetAmount: goal,
+          openingAmount: now,
+          targetDate: targetDate,
+          tags: tags,
+          memo: memo.text.trim(),
+        ),
+      );
+    }
     if (context.mounted) showNexusToast(context, store.lastToast);
   }
   name.dispose();
@@ -469,6 +430,7 @@ Future<void> openAddCard(BuildContext context, AppStore store, {String? boxId}) 
   var at = store.focusedDate;
   var tag = '';
   var saveIn = true;
+  var fromBalance = false;
   final saved = await showNexusSheet<bool>(
     context: context,
     builder: (context) {
@@ -481,7 +443,7 @@ Future<void> openAddCard(BuildContext context, AppStore store, {String? boxId}) 
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text('カードを追加', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                Text('カードを追加', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
                 DropdownButton<String>(
                   value: selected,
                   dropdownColor: NexusColors.card,
@@ -495,31 +457,58 @@ Future<void> openAddCard(BuildContext context, AppStore store, {String? boxId}) 
                     tag = '';
                   }),
                 ),
-                if (box?.isSavings == true)
-                  Row(
+                if (box?.isSavings == true) ...[
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
                     children: [
                       ChoiceChip(
                         label: const Text('預ける'),
                         selected: saveIn,
-                        onSelected: (_) => setSheet(() => saveIn = true),
+                        onSelected: (_) => setSheet(() {
+                          saveIn = true;
+                          fromBalance = false;
+                        }),
                       ),
-                      const SizedBox(width: 8),
                       ChoiceChip(
-                        label: const Text('引き出す'),
-                        selected: !saveIn,
-                        onSelected: (_) => setSheet(() => saveIn = false),
+                        label: const Text('貯蓄から出す'),
+                        selected: !saveIn && !fromBalance,
+                        onSelected: (_) => setSheet(() {
+                          saveIn = false;
+                          fromBalance = false;
+                        }),
+                      ),
+                      ChoiceChip(
+                        label: const Text('残高から出す'),
+                        selected: !saveIn && fromBalance,
+                        onSelected: (_) => setSheet(() {
+                          saveIn = false;
+                          fromBalance = true;
+                        }),
                       ),
                     ],
                   ),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      saveIn
+                          ? '残高が減り、貯蓄ボックスが増えます。'
+                          : fromBalance
+                              ? '残高だけ減ります。貯蓄の中身は変わりません。'
+                              : '貯蓄ボックスの中だけ減ります。残高は変わりません。',
+                      style: TextStyle(color: NexusColors.textMuted, fontSize: 11),
+                    ),
+                  ),
+                ],
                 TextField(
                   controller: title,
-                  style: const TextStyle(color: NexusColors.text),
-                  decoration: const InputDecoration(labelText: '内容'),
+                  style: TextStyle(color: NexusColors.text),
+                  decoration: const InputDecoration(labelText: '内容（任意）'),
                 ),
                 TextField(
                   controller: amount,
                   keyboardType: TextInputType.number,
-                  style: const TextStyle(color: NexusColors.text),
+                  style: TextStyle(color: NexusColors.text),
                   decoration: const InputDecoration(labelText: '金額'),
                 ),
                 OutlinedButton(
@@ -534,7 +523,7 @@ Future<void> openAddCard(BuildContext context, AppStore store, {String? boxId}) 
                   },
                   child: Text('日付  ${jpDate(at)}'),
                 ),
-                const Text('タグ', style: TextStyle(color: NexusColors.textSecondary, fontSize: 12)),
+                Text('タグ', style: TextStyle(color: NexusColors.textSecondary, fontSize: 12)),
                 Wrap(
                   spacing: 6,
                   children: [
@@ -555,7 +544,7 @@ Future<void> openAddCard(BuildContext context, AppStore store, {String? boxId}) 
                 ),
                 TextField(
                   controller: memo,
-                  style: const TextStyle(color: NexusColors.text),
+                  style: TextStyle(color: NexusColors.text),
                   decoration: const InputDecoration(labelText: 'メモ（任意）'),
                 ),
                 const SizedBox(height: 12),
@@ -569,7 +558,7 @@ Future<void> openAddCard(BuildContext context, AppStore store, {String? boxId}) 
   );
   final value = int.tryParse(amount.text.replaceAll(',', ''));
   final box = store.boxById(selected);
-  if (saved == true && title.text.trim().isNotEmpty && value != null && value > 0 && box != null) {
+  if (saved == true && value != null && value > 0 && box != null) {
     store.addMoneyCard(
       boxId: selected,
       title: title.text.trim(),
@@ -578,7 +567,11 @@ Future<void> openAddCard(BuildContext context, AppStore store, {String? boxId}) 
       tag: tag,
       memo: memo.text.trim(),
       kind: box.isSavings
-          ? (saveIn ? MoneyCardKind.saveIn : MoneyCardKind.saveOut)
+          ? (saveIn
+              ? MoneyCardKind.saveIn
+              : fromBalance
+                  ? MoneyCardKind.spend
+                  : MoneyCardKind.saveOut)
           : MoneyCardKind.spend,
     );
     if (context.mounted) showNexusToast(context, store.lastToast);
@@ -607,7 +600,7 @@ Future<void> openEditCard(BuildContext context, AppStore store, MoneyCard card) 
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text('カードを編集', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                Text('カードを編集', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
                 DropdownButton<String>(
                   value: boxId,
                   dropdownColor: NexusColors.card,
@@ -626,13 +619,13 @@ Future<void> openEditCard(BuildContext context, AppStore store, MoneyCard card) 
                 ),
                 TextField(
                   controller: title,
-                  style: const TextStyle(color: NexusColors.text),
-                  decoration: const InputDecoration(labelText: '内容'),
+                  style: TextStyle(color: NexusColors.text),
+                  decoration: const InputDecoration(labelText: '内容（任意）'),
                 ),
                 TextField(
                   controller: amount,
                   keyboardType: TextInputType.number,
-                  style: const TextStyle(color: NexusColors.text),
+                  style: TextStyle(color: NexusColors.text),
                   decoration: const InputDecoration(labelText: '金額'),
                 ),
                 OutlinedButton(
@@ -660,7 +653,7 @@ Future<void> openEditCard(BuildContext context, AppStore store, MoneyCard card) 
                 ),
                 TextField(
                   controller: memo,
-                  style: const TextStyle(color: NexusColors.text),
+                  style: TextStyle(color: NexusColors.text),
                   decoration: const InputDecoration(labelText: 'メモ'),
                 ),
                 const SizedBox(height: 12),
@@ -673,7 +666,7 @@ Future<void> openEditCard(BuildContext context, AppStore store, MoneyCard card) 
     },
   );
   final value = int.tryParse(amount.text.replaceAll(',', ''));
-  if (saved == true && title.text.trim().isNotEmpty && value != null && value > 0) {
+  if (saved == true && value != null && value > 0) {
     store.updateMoneyCard(
       card.copyWith(
         boxId: boxId,
@@ -702,11 +695,11 @@ Future<void> openAddTag(BuildContext context, AppStore store, String boxId) asyn
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('タグを追加', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+          Text('タグを追加', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
           TextField(
             controller: name,
             autofocus: true,
-            style: const TextStyle(color: NexusColors.text),
+            style: TextStyle(color: NexusColors.text),
             decoration: const InputDecoration(labelText: 'タグ名'),
           ),
           const SizedBox(height: 12),
@@ -740,16 +733,16 @@ Future<void> openAddPayment(BuildContext context, AppStore store) async {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text('支払予定を追加', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                Text('支払予定を追加', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
                 TextField(
                   controller: title,
-                  style: const TextStyle(color: NexusColors.text),
+                  style: TextStyle(color: NexusColors.text),
                   decoration: const InputDecoration(labelText: '支払い名'),
                 ),
                 TextField(
                   controller: amount,
                   keyboardType: TextInputType.number,
-                  style: const TextStyle(color: NexusColors.text),
+                  style: TextStyle(color: NexusColors.text),
                   decoration: const InputDecoration(labelText: '金額'),
                 ),
                 OutlinedButton(
@@ -791,7 +784,7 @@ Future<void> openAddPayment(BuildContext context, AppStore store) async {
                 ),
                 TextField(
                   controller: memo,
-                  style: const TextStyle(color: NexusColors.text),
+                  style: TextStyle(color: NexusColors.text),
                   decoration: const InputDecoration(labelText: 'メモ'),
                 ),
                 const SizedBox(height: 12),

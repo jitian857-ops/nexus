@@ -46,12 +46,12 @@ class _AiScreenState extends State<AiScreen> {
                     const Spacer(),
                     Icon(Icons.lock, size: 14, color: NexusColors.green.withValues(alpha: 0.9)),
                     const SizedBox(width: 4),
-                    const Text('セキュア接続中', style: TextStyle(color: NexusColors.green, fontSize: 11)),
+                    Text('セキュア接続中', style: TextStyle(color: NexusColors.green, fontSize: 11)),
                   ],
                 ),
-                const Text('次の一歩を、一緒に考える。', style: TextStyle(color: NexusColors.textSecondary)),
+                Text('次の一歩を、一緒に考える。', style: TextStyle(color: NexusColors.textSecondary)),
                 const SizedBox(height: 4),
-                const Text(
+                Text(
                   'Negumo — powered by Nexus AI',
                   style: TextStyle(color: NexusColors.textMuted, fontSize: 11),
                 ),
@@ -89,13 +89,13 @@ class _AiScreenState extends State<AiScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('ネグモの提案', style: TextStyle(color: NexusColors.cyan, fontWeight: FontWeight.w700)),
+                        Text('ネグモの提案', style: TextStyle(color: NexusColors.cyan, fontWeight: FontWeight.w700)),
                         const SizedBox(height: 8),
                         Text(store.proposal!.summary, style: const TextStyle(height: 1.4)),
                         const SizedBox(height: 6),
                         Text(
                           '根拠: ${store.proposal!.rationale}',
-                          style: const TextStyle(color: NexusColors.textMuted, fontSize: 12),
+                          style: TextStyle(color: NexusColors.textMuted, fontSize: 12),
                         ),
                         const SizedBox(height: 8),
                         Text(
@@ -104,7 +104,7 @@ class _AiScreenState extends State<AiScreen> {
                               : store.proposal!.status == ProposalStatus.rejected
                                   ? '未反映'
                                   : '未承認（データはまだ変わっていません）',
-                          style: const TextStyle(color: NexusColors.textSecondary, fontSize: 12),
+                          style: TextStyle(color: NexusColors.textSecondary, fontSize: 12),
                         ),
                         Align(
                           alignment: Alignment.centerRight,
@@ -121,9 +121,9 @@ class _AiScreenState extends State<AiScreen> {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    const Icon(Icons.shield_outlined, size: 14, color: NexusColors.cyan),
+                    Icon(Icons.shield_outlined, size: 14, color: NexusColors.cyan),
                     const SizedBox(width: 6),
-                    Text('記憶：$memoryのみ', style: const TextStyle(color: NexusColors.textMuted, fontSize: 11)),
+                    Text('記憶：$memoryのみ', style: TextStyle(color: NexusColors.textMuted, fontSize: 11)),
                   ],
                 ),
               ],
@@ -136,10 +136,10 @@ class _AiScreenState extends State<AiScreen> {
                 Expanded(
                   child: TextField(
                     controller: _input,
-                    style: const TextStyle(color: NexusColors.text),
+                    style: TextStyle(color: NexusColors.text),
                     decoration: InputDecoration(
                       hintText: 'ネグモに聞く...',
-                      hintStyle: const TextStyle(color: NexusColors.textMuted),
+                      hintStyle: TextStyle(color: NexusColors.textMuted),
                       filled: true,
                       fillColor: NexusColors.surface,
                       border: OutlineInputBorder(
@@ -193,7 +193,7 @@ class _AiScreenState extends State<AiScreen> {
             if (schedule != null)
               Text(
                 '変更: ${schedule.title} ${schedule.startAt.hour}:${schedule.startAt.minute.toString().padLeft(2, '0')} → ${p.newStartAt.hour}:${p.newStartAt.minute.toString().padLeft(2, '0')}',
-                style: const TextStyle(color: NexusColors.textSecondary),
+                style: TextStyle(color: NexusColors.textSecondary),
               ),
             const SizedBox(height: 12),
             FilledButton(

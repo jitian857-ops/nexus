@@ -52,7 +52,7 @@ class _BoxDetailPageState extends State<BoxDetailPage> {
               children: [
                 IconButton(
                   onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close_rounded, color: NexusColors.text),
+                  icon: Icon(Icons.close_rounded, color: NexusColors.text),
                 ),
                 Icon(box.icon, color: box.color),
                 const SizedBox(width: 8),
@@ -61,6 +61,11 @@ class _BoxDetailPageState extends State<BoxDetailPage> {
                     box.name,
                     style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
                   ),
+                ),
+                IconButton(
+                  tooltip: 'ボックスを編集',
+                  onPressed: () => openEditBox(context, store, box),
+                  icon: Icon(Icons.edit_rounded, color: NexusColors.textSecondary),
                 ),
                 AddChip(
                   label: 'カードを追加',
@@ -74,12 +79,12 @@ class _BoxDetailPageState extends State<BoxDetailPage> {
                 children: [
                   IconButton(
                     onPressed: () => setState(() => _month = DateTime(_month.year, _month.month - 1, 1)),
-                    icon: const Icon(Icons.chevron_left, color: NexusColors.cyan),
+                    icon: Icon(Icons.chevron_left, color: NexusColors.cyan),
                   ),
                   Text(jpMonth(_month), style: const TextStyle(fontWeight: FontWeight.w700)),
                   IconButton(
                     onPressed: () => setState(() => _month = DateTime(_month.year, _month.month + 1, 1)),
-                    icon: const Icon(Icons.chevron_right, color: NexusColors.cyan),
+                    icon: Icon(Icons.chevron_right, color: NexusColors.cyan),
                   ),
                 ],
               ),
@@ -106,7 +111,7 @@ class _BoxDetailPageState extends State<BoxDetailPage> {
                 padding: const EdgeInsets.symmetric(vertical: 24),
                 child: Text(
                   box.isSavings ? 'まだ貯蓄履歴はありません' : 'この月のカードはありません',
-                  style: const TextStyle(color: NexusColors.textMuted),
+                  style: TextStyle(color: NexusColors.textMuted),
                 ),
               )
             else
@@ -124,11 +129,11 @@ class _BoxDetailPageState extends State<BoxDetailPage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  '${card.at.month}/${card.at.day}  ${card.title}',
+                                  '${card.at.month}/${card.at.day}  ${card.title.trim().isEmpty ? '（無題）' : card.title}',
                                   style: const TextStyle(fontWeight: FontWeight.w700),
                                 ),
                                 if (card.tag.isNotEmpty)
-                                  Text(card.tag, style: const TextStyle(color: NexusColors.textMuted, fontSize: 12)),
+                                  Text(card.tag, style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
                               ],
                             ),
                           ),
@@ -174,14 +179,14 @@ class _BudgetHero extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('残り', style: TextStyle(color: NexusColors.textSecondary)),
+          Text('残り', style: TextStyle(color: NexusColors.textSecondary)),
           Text(yen(remain), style: const TextStyle(fontSize: 36, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           Row(
             children: [
               Text('予算 ${yen(box.monthlyBudget)}'),
               const Spacer(),
-              Text('使用済み ${yen(spent)}', style: const TextStyle(color: NexusColors.expense)),
+              Text('使用済み ${yen(spent)}', style: TextStyle(color: NexusColors.expense)),
             ],
           ),
           const SizedBox(height: 8),
@@ -196,7 +201,7 @@ class _BudgetHero extends StatelessWidget {
           ),
           if (box.memo.isNotEmpty) ...[
             const SizedBox(height: 8),
-            Text(box.memo, style: const TextStyle(color: NexusColors.textMuted, fontSize: 12)),
+            Text(box.memo, style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
           ],
         ],
       ),
@@ -218,13 +223,13 @@ class _SavingsHero extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('目標金額', style: TextStyle(color: NexusColors.textSecondary)),
+          Text('目標金額', style: TextStyle(color: NexusColors.textSecondary)),
           Text(yen(box.targetAmount), style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w600)),
           const SizedBox(height: 10),
-          const Text('現在金額', style: TextStyle(color: NexusColors.textSecondary)),
-          Text(yen(current), style: const TextStyle(fontSize: 36, fontWeight: FontWeight.w600, color: NexusColors.cyan)),
+          Text('現在金額', style: TextStyle(color: NexusColors.textSecondary)),
+          Text(yen(current), style: TextStyle(fontSize: 36, fontWeight: FontWeight.w600, color: NexusColors.cyan)),
           if (box.targetDate != null)
-            Text('目標日 ${jpDate(box.targetDate!)}', style: const TextStyle(color: NexusColors.textMuted, fontSize: 12)),
+            Text('目標日 ${jpDate(box.targetDate!)}', style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
           const SizedBox(height: 8),
           ClipRRect(
             borderRadius: BorderRadius.circular(6),

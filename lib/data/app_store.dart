@@ -10,6 +10,7 @@ import '../domain/money_calc.dart';
 import '../domain/review_scheduler.dart';
 import '../widgets/nexus_nav_bar.dart';
 import 'models.dart';
+import 'nexus_icons.dart';
 import 'nexus_prefs.dart';
 
 class AppStore extends ChangeNotifier {
@@ -122,7 +123,27 @@ class AppStore extends ChangeNotifier {
       boxes: budgetBoxes,
       payments: payments,
       today: day,
+      unassignedSpent: unassignedSpentFor(day),
+      savingsAllocated: savingsAllocatedFor(day),
     );
+  }
+
+  int savingsAllocatedFor(DateTime day) {
+    return cards.where((c) {
+      if (c.at.year != day.year || c.at.month != day.month) return false;
+      if (c.kind == MoneyCardKind.saveIn) return true;
+      if (c.kind != MoneyCardKind.spend) return false;
+      final box = boxById(c.boxId);
+      return box != null && box.isSavings;
+    }).fold<int>(0, (sum, c) => sum + c.amount);
+  }
+
+  int unassignedSpentFor(DateTime day) {
+    return cards.where((c) {
+      if (c.kind != MoneyCardKind.spend) return false;
+      if (boxById(c.boxId) != null) return false;
+      return c.at.year == day.year && c.at.month == day.month;
+    }).fold<int>(0, (sum, c) => sum + c.amount);
   }
 
   int incomeForMonth(DateTime day) {
@@ -271,26 +292,35 @@ class AppStore extends ChangeNotifier {
     return stacks;
   }
 
-  void _refreshWeekBars() {
-    final stacks = weekStackedHours();
-    if (stacks.isEmpty) {
-      weekBars = List.filled(7, 0);
-      weekStudyHours = 0;
-      return;
+  List<double> weekDayHours() {
+    final monday = dateOnly(focusedDate).subtract(Duration(days: mondayIndex(focusedDate)));
+    final hours = List<double>.filled(7, 0);
+    for (final session in sessions) {
+      final idx = dateOnly(session.at).difference(monday).inDays;
+      if (idx < 0 || idx > 6) continue;
+      hours[idx] += session.minutes / 60.0;
     }
-    final totals = [
-      for (final day in stacks) day.fold<double>(0, (a, b) => a + b),
-    ];
-    final max = totals.fold<double>(0, (a, b) => a > b ? a : b);
+    return hours;
+  }
+
+  void _refreshWeekBars() {
+    final monday = dateOnly(focusedDate).subtract(Duration(days: mondayIndex(focusedDate)));
+    final dayMinutes = List<int>.filled(7, 0);
+    for (final session in sessions) {
+      final idx = dateOnly(session.at).difference(monday).inDays;
+      if (idx < 0 || idx > 6) continue;
+      dayMinutes[idx] += session.minutes;
+    }
+    weekStudyHours = dayMinutes.fold<int>(0, (a, b) => a + b) / 60.0;
+    final max = dayMinutes.fold<int>(0, (a, b) => a > b ? a : b);
     weekBars = [
-      for (final total in totals) max <= 0 ? 0.2 : (total / max).clamp(0.08, 1.0),
+      for (final total in dayMinutes) max <= 0 ? 0.2 : (total / max).clamp(0.08, 1.0),
     ];
-    weekStudyHours = double.parse(
-      totals.fold<double>(0, (a, b) => a + b).toStringAsFixed(1),
-    );
+    if (subjects.isEmpty) return;
+    final stacks = weekStackedHours();
     for (var i = 0; i < subjects.length; i++) {
       final hours = stacks.fold<double>(0, (sum, day) => sum + day[i]);
-      subjects[i] = subjects[i].copyWith(weekHours: double.parse(hours.toStringAsFixed(1)));
+      subjects[i] = subjects[i].copyWith(weekHours: hours);
     }
   }
 
@@ -446,9 +476,26 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setTimerSubject(String? id) {
+    if (timerRunning) return;
+    if (id != null && id.isNotEmpty && subjectById(id) == null) return;
+    timerSubjectId = id == null || id.isEmpty ? null : id;
+    if (timerSubjectId != null) nextStudySubjectId = timerSubjectId!;
+    notifyListeners();
+  }
+
+  String? get selectedTimerSubjectId {
+    final current = timerSubjectId ?? (nextStudySubjectId.isEmpty ? null : nextStudySubjectId);
+    if (current != null && subjectById(current) != null) return current;
+    return subjects.isEmpty ? null : subjects.first.id;
+  }
+
   void startTimer() {
     if (timerRunning) return;
-    timerSubjectId ??= nextStudySubjectId;
+    if (timerTotalSeconds <= 0) return;
+    final sid = selectedTimerSubjectId;
+    if (sid == null) return;
+    timerSubjectId = sid;
     timerStartedAt = DateTime.now();
     timerRunning = true;
     notifyListeners();
@@ -464,14 +511,14 @@ class AppStore extends ChangeNotifier {
 
   void finishTimer({StudyFocus focus = StudyFocus.high}) {
     final elapsed = timerElapsedSeconds();
-    final sid = timerSubjectId ?? nextStudySubjectId;
+    final sid = selectedTimerSubjectId ?? '';
     timerRunning = false;
     timerStartedAt = null;
     timerAccumulatedSeconds = 0;
-    if (elapsed > 0) {
+    if (elapsed > 0 && sid.isNotEmpty) {
       addStudySession(
         subjectId: sid,
-        minutes: (elapsed / 60).ceil().clamp(1, 24 * 60),
+        minutes: (elapsed / 60).ceil().clamp(0, 24 * 60),
         focus: focus,
         loggedSeconds: elapsed,
       );
@@ -482,7 +529,7 @@ class AppStore extends ChangeNotifier {
 
   void setTimerMinutes(int minutes) {
     if (timerRunning) return;
-    timerTotalSeconds = minutes.clamp(1, 12 * 60) * 60;
+    timerTotalSeconds = minutes.clamp(0, 12 * 60) * 60;
     timerAccumulatedSeconds = 0;
     notifyListeners();
   }
@@ -500,6 +547,7 @@ class AppStore extends ChangeNotifier {
     DateTime? at,
     int? loggedSeconds,
   }) {
+    if (minutes <= 0 && (loggedSeconds == null || loggedSeconds <= 0)) return;
     final when = at ?? DateTime.now();
     sessions.insert(
       0,
@@ -512,7 +560,7 @@ class AppStore extends ChangeNotifier {
       ),
     );
     final seconds = loggedSeconds ?? minutes * 60;
-    totalStudyHours = double.parse((totalStudyHours + seconds / 3600).toStringAsFixed(1));
+    totalStudyHours += seconds / 3600;
     if (sameDay(when, DateTime.now())) {
       _rollTodayStudyIfNeeded();
       todayStudyLoggedSeconds += seconds;
@@ -520,6 +568,7 @@ class AppStore extends ChangeNotifier {
     _refreshWeekBars();
     lastToast = '学習を記録しました';
     notifyListeners();
+    _saveUserData();
   }
 
   void addAssignment({
@@ -540,9 +589,9 @@ class AppStore extends ChangeNotifier {
     required DateTime examAt,
   }) {
     const palette = [
-      NexusColors.purple,
-      NexusColors.cyan,
-      NexusColors.green,
+      Color(0xFF9B6BFF),
+      Color(0xFF00D4FF),
+      Color(0xFF3DFF8A),
       Color(0xFFFFC857),
     ];
     exams.add(
@@ -550,6 +599,7 @@ class AppStore extends ChangeNotifier {
         id: _id(),
         title: title,
         examAt: dateOnly(examAt),
+        createdAt: dateOnly(focusedDate),
         color: palette[exams.length % palette.length],
         weekdayLabel: weekdayLabelOf(examAt),
       ),
@@ -557,6 +607,16 @@ class AppStore extends ChangeNotifier {
     exams.sort((a, b) => a.examAt.compareTo(b.examAt));
     lastToast = '試験日を追加しました';
     notifyListeners();
+    _saveUserData();
+  }
+
+  void deleteExam(String id) {
+    final before = exams.length;
+    exams.removeWhere((e) => e.id == id);
+    if (exams.length == before) return;
+    lastToast = '試験日を削除しました';
+    notifyListeners();
+    _saveUserData();
   }
 
   void addGoal({
@@ -566,22 +626,32 @@ class AppStore extends ChangeNotifier {
     required DateTime dueAt,
     required List<String> subGoalTitles,
   }) {
-    final subs = List<SubGoal>.generate(4, (i) {
-      final text = i < subGoalTitles.length ? subGoalTitles[i].trim() : '';
-      return SubGoal(title: text);
-    });
+    final subs = [
+      for (final text in subGoalTitles)
+        if (text.trim().isNotEmpty) SubGoal(title: text.trim()),
+    ];
     goals.add(
       StudyGoal(
         id: _id(),
         title: title,
         current: current,
-        target: target <= 0 ? 1 : target,
+        target: target < 0 ? 0 : target,
         dueAt: dateOnly(dueAt),
         subGoals: subs,
       ),
     );
     lastToast = '目標を追加しました';
     notifyListeners();
+    _saveUserData();
+  }
+
+  void deleteGoal(String id) {
+    final before = goals.length;
+    goals.removeWhere((g) => g.id == id);
+    if (goals.length == before) return;
+    lastToast = '目標を削除しました';
+    notifyListeners();
+    _saveUserData();
   }
 
   void toggleSubGoal(String goalId, int index) {
@@ -597,6 +667,7 @@ class AppStore extends ChangeNotifier {
     required String subjectId,
     required String title,
     Uint8List? photoBytes,
+    String answer = '',
   }) {
     final learnedAt = focusedDate;
     final problem = ProblemRecord(
@@ -605,6 +676,7 @@ class AppStore extends ChangeNotifier {
       title: title,
       learnedAt: learnedAt,
       photoBytes: photoBytes,
+      answer: answer,
     );
     problems.insert(0, problem);
     reviewCards.addAll(
@@ -639,34 +711,96 @@ class AppStore extends ChangeNotifier {
     );
   }
 
-  StudySubject addSubject({required String name}) {
-    const palette = [
-      NexusColors.purple,
-      NexusColors.cyan,
-      NexusColors.green,
-      Color(0xFF65EDFF),
-      Color(0xFFFFC857),
-      Color(0xFFFF8AD2),
-    ];
-    const icons = [
-      Icons.menu_book_rounded,
-      Icons.science_rounded,
-      Icons.history_edu_rounded,
-      Icons.biotech_rounded,
-      Icons.language_rounded,
-    ];
+  StudySubject addSubject({
+    required String name,
+    IconData? icon,
+    Color? color,
+  }) {
+    const palette = NexusColors.boxPalette;
     final subject = StudySubject(
       id: _id(),
       name: name.trim(),
-      color: palette[subjects.length % palette.length],
+      color: color ?? palette[subjects.length % palette.length],
       weekHours: 0,
-      icon: icons[subjects.length % icons.length],
+      icon: icon ?? kStudyIcons[subjects.length % kStudyIcons.length],
     );
     subjects.add(subject);
     lastToast = '教科「${subject.name}」を追加しました';
     notifyListeners();
     _saveUserData();
     return subject;
+  }
+
+  void updateSubject(StudySubject subject) {
+    final i = subjects.indexWhere((s) => s.id == subject.id);
+    if (i < 0) return;
+    subjects[i] = subject;
+    lastToast = '教科を更新しました';
+    notifyListeners();
+    _saveUserData();
+  }
+
+  void reorderSubjects(int oldIndex, int newIndex) {
+    if (newIndex > oldIndex) newIndex -= 1;
+    if (oldIndex < 0 || oldIndex >= subjects.length) return;
+    if (newIndex < 0 || newIndex >= subjects.length) return;
+    final item = subjects.removeAt(oldIndex);
+    subjects.insert(newIndex, item);
+    notifyListeners();
+    _saveUserData();
+  }
+
+  void reorderBoxes(int oldIndex, int newIndex) {
+    if (newIndex > oldIndex) newIndex -= 1;
+    if (oldIndex < 0 || oldIndex >= boxes.length) return;
+    if (newIndex < 0 || newIndex >= boxes.length) return;
+    final item = boxes.removeAt(oldIndex);
+    boxes.insert(newIndex, item);
+    notifyListeners();
+    _saveUserData();
+  }
+
+  void shiftSubject(int index, int delta) {
+    final next = index + delta;
+    if (index < 0 || index >= subjects.length) return;
+    if (next < 0 || next >= subjects.length) return;
+    final item = subjects.removeAt(index);
+    subjects.insert(next, item);
+    notifyListeners();
+    _saveUserData();
+  }
+
+  void shiftBox(int index, int delta) {
+    final next = index + delta;
+    if (index < 0 || index >= boxes.length) return;
+    if (next < 0 || next >= boxes.length) return;
+    final item = boxes.removeAt(index);
+    boxes.insert(next, item);
+    notifyListeners();
+    _saveUserData();
+  }
+
+  List<double> subjectWeekHours(String subjectId) {
+    final monday = dateOnly(focusedDate).subtract(Duration(days: mondayIndex(focusedDate)));
+    final hours = List<double>.filled(7, 0);
+    for (final session in sessions) {
+      if (session.subjectId != subjectId) continue;
+      final idx = dateOnly(session.at).difference(monday).inDays;
+      if (idx < 0 || idx > 6) continue;
+      hours[idx] += session.minutes / 60.0;
+    }
+    return hours;
+  }
+
+  void deleteSubject(String id) {
+    if (subjects.every((s) => s.id != id)) return;
+    subjects.removeWhere((s) => s.id == id);
+    if (timerSubjectId == id) timerSubjectId = null;
+    if (nextStudySubjectId == id) nextStudySubjectId = subjects.isEmpty ? '' : subjects.first.id;
+    _refreshWeekBars();
+    lastToast = '教科を削除しました';
+    notifyListeners();
+    _saveUserData();
   }
 
   void addIncome({
@@ -798,23 +932,23 @@ class AppStore extends ChangeNotifier {
 
   void deleteBox(String id) {
     if (boxes.every((b) => b.id != id)) return;
-    if (boxes.length <= 1) {
-      lastToast = 'ボックスは1つ以上残してください';
-      notifyListeners();
-      return;
-    }
-    final fallback = boxes.firstWhere(
-      (b) => b.id != id && b.id == 'box-unassigned',
-      orElse: () => boxes.firstWhere((b) => b.id != id),
-    );
-    for (var i = 0; i < cards.length; i++) {
-      if (cards[i].boxId == id) cards[i] = cards[i].copyWith(boxId: fallback.id);
-    }
+    cards.removeWhere((c) => c.boxId == id);
     for (var i = 0; i < payments.length; i++) {
-      if (payments[i].boxId == id) payments[i] = payments[i].copyWith(boxId: fallback.id);
+      if (payments[i].boxId == id) {
+        payments[i] = payments[i].copyWith(clearBoxId: true);
+      }
     }
     boxes.removeWhere((b) => b.id == id);
     lastToast = 'ボックスを削除しました';
+    notifyListeners();
+    _saveUserData();
+  }
+
+  void updateBox(BudgetBox box) {
+    final i = boxes.indexWhere((b) => b.id == box.id);
+    if (i < 0) return;
+    boxes[i] = box;
+    lastToast = 'ボックスを更新しました';
     notifyListeners();
     _saveUserData();
   }
@@ -864,7 +998,32 @@ class AppStore extends ChangeNotifier {
         subjects
           ..clear()
           ..addAll(savedSubjects);
-        _refreshWeekBars();
+      }
+      final savedSessions = [
+        for (final item in (data['sessions'] as List? ?? const []))
+          StudySession.fromJson(Map<String, dynamic>.from(item as Map)),
+      ];
+      if (data.containsKey('sessions')) {
+        sessions
+          ..clear()
+          ..addAll(savedSessions);
+      }
+      _refreshWeekBars();
+      if (data.containsKey('exams')) {
+        exams
+          ..clear()
+          ..addAll([
+            for (final item in (data['exams'] as List? ?? const []))
+              Exam.fromJson(Map<String, dynamic>.from(item as Map)),
+          ]);
+      }
+      if (data.containsKey('goals')) {
+        goals
+          ..clear()
+          ..addAll([
+            for (final item in (data['goals'] as List? ?? const []))
+              StudyGoal.fromJson(Map<String, dynamic>.from(item as Map)),
+          ]);
       }
       final savedBoxes = [
         for (final item in (data['boxes'] as List? ?? const []))
@@ -922,6 +1081,17 @@ class AppStore extends ChangeNotifier {
       }
       final started = data['sleepStartedAt'] as String?;
       sleepStartedAt = started == null || started.isEmpty ? null : DateTime.tryParse(started);
+      final savedName = (data['userName'] as String?)?.trim();
+      if (savedName != null && savedName.isNotEmpty) {
+        userName = savedName;
+      }
+      final rawSettings = data['settings'];
+      if (rawSettings is Map) {
+        settings = UserSettings.fromJson(Map<String, dynamic>.from(rawSettings));
+      } else if (data['themeId'] is String) {
+        settings = settings.copyWith(themeId: data['themeId'] as String);
+      }
+      NexusColors.apply(NexusPalette.byId(settings.themeId));
       notifyListeners();
     }
     _canSave = true;
@@ -931,6 +1101,9 @@ class AppStore extends ChangeNotifier {
     if (!_canSave) return;
     NexusPrefs.save(
       subjects: subjects,
+      sessions: sessions,
+      exams: exams,
+      goals: goals,
       boxes: boxes,
       cards: cards,
       incomes: incomes,
@@ -938,6 +1111,8 @@ class AppStore extends ChangeNotifier {
       habits: habits,
       sleepLogs: sleepLogs,
       sleepStartedAt: sleepStartedAt,
+      userName: userName,
+      settings: settings,
     );
   }
 
@@ -1008,11 +1183,14 @@ class AppStore extends ChangeNotifier {
   void setUserName(String value) {
     userName = value;
     notifyListeners();
+    _saveUserData();
   }
 
   void updateSettings(UserSettings next) {
     settings = next;
+    NexusColors.apply(NexusPalette.byId(next.themeId));
     notifyListeners();
+    _saveUserData();
   }
 
   void _seed() {

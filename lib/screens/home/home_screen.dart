@@ -22,19 +22,35 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   Timer? _tick;
+  AppStore? _store;
 
   @override
-  void initState() {
-    super.initState();
-    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted) return;
-      final store = AppScope.of(context);
-      if (store.timerRunning) setState(() {});
-    });
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final store = AppScope.of(context);
+    if (_store != store) {
+      _store?.removeListener(_syncTick);
+      _store = store;
+      _store!.addListener(_syncTick);
+      _syncTick();
+    }
+  }
+
+  void _syncTick() {
+    final running = _store?.timerRunning ?? false;
+    if (running && _tick == null) {
+      _tick = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() {});
+      });
+    } else if (!running && _tick != null) {
+      _tick?.cancel();
+      _tick = null;
+    }
   }
 
   @override
   void dispose() {
+    _store?.removeListener(_syncTick);
     _tick?.cancel();
     super.dispose();
   }
@@ -76,6 +92,7 @@ class _HeroRow extends StatelessWidget {
             onTap: () => _openOccasion(context, store.focusedDate, occasion),
             borderRadius: BorderRadius.circular(NexusColors.cardRadius),
             child: GlassCard(
+              glowColor: NexusColors.cyan,
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
               child: SizedBox(
                 height: 92,
@@ -101,7 +118,7 @@ class _HeroRow extends StatelessWidget {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           '本日は',
                           style: TextStyle(
                             color: NexusColors.textSecondary,
@@ -136,13 +153,14 @@ class _HeroRow extends StatelessWidget {
             borderRadius: BorderRadius.circular(NexusColors.cardRadius),
             child: GlassCard(
               borderColor: NexusColors.purple.withValues(alpha: 0.28),
+              glowColor: NexusColors.purple,
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
               child: SizedBox(
                 height: 92,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       '今日の名言',
                       style: TextStyle(
                         color: NexusColors.textSecondary,
@@ -167,7 +185,7 @@ class _HeroRow extends StatelessWidget {
                       '— ${quote.author}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: NexusColors.purple,
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
@@ -197,7 +215,7 @@ Future<void> _openOccasion(
       children: [
         Text(
           occasion.name,
-          style: const TextStyle(
+          style: TextStyle(
             color: NexusColors.text,
             fontSize: 20,
             fontWeight: FontWeight.w600,
@@ -206,17 +224,17 @@ Future<void> _openOccasion(
         const SizedBox(height: 6),
         Text(
           '${jpDate(date)} ・ ${occasion.kind}',
-          style: const TextStyle(color: NexusColors.cyan, fontSize: 12),
+          style: TextStyle(color: NexusColors.cyan, fontSize: 12),
         ),
         if (occasion.alsoKnownAs.isNotEmpty) ...[
           const SizedBox(height: 6),
           Text(
             'あわせて ${occasion.alsoKnownAs.join('、')}',
-            style: const TextStyle(color: NexusColors.textMuted, fontSize: 12),
+            style: TextStyle(color: NexusColors.textMuted, fontSize: 12),
           ),
         ],
         const SizedBox(height: 14),
-        const Text(
+        Text(
           '由来',
           style: TextStyle(
             color: NexusColors.textSecondary,
@@ -227,7 +245,7 @@ Future<void> _openOccasion(
         const SizedBox(height: 6),
         Text(
           occasion.reason,
-          style: const TextStyle(
+          style: TextStyle(
             color: NexusColors.text,
             height: 1.55,
             fontSize: 14,
@@ -246,14 +264,14 @@ Future<void> _openQuote(BuildContext context, DailyQuote quote) {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           '今日の名言',
           style: TextStyle(color: NexusColors.textSecondary, fontSize: 12),
         ),
         const SizedBox(height: 10),
         Text(
           quote.text,
-          style: const TextStyle(
+          style: TextStyle(
             color: NexusColors.text,
             fontSize: 18,
             fontWeight: FontWeight.w700,
@@ -263,7 +281,7 @@ Future<void> _openQuote(BuildContext context, DailyQuote quote) {
         const SizedBox(height: 10),
         Text(
           '— ${quote.author}',
-          style: const TextStyle(
+          style: TextStyle(
             color: NexusColors.purple,
             fontWeight: FontWeight.w700,
           ),
@@ -271,7 +289,7 @@ Future<void> _openQuote(BuildContext context, DailyQuote quote) {
         const SizedBox(height: 14),
         Text(
           quote.note,
-          style: const TextStyle(
+          style: TextStyle(
             color: NexusColors.textSecondary,
             height: 1.5,
             fontSize: 13,
@@ -307,7 +325,7 @@ class _ScheduleCard extends StatelessWidget {
           SizedBox(
             height: 148,
             child: items.isEmpty
-                ? const Center(
+                ? Center(
                     child: Text(
                       '予定はまだありません',
                       style: TextStyle(color: NexusColors.textMuted),
@@ -335,30 +353,39 @@ class _ScheduleCard extends StatelessWidget {
                           ),
                           child: Row(
                             children: [
-                              Icon(
-                                Icons.schedule_rounded,
-                                size: 16,
-                                color: NexusColors.cyan.withValues(alpha: 0.9),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                hm(item.startAt),
-                                style: const TextStyle(
-                                  color: NexusColors.cyan,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: NexusColors.cyan.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  hm(item.startAt),
+                                  style: TextStyle(
+                                    color: NexusColors.cyan,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Text(
                                   item.title,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     color: NexusColors.text,
                                     fontSize: 14,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
+                              ),
+                              Icon(
+                                Icons.chevron_right_rounded,
+                                size: 18,
+                                color: NexusColors.textMuted,
                               ),
                             ],
                           ),

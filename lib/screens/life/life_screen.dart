@@ -26,12 +26,12 @@ class LifeScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     GradientTitle('Life'),
-                    SizedBox(height: 4),
+                    const SizedBox(height: 4),
                     Text('毎日を、整える。', style: TextStyle(color: NexusColors.textSecondary)),
                   ],
                 ),
@@ -62,13 +62,13 @@ class LifeScreen extends StatelessWidget {
                       IconButton(
                         visualDensity: VisualDensity.compact,
                         onPressed: () => store.setLifeDate(DateTime(day.year, day.month - 1, 1)),
-                        icon: const Icon(Icons.chevron_left, color: NexusColors.cyan),
+                        icon: Icon(Icons.chevron_left, color: NexusColors.cyan),
                       ),
                       Text(jpMonth(day), style: const TextStyle(fontWeight: FontWeight.w700)),
                       IconButton(
                         visualDensity: VisualDensity.compact,
                         onPressed: () => store.setLifeDate(DateTime(day.year, day.month + 1, 1)),
-                        icon: const Icon(Icons.chevron_right, color: NexusColors.cyan),
+                        icon: Icon(Icons.chevron_right, color: NexusColors.cyan),
                       ),
                     ],
                   ),
@@ -90,7 +90,7 @@ class LifeScreen extends StatelessWidget {
                 SizedBox(
                   height: 132,
                   child: items.isEmpty
-                      ? const Center(
+                      ? Center(
                           child: Text('予定はありません', style: TextStyle(color: NexusColors.textMuted)),
                         )
                       : ListView.separated(
@@ -105,7 +105,7 @@ class LifeScreen extends StatelessWidget {
                                 decoration: BoxDecoration(
                                   color: NexusColors.surface,
                                   borderRadius: BorderRadius.circular(12),
-                                  border: const Border(
+                                  border: Border(
                                     left: BorderSide(color: NexusColors.cyan, width: 3),
                                   ),
                                 ),
@@ -113,7 +113,7 @@ class LifeScreen extends StatelessWidget {
                                   children: [
                                     Text(
                                       hm(item.startAt),
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         color: NexusColors.cyan,
                                         fontWeight: FontWeight.w700,
                                       ),
@@ -153,7 +153,7 @@ class LifeScreen extends StatelessWidget {
               children: [
                 const SectionRow(title: '日記'),
                 const SizedBox(height: 4),
-                const Text('今日を1分で振り返る', style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
+                Text('今日を1分で振り返る', style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
                 const SizedBox(height: 8),
                 Text(store.diary, style: const TextStyle(height: 1.4)),
                 const SizedBox(height: 10),
@@ -178,12 +178,12 @@ class LifeScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('日記', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+            Text('日記', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
             const SizedBox(height: 8),
             TextField(
               controller: controller,
               maxLines: 5,
-              style: const TextStyle(color: NexusColors.text),
+              style: TextStyle(color: NexusColors.text),
             ),
             const SizedBox(height: 12),
             FilledButton(
@@ -205,11 +205,11 @@ Future<void> _openAddHabit(BuildContext context, AppStore store) async {
   var color = const Color(0xFFFFC857);
   const colors = [
     Color(0xFFFFC857),
-    NexusColors.cyan,
-    NexusColors.green,
-    NexusColors.purple,
+    Color(0xFF00D4FF),
+    Color(0xFF3DFF8A),
+    Color(0xFF9B6BFF),
     Color(0xFFFF8AD2),
-    NexusColors.gold,
+    Color(0xFFC4B7A0),
   ];
   const icons = [
     Icons.wb_sunny_rounded,
@@ -230,16 +230,16 @@ Future<void> _openAddHabit(BuildContext context, AppStore store) async {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('習慣を追加', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+              Text('習慣を追加', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
               const SizedBox(height: 12),
               TextField(
                 controller: name,
                 autofocus: true,
-                style: const TextStyle(color: NexusColors.text),
+                style: TextStyle(color: NexusColors.text),
                 decoration: const InputDecoration(labelText: '習慣名'),
               ),
               const SizedBox(height: 12),
-              const Text('アイコン', style: TextStyle(color: NexusColors.textSecondary, fontSize: 12)),
+              Text('アイコン', style: TextStyle(color: NexusColors.textSecondary, fontSize: 12)),
               Wrap(
                 spacing: 4,
                 children: [
@@ -250,7 +250,7 @@ Future<void> _openAddHabit(BuildContext context, AppStore store) async {
                     ),
                 ],
               ),
-              const Text('色', style: TextStyle(color: NexusColors.textSecondary, fontSize: 12)),
+              Text('色', style: TextStyle(color: NexusColors.textSecondary, fontSize: 12)),
               Row(
                 children: [
                   for (final c in colors)
@@ -306,7 +306,7 @@ class _DateButton extends StatelessWidget {
         ),
         child: Row(
           children: [
-            const Icon(Icons.calendar_month, size: 14, color: NexusColors.cyan),
+            Icon(Icons.calendar_month, size: 14, color: NexusColors.cyan),
             const SizedBox(width: 6),
             Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
           ],
@@ -327,6 +327,8 @@ class _MonthGrid extends StatelessWidget {
     final first = DateTime(focused.year, focused.month, 1);
     final daysInMonth = DateTime(focused.year, focused.month + 1, 0).day;
     final leading = mondayIndex(first);
+    final now = DateTime.now();
+    final today = (now.year == focused.year && now.month == focused.month) ? now.day : -1;
     final marked = {
       for (final s in store.schedules)
         if (s.startAt.year == focused.year && s.startAt.month == focused.month) s.startAt.day,
@@ -339,7 +341,7 @@ class _MonthGrid extends StatelessWidget {
             for (final label in weekLabels)
               Expanded(
                 child: Center(
-                  child: Text(label, style: const TextStyle(color: NexusColors.textMuted, fontSize: 11)),
+                  child: Text(label, style: TextStyle(color: NexusColors.textMuted, fontSize: 11)),
                 ),
               ),
           ],
@@ -356,6 +358,7 @@ class _MonthGrid extends StatelessWidget {
                       day: row * 7 + col - leading + 1,
                       daysInMonth: daysInMonth,
                       selected: focused.day,
+                      today: today,
                       marked: marked,
                       onTap: (d) => store.setLifeDate(DateTime(focused.year, focused.month, d)),
                     ),
@@ -373,6 +376,7 @@ class _DayCell extends StatelessWidget {
     required this.day,
     required this.daysInMonth,
     required this.selected,
+    required this.today,
     required this.marked,
     required this.onTap,
   });
@@ -380,6 +384,7 @@ class _DayCell extends StatelessWidget {
   final int day;
   final int daysInMonth;
   final int selected;
+  final int today;
   final Set<int> marked;
   final ValueChanged<int> onTap;
 
@@ -387,6 +392,7 @@ class _DayCell extends StatelessWidget {
   Widget build(BuildContext context) {
     if (day < 1 || day > daysInMonth) return const SizedBox(height: 32);
     final isSelected = day == selected;
+    final isToday = day == today;
     return InkWell(
       onTap: () => onTap(day),
       borderRadius: BorderRadius.circular(8),
@@ -402,16 +408,34 @@ class _DayCell extends StatelessWidget {
               decoration: isSelected
                   ? BoxDecoration(
                       borderRadius: BorderRadius.circular(8),
-                      gradient: const LinearGradient(
+                      gradient: LinearGradient(
                         colors: [NexusColors.cyan, NexusColors.purple],
                       ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: NexusColors.cyan.withValues(alpha: 0.35),
+                          blurRadius: 10,
+                        ),
+                      ],
                     )
-                  : null,
+                  : isToday
+                      ? BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: NexusColors.cyan.withValues(alpha: 0.55),
+                          ),
+                        )
+                      : null,
               child: Text(
                 '$day',
                 style: TextStyle(
                   fontSize: 12,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                  color: isSelected
+                      ? NexusColors.text
+                      : isToday
+                          ? NexusColors.cyan
+                          : NexusColors.textSecondary,
+                  fontWeight: isSelected || isToday ? FontWeight.w700 : FontWeight.w500,
                 ),
               ),
             ),
@@ -419,11 +443,50 @@ class _DayCell extends StatelessWidget {
               Container(
                 width: 4,
                 height: 4,
-                decoration: const BoxDecoration(color: NexusColors.cyan, shape: BoxShape.circle),
+                decoration: BoxDecoration(color: NexusColors.cyan, shape: BoxShape.circle),
               ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _LifeCardTitle extends StatelessWidget {
+  const _LifeCardTitle({
+    required this.icon,
+    required this.color,
+    required this.title,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 24,
+          height: 24,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 14, color: color),
+        ),
+        const SizedBox(width: 7),
+        Expanded(
+          child: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -442,22 +505,26 @@ class _HabitCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Expanded(
-                child: Text('習慣チェーン', style: TextStyle(fontWeight: FontWeight.w700)),
+              Expanded(
+                child: _LifeCardTitle(
+                  icon: Icons.local_fire_department_rounded,
+                  color: NexusColors.gold,
+                  title: '習慣チェーン',
+                ),
               ),
               IconButton(
                 onPressed: () => _openAddHabit(context, store),
                 visualDensity: VisualDensity.compact,
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                icon: const Icon(Icons.add_rounded, size: 20, color: NexusColors.cyan),
+                icon: Icon(Icons.add_rounded, size: 20, color: NexusColors.cyan),
               ),
             ],
           ),
           const SizedBox(height: 4),
           Expanded(
             child: store.habits.isEmpty
-                ? const Align(
+                ? Align(
                     alignment: Alignment.topLeft,
                     child: Text('習慣はまだありません', style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
                   )
@@ -555,7 +622,11 @@ class _SleepCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('睡眠の記録', style: TextStyle(fontWeight: FontWeight.w700)),
+            _LifeCardTitle(
+              icon: Icons.bedtime_rounded,
+              color: NexusColors.periwinkle,
+              title: '睡眠の記録',
+            ),
             const SizedBox(height: 8),
             Text(
               store.isSleeping ? '就寝中' : '${store.sleepHours.toStringAsFixed(1)}h',
@@ -563,7 +634,7 @@ class _SleepCard extends StatelessWidget {
             ),
             Text(
               store.isSleeping ? 'タップして起床を記録' : '就寝・起床で記録  目標 7-8時間',
-              style: const TextStyle(color: NexusColors.textMuted, fontSize: 11),
+              style: TextStyle(color: NexusColors.textMuted, fontSize: 11),
             ),
             const SizedBox(height: 10),
             SizedBox(
@@ -613,9 +684,13 @@ class _MoodCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('気分とエネルギー', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+          _LifeCardTitle(
+            icon: Icons.emoji_emotions_rounded,
+            color: NexusColors.green,
+            title: '気分とエネルギー',
+          ),
           const SizedBox(height: 8),
-          const Text('いまの気分は?', style: TextStyle(color: NexusColors.textMuted, fontSize: 11)),
+          Text('いまの気分は?', style: TextStyle(color: NexusColors.textMuted, fontSize: 11)),
           Row(
             children: [
               for (var i = 1; i <= 5; i++)
@@ -626,15 +701,19 @@ class _MoodCard extends StatelessWidget {
                     visualDensity: VisualDensity.compact,
                     constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                     icon: Icon(
-                      i <= store.mood ? Icons.sentiment_satisfied_alt : Icons.sentiment_neutral,
+                      i <= store.mood
+                          ? (store.mood >= 4
+                              ? Icons.sentiment_very_satisfied_rounded
+                              : Icons.sentiment_satisfied_rounded)
+                          : Icons.sentiment_neutral_rounded,
                       size: 22,
-                      color: i == store.mood ? NexusColors.green : NexusColors.textMuted,
+                      color: i <= store.mood ? NexusColors.green : NexusColors.textMuted,
                     ),
                   ),
                 ),
             ],
           ),
-          const Text('エネルギーは?', style: TextStyle(color: NexusColors.textMuted, fontSize: 11)),
+          Text('エネルギーは?', style: TextStyle(color: NexusColors.textMuted, fontSize: 11)),
           Row(
             children: [
               for (var i = 1; i <= 5; i++)
@@ -672,7 +751,11 @@ class _StepsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('今日の歩数', style: TextStyle(fontWeight: FontWeight.w700)),
+          _LifeCardTitle(
+            icon: Icons.directions_walk_rounded,
+            color: NexusColors.cyan,
+            title: '今日の歩数',
+          ),
           const SizedBox(height: 10),
           Text(
             '${store.steps} 歩',
@@ -689,7 +772,7 @@ class _StepsCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          Text('目標まであと $left 歩', style: const TextStyle(color: NexusColors.textMuted, fontSize: 11)),
+          Text('目標まであと $left 歩', style: TextStyle(color: NexusColors.textMuted, fontSize: 11)),
           const Spacer(),
         ],
       ),

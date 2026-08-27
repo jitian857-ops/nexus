@@ -1,7 +1,6 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 
+import '../app/motion.dart';
 import '../app/theme.dart';
 import 'ui_bits.dart';
 
@@ -39,35 +38,60 @@ class NexusNavBar extends StatelessWidget {
 
     return Padding(
       padding: EdgeInsets.fromLTRB(14, 0, 14, bottom > 0 ? bottom : 10),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: NexusColors.navBar,
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: NexusColors.navBar,
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: NexusColors.hairline),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: NexusColors.isLight ? 0.08 : 0.28),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
             ),
-            child: SizedBox(
-              height: 62,
-              child: Row(
+          ],
+        ),
+        child: SizedBox(
+          height: 64,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final slot = constraints.maxWidth / _items.length;
+              return Stack(
                 children: [
-                  for (var i = 0; i < _items.length; i++)
-                    Expanded(
-                      child: _NavItem(
-                        icon: _items[i].$1,
-                        label: _items[i].$2,
-                        selected: currentIndex == i,
-                        onTap: () {
-                          nexusHaptic();
-                          onTap(i);
-                        },
+                  AnimatedPositioned(
+                    duration: NexusMotion.duration(context, NexusMotion.med),
+                    curve: NexusMotion.curve,
+                    left: slot * currentIndex + 6,
+                    top: 6,
+                    bottom: 6,
+                    width: slot - 12,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(20),
+                        color: NexusColors.cyan.withValues(alpha: NexusColors.isLight ? 0.14 : 0.18),
+                        border: Border.all(color: NexusColors.cyan.withValues(alpha: 0.35)),
                       ),
                     ),
+                  ),
+                  Row(
+                    children: [
+                      for (var i = 0; i < _items.length; i++)
+                        Expanded(
+                          child: _NavItem(
+                            icon: _items[i].$1,
+                            label: _items[i].$2,
+                            selected: currentIndex == i,
+                            onTap: () {
+                              nexusHaptic();
+                              onTap(i);
+                            },
+                          ),
+                        ),
+                    ],
+                  ),
                 ],
-              ),
-            ),
+              );
+            },
           ),
         ),
       ),
@@ -97,32 +121,21 @@ class _NavItem extends StatelessWidget {
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOutCubic,
-          decoration: BoxDecoration(
-            color: selected ? NexusColors.cyan.withValues(alpha: 0.12) : Colors.transparent,
-            borderRadius: BorderRadius.circular(18),
-            border: selected
-                ? Border.all(color: NexusColors.cyan.withValues(alpha: 0.22))
-                : Border.all(color: Colors.transparent),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 20, color: color),
-              const SizedBox(height: 2),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 10,
-                  color: color,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                  letterSpacing: 0.2,
-                ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: selected ? 22 : 20, color: color),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                color: color,
+                fontWeight: selected ? FontWeight.w800 : FontWeight.w400,
+                letterSpacing: 0.2,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

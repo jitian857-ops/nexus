@@ -46,13 +46,13 @@ Future<void> openSleepLogger(BuildContext context, AppStore store) async {
                   store.isSleeping
                       ? '就寝中です。起きたらボタンを押してください。'
                       : '就寝と起床を分けて記録します。あとから直すこともできます。',
-                  style: const TextStyle(color: NexusColors.textMuted, fontSize: 12),
+                  style: TextStyle(color: NexusColors.textMuted, fontSize: 12),
                 ),
                 const SizedBox(height: 14),
                 if (store.isSleeping) ...[
                   Text(
                     '就寝 ${hm(store.sleepStartedAt!)}',
-                    style: const TextStyle(color: NexusColors.purple, fontWeight: FontWeight.w700),
+                    style: TextStyle(color: NexusColors.purple, fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 10),
                   FilledButton(
@@ -75,10 +75,10 @@ Future<void> openSleepLogger(BuildContext context, AppStore store) async {
                       store.startSleep();
                       Navigator.pop(context);
                     },
-                    child: const Text('今から寝る'),
+                    child: Text('今から寝る'),
                   ),
                   const SizedBox(height: 12),
-                  const Text('あとから記録', style: TextStyle(color: NexusColors.textSecondary, fontSize: 12)),
+                  Text('あとから記録', style: TextStyle(color: NexusColors.textSecondary, fontSize: 12)),
                   const SizedBox(height: 8),
                   OutlinedButton(
                     onPressed: () async {
@@ -134,7 +134,7 @@ Future<void> openSleepLogger(BuildContext context, AppStore store) async {
                     ],
                   ),
                   const SizedBox(height: 10),
-                  const Text('眠りの質', style: TextStyle(color: NexusColors.textSecondary, fontSize: 12)),
+                  Text('眠りの質', style: TextStyle(color: NexusColors.textSecondary, fontSize: 12)),
                   Slider(
                     value: quality.toDouble(),
                     min: 1,

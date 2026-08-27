@@ -16,9 +16,9 @@ Future<void> openQuickAdd(BuildContext context) {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text('追加', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+        Text('追加', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
         const SizedBox(height: 4),
-        const Text('今日必要なものだけを足す', style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
+        Text('今日必要なものだけを足す', style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
         const SizedBox(height: 12),
         _QuickTile(
           icon: Icons.event_rounded,

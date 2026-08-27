@@ -121,6 +121,27 @@ class StudySession {
   final int minutes;
   final StudyFocus focus;
   final DateTime at;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'subjectId': subjectId,
+        'minutes': minutes,
+        'focus': focus.name,
+        'at': at.toIso8601String(),
+      };
+
+  factory StudySession.fromJson(Map<String, dynamic> json) {
+    return StudySession(
+      id: json['id'] as String,
+      subjectId: json['subjectId'] as String? ?? '',
+      minutes: json['minutes'] as int? ?? 0,
+      focus: StudyFocus.values.firstWhere(
+        (value) => value.name == json['focus'],
+        orElse: () => StudyFocus.high,
+      ),
+      at: DateTime.parse(json['at'] as String),
+    );
+  }
 }
 
 class SubGoal {
@@ -131,6 +152,15 @@ class SubGoal {
 
   SubGoal copyWith({String? title, bool? done}) {
     return SubGoal(title: title ?? this.title, done: done ?? this.done);
+  }
+
+  Map<String, dynamic> toJson() => {'title': title, 'done': done};
+
+  factory SubGoal.fromJson(Map<String, dynamic> json) {
+    return SubGoal(
+      title: json['title'] as String? ?? '',
+      done: json['done'] as bool? ?? false,
+    );
   }
 }
 
@@ -173,6 +203,29 @@ class StudyGoal {
       subGoals: subGoals ?? this.subGoals,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'current': current,
+        'target': target,
+        'dueAt': dueAt.toIso8601String(),
+        'subGoals': [for (final s in subGoals) s.toJson()],
+      };
+
+  factory StudyGoal.fromJson(Map<String, dynamic> json) {
+    return StudyGoal(
+      id: json['id'] as String,
+      title: json['title'] as String,
+      current: json['current'] as int? ?? 0,
+      target: json['target'] as int? ?? 0,
+      dueAt: DateTime.parse(json['dueAt'] as String),
+      subGoals: [
+        for (final item in (json['subGoals'] as List? ?? const []))
+          SubGoal.fromJson(Map<String, dynamic>.from(item as Map)),
+      ],
+    );
+  }
 }
 
 class Assignment {
@@ -198,13 +251,45 @@ class Exam {
     required this.examAt,
     required this.color,
     required this.weekdayLabel,
-  });
+    DateTime? createdAt,
+  }) : createdAt = createdAt ?? examAt;
 
   final String id;
   final String title;
   final DateTime examAt;
   final Color color;
   final String weekdayLabel;
+  final DateTime createdAt;
+
+  double countdownProgress(DateTime today) {
+    final start = dateOnly(createdAt);
+    final end = dateOnly(examAt);
+    final now = dateOnly(today);
+    final total = end.difference(start).inDays;
+    if (total <= 0) return now.isBefore(end) ? 0 : 1;
+    return (now.difference(start).inDays / total).clamp(0.0, 1.0);
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'examAt': examAt.toIso8601String(),
+        'color': color.toARGB32(),
+        'weekdayLabel': weekdayLabel,
+        'createdAt': createdAt.toIso8601String(),
+      };
+
+  factory Exam.fromJson(Map<String, dynamic> json) {
+    final examAt = DateTime.parse(json['examAt'] as String);
+    return Exam(
+      id: json['id'] as String,
+      title: json['title'] as String,
+      examAt: examAt,
+      color: Color(json['color'] as int),
+      weekdayLabel: json['weekdayLabel'] as String? ?? weekdayLabelOf(examAt),
+      createdAt: json['createdAt'] == null ? examAt : DateTime.parse(json['createdAt'] as String),
+    );
+  }
 }
 
 class LearningEntry {
@@ -234,6 +319,7 @@ class ProblemRecord {
     required this.title,
     required this.learnedAt,
     this.photoBytes,
+    this.answer = '',
   });
 
   final String id;
@@ -241,6 +327,7 @@ class ProblemRecord {
   final String title;
   final DateTime learnedAt;
   final Uint8List? photoBytes;
+  final String answer;
 }
 
 class ReviewCard {
@@ -704,6 +791,7 @@ class AiProposal {
 
 class UserSettings {
   const UserSettings({
+    this.themeId = 'midnight',
     this.notifyTasks = true,
     this.notifySchedule = true,
     this.notifyReview = true,
@@ -718,6 +806,7 @@ class UserSettings {
     this.proposalFrequency = 0.5,
   });
 
+  final String themeId;
   final bool notifyTasks;
   final bool notifySchedule;
   final bool notifyReview;
@@ -731,7 +820,45 @@ class UserSettings {
   final double negumoStrength;
   final double proposalFrequency;
 
+  factory UserSettings.fromJson(Map<String, dynamic>? json) {
+    if (json == null || json.isEmpty) return const UserSettings();
+    return UserSettings(
+      themeId: (json['themeId'] as String?)?.trim().isNotEmpty == true
+          ? json['themeId'] as String
+          : 'midnight',
+      notifyTasks: json['notifyTasks'] as bool? ?? true,
+      notifySchedule: json['notifySchedule'] as bool? ?? true,
+      notifyReview: json['notifyReview'] as bool? ?? true,
+      notifyNegumo: json['notifyNegumo'] as bool? ?? true,
+      memoryStudy: json['memoryStudy'] as bool? ?? true,
+      memorySchedule: json['memorySchedule'] as bool? ?? true,
+      memoryMoney: json['memoryMoney'] as bool? ?? false,
+      memoryLife: json['memoryLife'] as bool? ?? false,
+      reduceMotion: json['reduceMotion'] as bool? ?? false,
+      diaryDefaultPrivate: json['diaryDefaultPrivate'] as bool? ?? true,
+      negumoStrength: (json['negumoStrength'] as num?)?.toDouble() ?? 0.5,
+      proposalFrequency: (json['proposalFrequency'] as num?)?.toDouble() ?? 0.5,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'themeId': themeId,
+        'notifyTasks': notifyTasks,
+        'notifySchedule': notifySchedule,
+        'notifyReview': notifyReview,
+        'notifyNegumo': notifyNegumo,
+        'memoryStudy': memoryStudy,
+        'memorySchedule': memorySchedule,
+        'memoryMoney': memoryMoney,
+        'memoryLife': memoryLife,
+        'reduceMotion': reduceMotion,
+        'diaryDefaultPrivate': diaryDefaultPrivate,
+        'negumoStrength': negumoStrength,
+        'proposalFrequency': proposalFrequency,
+      };
+
   UserSettings copyWith({
+    String? themeId,
     bool? notifyTasks,
     bool? notifySchedule,
     bool? notifyReview,
@@ -746,6 +873,7 @@ class UserSettings {
     double? proposalFrequency,
   }) {
     return UserSettings(
+      themeId: themeId ?? this.themeId,
       notifyTasks: notifyTasks ?? this.notifyTasks,
       notifySchedule: notifySchedule ?? this.notifySchedule,
       notifyReview: notifyReview ?? this.notifyReview,

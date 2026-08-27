@@ -44,7 +44,7 @@ class _ScheduleEditSheetState extends State<ScheduleEditSheet> {
       children: [
         Text(
           widget.initial == null ? '予定を追加' : '予定を編集',
-          style: const TextStyle(
+          style: TextStyle(
             color: NexusColors.text,
             fontSize: 18,
             fontWeight: FontWeight.w700,
@@ -53,16 +53,16 @@ class _ScheduleEditSheetState extends State<ScheduleEditSheet> {
         const SizedBox(height: 12),
         TextField(
           controller: _title,
-          style: const TextStyle(color: NexusColors.text),
+          style: TextStyle(color: NexusColors.text),
           decoration: _input('タイトル'),
         ),
         const SizedBox(height: 10),
         ListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('時刻', style: TextStyle(color: NexusColors.textSecondary)),
+          title: Text('時刻', style: TextStyle(color: NexusColors.textSecondary)),
           trailing: Text(
             '${two(_time.hour)}:${two(_time.minute)}',
-            style: const TextStyle(color: NexusColors.cyan, fontWeight: FontWeight.w700),
+            style: TextStyle(color: NexusColors.cyan, fontWeight: FontWeight.w700),
           ),
           onTap: () async {
             final next = await showTimePicker(context: context, initialTime: _time);
@@ -76,13 +76,13 @@ class _ScheduleEditSheetState extends State<ScheduleEditSheet> {
             if (title.isEmpty) return;
             Navigator.pop(context, (title, _time));
           },
-          child: const Text('保存'),
+          child: Text('保存'),
         ),
         if (widget.initial != null) ...[
           const SizedBox(height: 8),
           TextButton(
             onPressed: () => Navigator.pop(context, 'delete'),
-            child: const Text('削除', style: TextStyle(color: NexusColors.expense)),
+            child: Text('削除', style: TextStyle(color: NexusColors.expense)),
           ),
         ],
       ],
@@ -93,13 +93,13 @@ class _ScheduleEditSheetState extends State<ScheduleEditSheet> {
 InputDecoration _input(String label) {
   return InputDecoration(
     labelText: label,
-    labelStyle: const TextStyle(color: NexusColors.textMuted),
+    labelStyle: TextStyle(color: NexusColors.textMuted),
     enabledBorder: OutlineInputBorder(
       borderSide: BorderSide(color: NexusColors.border),
       borderRadius: BorderRadius.circular(12),
     ),
     focusedBorder: OutlineInputBorder(
-      borderSide: const BorderSide(color: NexusColors.cyan),
+      borderSide: BorderSide(color: NexusColors.cyan),
       borderRadius: BorderRadius.circular(12),
     ),
   );

@@ -7,7 +7,7 @@
   <meta content="IE=edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="NEXUS — Study / Money / Life / Health をひとつにまとめるパーソナルハブ">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#050916">
+  <meta name="theme-color" content="#05070E">
 
   <meta property="og:title" content="NEXUS">
   <meta property="og:description" content="Study / Money / Life / Health をひとつにまとめるパーソナルハブ">
@@ -24,22 +24,73 @@
   <link rel="manifest" href="manifest.json">
 
   <style>
+    :root {
+      --cyan: #00d4ff;
+      --purple: #9b6bff;
+      --void: #04060c;
+    }
     html, body {
       margin: 0;
       padding: 0;
       height: 100%;
-      background: #050916;
-      color: #ffffff;
+      overflow: hidden;
+      background: var(--void);
+      color: #f4f1ea;
       font-family: system-ui, -apple-system, Segoe UI, sans-serif;
     }
+    body::before,
+    body::after {
+      content: "";
+      position: fixed;
+      inset: -20%;
+      pointer-events: none;
+      z-index: 0;
+    }
+    body::before {
+      background:
+        radial-gradient(42vw 32vw at 18% 12%, rgba(0, 212, 255, 0.16), transparent 58%),
+        radial-gradient(38vw 30vw at 88% 78%, rgba(155, 107, 255, 0.14), transparent 55%);
+    }
+    body::after { display: none; }
+    flutter-view, flt-glass-pane, canvas {
+      position: relative;
+      z-index: 1;
+    }
     .loading {
+      position: relative;
+      z-index: 2;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
       height: 100%;
-      letter-spacing: 0.08em;
-      font-weight: 700;
-      opacity: 0.7;
+      letter-spacing: 0.42em;
+      font-weight: 800;
+      font-size: 22px;
+      color: #e8fbff;
+      text-shadow: 0 0 24px rgba(0, 212, 255, 0.55), 0 0 48px rgba(155, 107, 255, 0.35);
+      animation: title-pulse 1.4s ease-in-out infinite alternate;
+    }
+    .loading::after {
+      content: "";
+      width: 84px;
+      height: 3px;
+      margin-top: 18px;
+      border-radius: 99px;
+      background: linear-gradient(90deg, transparent, var(--cyan), var(--purple), transparent);
+      background-size: 200% 100%;
+      animation: bar-run 1.1s linear infinite;
+    }
+    @keyframes title-pulse {
+      from { opacity: 0.7; }
+      to { opacity: 1; }
+    }
+    @keyframes bar-run {
+      from { background-position: 100% 0; }
+      to { background-position: -100% 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .loading, .loading::after { animation: none !important; }
     }
   </style>
 </head>

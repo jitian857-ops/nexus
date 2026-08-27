@@ -15,7 +15,6 @@ class AppShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final store = AppScope.of(context);
     final bottom = MediaQuery.paddingOf(context).bottom;
-
     return Scaffold(
       backgroundColor: Colors.transparent,
       extendBody: true,

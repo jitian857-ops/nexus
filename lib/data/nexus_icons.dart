@@ -1,5 +1,105 @@
 import 'package:flutter/material.dart';
 
+class NexusIconChoice {
+  const NexusIconChoice(this.icon, [this.label = '']);
+
+  final IconData icon;
+  final String label;
+}
+
+const kStudyIconChoices = <NexusIconChoice>[
+  NexusIconChoice(Icons.menu_book_rounded, '国語'),
+  NexusIconChoice(Icons.auto_stories_rounded, '読書'),
+  NexusIconChoice(Icons.history_edu_rounded, '古文'),
+  NexusIconChoice(Icons.edit_note_rounded, '作文'),
+  NexusIconChoice(Icons.spellcheck_rounded, '漢字'),
+  NexusIconChoice(Icons.article_rounded, '評論'),
+  NexusIconChoice(Icons.language_rounded, '英語'),
+  NexusIconChoice(Icons.translate_rounded, '翻訳'),
+  NexusIconChoice(Icons.headphones_rounded, 'リスニング'),
+  NexusIconChoice(Icons.record_voice_over_rounded, '会話'),
+  NexusIconChoice(Icons.mic_rounded, '発音'),
+  NexusIconChoice(Icons.functions, '数学'),
+  NexusIconChoice(Icons.calculate_rounded, '計算'),
+  NexusIconChoice(Icons.change_history_rounded, '図形'),
+  NexusIconChoice(Icons.square_foot_rounded, '幾何'),
+  NexusIconChoice(Icons.bar_chart_rounded, '統計'),
+  NexusIconChoice(Icons.show_chart_rounded, 'グラフ'),
+  NexusIconChoice(Icons.science_rounded, '理科'),
+  NexusIconChoice(Icons.biotech_rounded, '生物'),
+  NexusIconChoice(Icons.bolt_rounded, '物理'),
+  NexusIconChoice(Icons.water_drop_rounded, '化学'),
+  NexusIconChoice(Icons.terrain_rounded, '地学'),
+  NexusIconChoice(Icons.public_rounded, '世界'),
+  NexusIconChoice(Icons.map_rounded, '地理'),
+  NexusIconChoice(Icons.account_balance_rounded, '歴史'),
+  NexusIconChoice(Icons.castle_rounded, '世界史'),
+  NexusIconChoice(Icons.temple_buddhist_rounded, '日本史'),
+  NexusIconChoice(Icons.how_to_vote_rounded, '公民'),
+  NexusIconChoice(Icons.gavel_rounded, '法律'),
+  NexusIconChoice(Icons.balance_rounded, '倫理'),
+  NexusIconChoice(Icons.psychology_rounded, '心理'),
+  NexusIconChoice(Icons.lightbulb_rounded, '探究'),
+  NexusIconChoice(Icons.travel_explore_rounded, '研究'),
+  NexusIconChoice(Icons.computer_rounded, '情報'),
+  NexusIconChoice(Icons.code_rounded, 'プログラミング'),
+  NexusIconChoice(Icons.keyboard_rounded, 'タイピング'),
+  NexusIconChoice(Icons.account_tree_rounded, 'アルゴリズム'),
+  NexusIconChoice(Icons.memory_rounded, 'データ'),
+  NexusIconChoice(Icons.smart_toy_rounded, 'ロボット'),
+  NexusIconChoice(Icons.analytics_rounded, '分析'),
+  NexusIconChoice(Icons.music_note_rounded, '音楽'),
+  NexusIconChoice(Icons.piano_rounded, 'ピアノ'),
+  NexusIconChoice(Icons.palette_rounded, '美術'),
+  NexusIconChoice(Icons.brush_rounded, '絵画'),
+  NexusIconChoice(Icons.draw_rounded, 'デッサン'),
+  NexusIconChoice(Icons.camera_alt_rounded, '写真'),
+  NexusIconChoice(Icons.movie_rounded, '映像'),
+  NexusIconChoice(Icons.theater_comedy_rounded, '演劇'),
+  NexusIconChoice(Icons.design_services_rounded, 'デザイン'),
+  NexusIconChoice(Icons.sports_soccer_rounded, '体育'),
+  NexusIconChoice(Icons.fitness_center_rounded, '保健'),
+  NexusIconChoice(Icons.pool_rounded, '水泳'),
+  NexusIconChoice(Icons.restaurant_rounded, '家庭科'),
+  NexusIconChoice(Icons.local_florist_rounded, '園芸'),
+  NexusIconChoice(Icons.build_rounded, '技術'),
+  NexusIconChoice(Icons.engineering_rounded, '工業'),
+  NexusIconChoice(Icons.architecture_rounded, '建築'),
+  NexusIconChoice(Icons.electrical_services_rounded, '電気'),
+  NexusIconChoice(Icons.precision_manufacturing_rounded, '機械'),
+  NexusIconChoice(Icons.agriculture_rounded, '農業'),
+  NexusIconChoice(Icons.sailing_rounded, '水産'),
+  NexusIconChoice(Icons.child_care_rounded, '保育'),
+  NexusIconChoice(Icons.volunteer_activism_rounded, '福祉'),
+  NexusIconChoice(Icons.medical_services_rounded, '医療'),
+  NexusIconChoice(Icons.local_pharmacy_rounded, '薬学'),
+  NexusIconChoice(Icons.health_and_safety_rounded, '看護'),
+  NexusIconChoice(Icons.school_rounded, '受験'),
+  NexusIconChoice(Icons.local_library_rounded, '図書館'),
+  NexusIconChoice(Icons.assignment_rounded, '宿題'),
+  NexusIconChoice(Icons.quiz_rounded, 'テスト'),
+  NexusIconChoice(Icons.fact_check_rounded, '模試'),
+  NexusIconChoice(Icons.event_note_rounded, '計画'),
+  NexusIconChoice(Icons.present_to_all_rounded, '発表'),
+  NexusIconChoice(Icons.groups_rounded, 'グループ'),
+  NexusIconChoice(Icons.campaign_rounded, '面接'),
+  NexusIconChoice(Icons.workspace_premium_rounded, '資格'),
+  NexusIconChoice(Icons.style_rounded, '暗記'),
+  NexusIconChoice(Icons.self_improvement_rounded, '集中'),
+  NexusIconChoice(Icons.eco_rounded, '環境'),
+  NexusIconChoice(Icons.wb_sunny_rounded, '気象'),
+  NexusIconChoice(Icons.nightlight_round, '天文'),
+  NexusIconChoice(Icons.pets_rounded, '動物'),
+  NexusIconChoice(Icons.museum_rounded, '美術史'),
+  NexusIconChoice(Icons.trending_up_rounded, '経済'),
+  NexusIconChoice(Icons.timeline_rounded, '年表'),
+  NexusIconChoice(Icons.pie_chart_rounded, '割合'),
+];
+
+final kStudyIcons = <IconData>[
+  for (final choice in kStudyIconChoices) choice.icon,
+];
+
 const kNexusIcons = <IconData>[
   Icons.restaurant_rounded,
   Icons.train_rounded,
@@ -39,6 +139,9 @@ const kNexusIcons = <IconData>[
 ];
 
 IconData nexusIconFromCode(int codePoint) {
+  for (final icon in kStudyIcons) {
+    if (icon.codePoint == codePoint) return icon;
+  }
   for (final icon in kNexusIcons) {
     if (icon.codePoint == codePoint) return icon;
   }

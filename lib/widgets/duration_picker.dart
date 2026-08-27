@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../app/theme.dart';
 import '../core/format.dart';
 
-const kMinStudyDurationMinutes = 1;
+const kMinStudyDurationMinutes = 0;
 const kMaxStudyDurationMinutes = 12 * 60;
 
 class DurationMinutesPicker extends StatefulWidget {
@@ -87,7 +87,7 @@ class _DurationMinutesPickerState extends State<DurationMinutesPicker> {
             Text(
               '時間  ${studyGoalLabel(widget.minutes)}',
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 color: NexusColors.cyan,
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
@@ -119,7 +119,7 @@ class _DurationMinutesPickerState extends State<DurationMinutesPicker> {
                           onChanged: (value) => _emit(hours: value),
                         ),
                       ),
-                      const Text(
+                      Text(
                         ':',
                         style: TextStyle(
                           fontSize: 26,
@@ -141,7 +141,7 @@ class _DurationMinutesPickerState extends State<DurationMinutesPicker> {
                 ],
               ),
             ),
-            const Row(
+            Row(
               children: [
                 Expanded(
                   child: Text(
@@ -150,7 +150,7 @@ class _DurationMinutesPickerState extends State<DurationMinutesPicker> {
                     style: TextStyle(color: NexusColors.textMuted, fontSize: 11),
                   ),
                 ),
-                SizedBox(width: 12),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     '分',

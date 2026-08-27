@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../app/theme.dart';
 import '../data/nexus_icons.dart';
 
 class BoxTemplate {
@@ -33,7 +32,7 @@ const budgetBoxTemplates = <BoxTemplate>[
   BoxTemplate(
     name: '趣味',
     icon: Icons.sports_esports_rounded,
-    color: NexusColors.purple,
+    color: Color(0xFF9B6BFF),
     tags: ['本', 'ゲーム', '映画', 'その他'],
   ),
   BoxTemplate(
@@ -45,7 +44,7 @@ const budgetBoxTemplates = <BoxTemplate>[
   BoxTemplate(
     name: '交通費',
     icon: Icons.train_rounded,
-    color: NexusColors.purple,
+    color: Color(0xFF9B6BFF),
     tags: ['電車', 'バス', 'タクシー', 'その他'],
   ),
   BoxTemplate(
@@ -75,22 +74,22 @@ const budgetBoxTemplates = <BoxTemplate>[
   BoxTemplate(
     name: '学費',
     icon: Icons.school_rounded,
-    color: NexusColors.cyan,
+    color: Color(0xFF00D4FF),
     tags: ['授業料', '教材', 'その他'],
   ),
   BoxTemplate(
     name: 'その他',
     icon: Icons.category_rounded,
-    color: NexusColors.textSecondary,
+    color: Color(0xFF8B9BB4),
     tags: ['その他'],
   ),
 ];
 
 const savingsBoxTemplates = <BoxTemplate>[
-  BoxTemplate(name: '車の免許', icon: Icons.directions_car_rounded, color: NexusColors.cyan, tags: ['教習', '検定', 'その他']),
+  BoxTemplate(name: '車の免許', icon: Icons.directions_car_rounded, color: Color(0xFF00D4FF), tags: ['教習', '検定', 'その他']),
   BoxTemplate(name: '韓国旅行', icon: Icons.flight_rounded, color: Color(0xFFFF8AD2), tags: ['ホテル', '飛行機', '食事', 'お土産', '現地交通']),
-  BoxTemplate(name: '投資', icon: Icons.trending_up_rounded, color: NexusColors.green, tags: ['入金', '出金']),
-  BoxTemplate(name: '学費', icon: Icons.school_rounded, color: NexusColors.purple, tags: ['積立', 'その他']),
+  BoxTemplate(name: '投資', icon: Icons.trending_up_rounded, color: Color(0xFF3DFF8A), tags: ['入金', '出金']),
+  BoxTemplate(name: '学費', icon: Icons.school_rounded, color: Color(0xFF9B6BFF), tags: ['積立', 'その他']),
   BoxTemplate(name: 'PC', icon: Icons.laptop_rounded, color: Color(0xFF65EDFF), tags: ['本体', '周辺機器']),
   BoxTemplate(name: '将来資金', icon: Icons.savings_rounded, color: Color(0xFFFFC857), tags: ['積立', 'その他']),
 ];
@@ -99,9 +98,9 @@ const boxIconChoices = kNexusIcons;
 
 const boxColorChoices = <Color>[
   Color(0xFF3DA9FC),
-  NexusColors.purple,
+  Color(0xFF9B6BFF),
   Color(0xFF2EE6C7),
-  NexusColors.green,
+  Color(0xFF3DFF8A),
   Color(0xFFFF5B7A),
   Color(0xFFFFC857),
   Color(0xFFFF8AD2),

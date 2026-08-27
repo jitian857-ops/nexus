@@ -40,32 +40,70 @@ class _MoneyScreenState extends State<MoneyScreen> {
             ],
           ),
           const SizedBox(height: 4),
-          const Text('未来のために、今日を知る。', style: TextStyle(color: NexusColors.textSecondary)),
+          Text('未来のために、今日を知る。', style: TextStyle(color: NexusColors.textSecondary)),
           const SizedBox(height: 14),
           GlassCard(
+            glowColor: NexusColors.gold,
+            borderColor: NexusColors.gold.withValues(alpha: 0.28),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   '${focusedMonthLabel(store.focusedDate)}の残高',
-                  style: const TextStyle(color: NexusColors.textSecondary),
+                  style: TextStyle(color: NexusColors.textSecondary),
                 ),
                 const SizedBox(height: 6),
                 CountUpYen(
                   value: money.balance,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 36,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w700,
                     color: NexusColors.gold,
                     letterSpacing: 0.4,
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
                 Row(
                   children: [
-                    Text('収入 ${yen(money.income)}', style: const TextStyle(color: NexusColors.income)),
-                    const SizedBox(width: 16),
-                    Text('支出 ${yen(-money.expense)}', style: const TextStyle(color: NexusColors.expense)),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: NexusColors.income.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: NexusColors.income.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.arrow_upward_rounded, size: 13, color: NexusColors.income),
+                          const SizedBox(width: 4),
+                          Text(
+                            '収入 ${yen(money.income)}',
+                            style: TextStyle(color: NexusColors.income, fontSize: 12, fontWeight: FontWeight.w700),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: NexusColors.expense.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: NexusColors.expense.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.arrow_downward_rounded, size: 13, color: NexusColors.expense),
+                          const SizedBox(width: 4),
+                          Text(
+                            '支出 ${yen(-money.expense)}',
+                            style: TextStyle(color: NexusColors.expense, fontSize: 12, fontWeight: FontWeight.w700),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -85,38 +123,59 @@ class _MoneyScreenState extends State<MoneyScreen> {
           const SizedBox(height: 8),
           SizedBox(
             height: 168,
-            child: ListView.separated(
+            child: ReorderableListView.builder(
               scrollDirection: Axis.horizontal,
+              buildDefaultDragHandles: false,
+              padding: EdgeInsets.zero,
               itemCount: store.boxes.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 10),
+              onReorder: store.reorderBoxes,
+              proxyDecorator: (child, index, animation) {
+                return AnimatedBuilder(
+                  animation: animation,
+                  builder: (context, _) => Transform.scale(scale: 1.05, child: child),
+                );
+              },
               itemBuilder: (context, i) {
                 final box = store.boxes[i];
-                return SizedBox(
-                  width: 148,
-                  child: Stack(
-                    children: [
-                      Positioned.fill(
-                        child: InkWell(
-                          onTap: () => _openBox(context, box.id),
-                          borderRadius: BorderRadius.circular(16),
-                          child: box.isSavings
-                              ? _SavingsTile(store: store, box: box)
-                              : _BudgetTile(store: store, box: box),
+                return Padding(
+                  key: ValueKey(box.id),
+                  padding: const EdgeInsets.only(right: 10),
+                  child: SizedBox(
+                    width: 148,
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: ReorderableTapDragListener(
+                            index: i,
+                            enabled: store.boxes.length > 1,
+                            onTap: () => _openBox(context, box.id),
+                            child: box.isSavings
+                                ? _SavingsTile(store: store, box: box)
+                                : _BudgetTile(store: store, box: box),
+                          ),
                         ),
-                      ),
-                      Positioned(
-                        top: 6,
-                        right: 6,
-                        child: _DeleteMark(
-                          onTap: () => _confirmDeleteBox(context, store, box),
+                        Positioned(
+                          top: 6,
+                          right: 6,
+                          child: _DeleteMark(
+                            onTap: () => _confirmDeleteBox(context, store, box),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 );
               },
             ),
           ),
+          if (store.boxes.length > 1)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                'つかんでドロップすると順番を変えられます',
+                style: TextStyle(color: NexusColors.textMuted, fontSize: 11),
+              ),
+            ),
           const SizedBox(height: 12),
           GlassCard(
             child: Column(
@@ -136,16 +195,30 @@ class _MoneyScreenState extends State<MoneyScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                Text(
-                  yen(todayTab ? money.spendableToday : money.spendableWeek),
-                  style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w600),
+                ShaderMask(
+                  shaderCallback: (rect) =>
+                      LinearGradient(colors: NexusColors.accentSweep).createShader(rect),
+                  child: Text(
+                    yen(todayTab ? money.spendableToday : money.spendableWeek),
+                    style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w700, color: Colors.white),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: remainRatio.clamp(0.0, 1.0),
+                    minHeight: 5,
+                    color: NexusColors.cyan,
+                    backgroundColor: NexusColors.border,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    Text('今日の予算 ${yen(money.todayBudget)}', style: const TextStyle(color: NexusColors.textMuted, fontSize: 12)),
+                    Text('今日の予算 ${yen(money.todayBudget)}', style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
                     const Spacer(),
-                    Text('残り ${(remainRatio * 100).round()}%', style: const TextStyle(color: NexusColors.textMuted, fontSize: 12)),
+                    Text('残り ${(remainRatio * 100).round()}%', style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
                   ],
                 ),
               ],
@@ -168,8 +241,17 @@ class _MoneyScreenState extends State<MoneyScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     child: Row(
                       children: [
-                        const Icon(Icons.event, size: 16, color: NexusColors.cyan),
-                        const SizedBox(width: 8),
+                        Container(
+                          width: 30,
+                          height: 30,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: NexusColors.cyan.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(9),
+                          ),
+                          child: Icon(Icons.event_rounded, size: 15, color: NexusColors.cyan),
+                        ),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -184,14 +266,14 @@ class _MoneyScreenState extends State<MoneyScreen> {
                                     PaymentRepeat.yearly => '毎年',
                                   },
                                 ].whereType<String>().join(' ・ '),
-                                style: const TextStyle(color: NexusColors.textMuted, fontSize: 11),
+                                style: TextStyle(color: NexusColors.textMuted, fontSize: 11),
                               ),
                             ],
                           ),
                         ),
                         Text(
                           '${store.nextPaymentDue(p, store.focusedDate).month}/${store.nextPaymentDue(p, store.focusedDate).day}',
-                          style: const TextStyle(color: NexusColors.textMuted),
+                          style: TextStyle(color: NexusColors.textMuted),
                         ),
                         const SizedBox(width: 10),
                         Text(yen(p.amount), style: const TextStyle(fontWeight: FontWeight.w700)),
@@ -221,7 +303,7 @@ class _MoneyScreenState extends State<MoneyScreen> {
     final ok = await _confirm(
       context,
       title: 'ボックスを削除',
-      body: '「${box.name}」を削除します。中のカードは未振り分けへ移します。',
+      body: '「${box.name}」を削除します。中のカードも消えて、残高への影響は取り消されます。',
     );
     if (!ok || !context.mounted) return;
     store.deleteBox(box.id);
@@ -273,15 +355,25 @@ class _BudgetTile extends StatelessWidget {
     final ratio = box.monthlyBudget == 0 ? 0.0 : spent / box.monthlyBudget;
     return GlassCard(
       borderColor: box.color.withValues(alpha: 0.45),
+      glowColor: box.color,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(box.icon, color: box.color),
+          Container(
+            width: 32,
+            height: 32,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: box.color.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(box.icon, color: box.color, size: 18),
+          ),
           const SizedBox(height: 8),
           Text(box.name, style: const TextStyle(fontWeight: FontWeight.w700)),
           const Spacer(),
-          Text('残り ${yen(remaining)}', style: const TextStyle(fontSize: 12)),
-          Text('予算 ${yen(box.monthlyBudget)}', style: const TextStyle(color: NexusColors.textMuted, fontSize: 11)),
+          Text('残り ${yen(remaining)}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+          Text('予算 ${yen(box.monthlyBudget)}', style: TextStyle(color: NexusColors.textMuted, fontSize: 11)),
           const SizedBox(height: 6),
           ClipRRect(
             borderRadius: BorderRadius.circular(6),
@@ -310,17 +402,27 @@ class _SavingsTile extends StatelessWidget {
     final ratio = box.targetAmount == 0 ? 0.0 : current / box.targetAmount;
     return GlassCard(
       borderColor: box.color.withValues(alpha: 0.45),
+      glowColor: box.color,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(box.icon, color: box.color),
+          Container(
+            width: 32,
+            height: 32,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: box.color.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(box.icon, color: box.color, size: 18),
+          ),
           const SizedBox(height: 8),
           Text(box.name, style: const TextStyle(fontWeight: FontWeight.w700)),
           const Spacer(),
-          Text(yen(current), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: NexusColors.gold)),
+          Text(yen(current), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: NexusColors.gold)),
           Text(
             '${yen(current)} / ${yen(box.targetAmount)}',
-            style: const TextStyle(color: NexusColors.textMuted, fontSize: 11),
+            style: TextStyle(color: NexusColors.textMuted, fontSize: 11),
           ),
           const SizedBox(height: 6),
           ClipRRect(
@@ -359,7 +461,7 @@ class _DeleteMark extends StatelessWidget {
             shape: BoxShape.circle,
             border: Border.all(color: NexusColors.border),
           ),
-          child: const Icon(Icons.close, size: 13, color: NexusColors.textMuted),
+          child: Icon(Icons.close, size: 13, color: NexusColors.textMuted),
         ),
       ),
     );

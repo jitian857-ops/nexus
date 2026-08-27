@@ -9,6 +9,14 @@ import '../../widgets/nexus_nav_bar.dart';
 class HomeHeader extends StatelessWidget {
   const HomeHeader({super.key});
 
+  String _greeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 5) return 'こんばんは';
+    if (hour < 11) return 'おはよう';
+    if (hour < 18) return 'こんにちは';
+    return 'こんばんは';
+  }
+
   @override
   Widget build(BuildContext context) {
     final store = AppScope.of(context);
@@ -22,23 +30,31 @@ class HomeHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
+                '${_greeting()}、',
+                style: TextStyle(
+                  color: NexusColors.textMuted,
+                  fontSize: 10,
+                  letterSpacing: 0.3,
+                ),
+              ),
+              Text(
                 store.userName,
-                style: const TextStyle(
+                style: TextStyle(
                   color: NexusColors.text,
                   fontSize: 15,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w700,
                   letterSpacing: 0.2,
                 ),
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 3),
               Row(
                 children: [
                   Text(
                     'Lv.${store.level}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: NexusColors.gold,
                       fontSize: 11,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
                       letterSpacing: 0.4,
                     ),
                   ),
@@ -81,19 +97,26 @@ class HomeHeader extends StatelessWidget {
         const SizedBox(width: 8),
         InkWell(
           onTap: () => store.goTo(NexusTab.settings),
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(12),
           child: Container(
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: NexusColors.purple.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(10),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  NexusColors.purple.withValues(alpha: 0.24),
+                  NexusColors.purple.withValues(alpha: 0.10),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: NexusColors.purple.withValues(alpha: 0.55),
+                color: NexusColors.purple.withValues(alpha: 0.5),
               ),
             ),
-            child: const Icon(
-              Icons.push_pin_rounded,
+            child: Icon(
+              Icons.tune_rounded,
               size: 16,
               color: NexusColors.purple,
             ),
@@ -126,18 +149,18 @@ class _DateChip extends StatelessWidget {
           ),
           child: Row(
             children: [
-              const Icon(Icons.calendar_month_rounded, size: 14, color: NexusColors.cyan),
+              Icon(Icons.calendar_month_rounded, size: 14, color: NexusColors.cyan),
               const SizedBox(width: 6),
               Text(
                 label,
-                style: const TextStyle(
+                style: TextStyle(
                   color: NexusColors.text,
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                 ),
               ),
               const SizedBox(width: 2),
-              const Icon(Icons.expand_more_rounded, size: 16, color: NexusColors.textMuted),
+              Icon(Icons.expand_more_rounded, size: 16, color: NexusColors.textMuted),
             ],
           ),
         ),

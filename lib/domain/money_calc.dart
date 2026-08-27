@@ -26,9 +26,13 @@ class MoneyCalc {
     required List<BudgetBox> boxes,
     required List<PaymentPlan> payments,
     required DateTime today,
+    int unassignedSpent = 0,
+    int savingsAllocated = 0,
   }) {
-    final expense = boxes.fold<int>(0, (sum, b) => sum + b.spent);
-    final variableRemaining = boxes.fold<int>(0, (sum, b) => sum + b.remaining);
+    // 予算ボックスは作った時点で残高から引く。使いすぎ分だけさらに減らす。
+    final expense = boxes.fold<int>(0, (sum, b) => sum + (b.spent > b.monthlyBudget ? b.spent : b.monthlyBudget)) +
+        unassignedSpent +
+        savingsAllocated;
     final monthEnd = DateTime(today.year, today.month + 1, 0);
     final remainingDays = monthEnd.day - today.day + 1;
     final upcoming = payments
@@ -36,7 +40,8 @@ class MoneyCalc {
         .where((p) => p.dueAt.month == today.month && p.dueAt.year == today.year)
         .fold<int>(0, (sum, p) => sum + p.amount);
 
-    final pool = (variableRemaining - upcoming).clamp(0, 1 << 31);
+    final balance = income - expense;
+    final pool = (balance - upcoming).clamp(0, 1 << 31);
     final spendableToday = remainingDays <= 0 ? 0 : (pool / remainingDays).floor();
     final weekDays = remainingDays < 7 ? remainingDays : 7;
     final spendableWeek = weekDays <= 0 ? 0 : spendableToday * weekDays;
@@ -47,7 +52,7 @@ class MoneyCalc {
     return MoneySnapshot(
       income: income,
       expense: expense,
-      balance: income - expense,
+      balance: balance,
       spendableToday: spendableToday,
       todayBudget: todayBudget < spendableToday ? spendableToday : todayBudget,
       spendableWeek: spendableWeek,

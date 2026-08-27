@@ -21,9 +21,9 @@ Future<void> openCheckIn(BuildContext context, AppStore store) async {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('10秒チェックイン', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+              Text('10秒チェックイン', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
               const SizedBox(height: 4),
-              const Text('気分、エネルギー、いましたこと', style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
+              Text('気分、エネルギー、いましたこと', style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
               const SizedBox(height: 12),
               const Text('気分', style: TextStyle(fontWeight: FontWeight.w600)),
               Row(
@@ -35,7 +35,7 @@ Future<void> openCheckIn(BuildContext context, AppStore store) async {
                         constraints: const BoxConstraints(minHeight: 44, minWidth: 44),
                         icon: Icon(
                           i <= mood ? Icons.sentiment_satisfied_alt : Icons.sentiment_neutral,
-                          color: i == mood ? NexusColors.green : NexusColors.textMuted,
+                          color: i <= mood ? NexusColors.green : NexusColors.textMuted,
                         ),
                       ),
                     ),
