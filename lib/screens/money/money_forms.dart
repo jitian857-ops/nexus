@@ -6,14 +6,17 @@ import '../../data/app_store.dart';
 import '../../data/models.dart';
 import '../../widgets/ui_bits.dart';
 
-Future<void> openAddIncome(BuildContext context, AppStore store) async {
-  final name = TextEditingController();
-  final amount = TextEditingController();
-  final memo = TextEditingController();
-  var deposited = store.focusedDate;
-  var useYear = deposited.year;
-  var useMonth = deposited.month == 12 ? 1 : deposited.month + 1;
-  if (deposited.month == 12) useYear += 1;
+Future<void> openAddIncome(BuildContext context, AppStore store) {
+  return openIncomeForm(context, store);
+}
+
+Future<void> openIncomeForm(BuildContext context, AppStore store, {IncomeEntry? existing}) async {
+  final name = TextEditingController(text: existing?.name ?? '');
+  final amount = TextEditingController(text: existing == null ? '' : '${existing.amount}');
+  final memo = TextEditingController(text: existing?.memo ?? '');
+  var deposited = existing?.depositedAt ?? store.moneyEntryDate;
+  var useYear = existing?.useYear ?? nextUseMonth(deposited).year;
+  var useMonth = existing?.useMonth ?? nextUseMonth(deposited).month;
   final saved = await showNexusSheet<bool>(
     context: context,
     builder: (context) {
@@ -24,7 +27,7 @@ Future<void> openAddIncome(BuildContext context, AppStore store) async {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('収入を追加', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                Text(existing == null ? '収入を追加' : '収入を編集', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
                 TextField(
                   controller: name,
                   style: TextStyle(color: NexusColors.text),
@@ -48,9 +51,11 @@ Future<void> openAddIncome(BuildContext context, AppStore store) async {
                     if (picked != null) {
                       setSheet(() {
                         deposited = picked;
-                        final next = nextUseMonth(picked);
-                        useYear = next.year;
-                        useMonth = next.month;
+                        if (existing == null) {
+                          final next = nextUseMonth(picked);
+                          useYear = next.year;
+                          useMonth = next.month;
+                        }
                       });
                     }
                   },
@@ -68,6 +73,8 @@ Future<void> openAddIncome(BuildContext context, AppStore store) async {
                         items: [
                           for (var y = deposited.year - 1; y <= deposited.year + 1; y++)
                             DropdownMenuItem(value: y, child: Text('$y年')),
+                          if (useYear < deposited.year - 1 || useYear > deposited.year + 1)
+                            DropdownMenuItem(value: useYear, child: Text('$useYear年')),
                         ],
                         onChanged: (v) => setSheet(() => useYear = v ?? useYear),
                       ),
@@ -103,14 +110,27 @@ Future<void> openAddIncome(BuildContext context, AppStore store) async {
   );
   final value = int.tryParse(amount.text.replaceAll(',', ''));
   if (saved == true && name.text.trim().isNotEmpty && value != null && value > 0) {
-    store.addIncome(
-      name: name.text.trim(),
-      amount: value,
-      depositedAt: deposited,
-      useYear: useYear,
-      useMonth: useMonth,
-      memo: memo.text.trim(),
-    );
+    if (existing == null) {
+      store.addIncome(
+        name: name.text.trim(),
+        amount: value,
+        depositedAt: deposited,
+        useYear: useYear,
+        useMonth: useMonth,
+        memo: memo.text.trim(),
+      );
+    } else {
+      store.updateIncome(
+        existing.copyWith(
+          name: name.text.trim(),
+          amount: value,
+          depositedAt: deposited,
+          useYear: useYear,
+          useMonth: useMonth,
+          memo: memo.text.trim(),
+        ),
+      );
+    }
     if (context.mounted) {
       nexusHaptic();
       showNexusToast(context, store.lastToast);
@@ -169,7 +189,6 @@ Future<void> _openBudgetBoxForm(BuildContext context, AppStore store, {BudgetBox
   final tag = TextEditingController();
   var icon = existing?.icon ?? Icons.restaurant_rounded;
   var color = existing?.color ?? const Color(0xFF3DA9FC);
-  var renewalDay = existing?.renewalDay ?? 1;
   var tags = [...(existing?.tags ?? const ['その他'])];
   final saved = await showNexusSheet<bool>(
     context: context,
@@ -192,18 +211,6 @@ Future<void> _openBudgetBoxForm(BuildContext context, AppStore store, {BudgetBox
                   keyboardType: TextInputType.number,
                   style: TextStyle(color: NexusColors.text),
                   decoration: const InputDecoration(labelText: '月間予算'),
-                ),
-                const SizedBox(height: 8),
-                Text('更新日', style: TextStyle(color: NexusColors.textSecondary, fontSize: 12)),
-                DropdownButton<int>(
-                  value: renewalDay,
-                  dropdownColor: NexusColors.card,
-                  isExpanded: true,
-                  items: [
-                    for (var d = 1; d <= 31; d++)
-                      DropdownMenuItem(value: d, child: Text('毎月$d日')),
-                  ],
-                  onChanged: (v) => setSheet(() => renewalDay = v ?? 1),
                 ),
                 BoxLookPicker(
                   icon: icon,
@@ -266,7 +273,6 @@ Future<void> _openBudgetBoxForm(BuildContext context, AppStore store, {BudgetBox
         icon: icon,
         color: color,
         monthlyBudget: value,
-        renewalDay: renewalDay,
         tags: tags,
         memo: memo.text.trim(),
       );
@@ -277,7 +283,6 @@ Future<void> _openBudgetBoxForm(BuildContext context, AppStore store, {BudgetBox
           icon: icon,
           color: color,
           monthlyBudget: value,
-          renewalDay: renewalDay,
           tags: tags,
           memo: memo.text.trim(),
         ),
@@ -432,12 +437,14 @@ Future<void> _openSavingsBoxForm(BuildContext context, AppStore store, {BudgetBo
 }
 
 Future<void> openAddCard(BuildContext context, AppStore store, {String? boxId}) async {
-  if (store.boxes.isEmpty) return;
-  var selected = boxId ?? store.boxes.first.id;
+  final picker = store.visibleBoxes;
+  if (picker.isEmpty) return;
+  var selected = boxId ?? picker.first.id;
+  if (!picker.any((b) => b.id == selected)) selected = picker.first.id;
   final title = TextEditingController();
   final amount = TextEditingController();
   final memo = TextEditingController();
-  var at = store.focusedDate;
+  var at = store.moneyEntryDate;
   var tag = '';
   var saveIn = true;
   var fromBalance = false;
@@ -459,7 +466,7 @@ Future<void> openAddCard(BuildContext context, AppStore store, {String? boxId}) 
                   dropdownColor: NexusColors.card,
                   isExpanded: true,
                   items: [
-                    for (final b in store.boxes)
+                    for (final b in store.visibleBoxes)
                       DropdownMenuItem(value: b.id, child: Text('${b.name}${b.isSavings ? '（貯蓄）' : ''}')),
                   ],
                   onChanged: (v) => setSheet(() {
@@ -616,7 +623,13 @@ Future<void> openEditCard(BuildContext context, AppStore store, MoneyCard card) 
                   dropdownColor: NexusColors.card,
                   isExpanded: true,
                   items: [
-                    for (final b in store.boxes) DropdownMenuItem(value: b.id, child: Text(b.name)),
+                    for (final b in [
+                      ...store.visibleBoxes,
+                      if (store.boxById(boxId) != null &&
+                          !store.visibleBoxes.any((x) => x.id == boxId))
+                        store.boxById(boxId)!,
+                    ])
+                      DropdownMenuItem(value: b.id, child: Text(b.name)),
                   ],
                   onChanged: (v) => setSheet(() {
                     boxId = v ?? boxId;
@@ -734,10 +747,11 @@ Future<void> openAddPayment(BuildContext context, AppStore store) async {
   final title = TextEditingController();
   final amount = TextEditingController();
   final memo = TextEditingController();
-  var due = store.focusedDate.add(const Duration(days: 10));
-  String? boxId = store.boxes.any((b) => b.id == 'box-unassigned')
+  var due = store.moneyEntryDate.add(const Duration(days: 10));
+  final picker = store.visibleBoxes;
+  String? boxId = picker.any((b) => b.id == 'box-unassigned')
       ? 'box-unassigned'
-      : (store.boxes.isEmpty ? null : store.boxes.first.id);
+      : (picker.isEmpty ? null : picker.first.id);
   var repeat = PaymentRepeat.none;
   final saved = await showNexusSheet<bool>(
     context: context,
@@ -779,7 +793,8 @@ Future<void> openAddPayment(BuildContext context, AppStore store) async {
                   isExpanded: true,
                   items: [
                     const DropdownMenuItem(value: null, child: Text('支払い元なし')),
-                    for (final b in store.boxes) DropdownMenuItem(value: b.id, child: Text('支払い元：${b.name}')),
+                    for (final b in store.visibleBoxes)
+                      DropdownMenuItem(value: b.id, child: Text('支払い元：${b.name}')),
                   ],
                   onChanged: (v) => setSheet(() => boxId = v),
                 ),

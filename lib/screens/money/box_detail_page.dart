@@ -20,7 +20,6 @@ class BoxDetailPage extends StatefulWidget {
 }
 
 class _BoxDetailPageState extends State<BoxDetailPage> {
-  DateTime _month = dateOnly(DateTime.now());
   _CardSort _sort = _CardSort.date;
 
   @override
@@ -31,7 +30,8 @@ class _BoxDetailPageState extends State<BoxDetailPage> {
       return const Scaffold(body: Center(child: Text('ボックスが見つかりません')));
     }
 
-    var list = store.cardsForBox(box.id, month: box.isSavings ? null : _month);
+    final month = box.month ?? store.moneyMonth;
+    var list = store.cardsForBox(box.id, month: box.isSavings ? null : month);
     list = [...list];
     switch (_sort) {
       case _CardSort.date:
@@ -74,21 +74,7 @@ class _BoxDetailPageState extends State<BoxDetailPage> {
               ],
             ),
             const SizedBox(height: 8),
-            if (!box.isSavings)
-              Row(
-                children: [
-                  IconButton(
-                    onPressed: () => setState(() => _month = DateTime(_month.year, _month.month - 1, 1)),
-                    icon: Icon(Icons.chevron_left, color: NexusColors.cyan),
-                  ),
-                  Text(jpMonth(_month), style: const TextStyle(fontWeight: FontWeight.w700)),
-                  IconButton(
-                    onPressed: () => setState(() => _month = DateTime(_month.year, _month.month + 1, 1)),
-                    icon: Icon(Icons.chevron_right, color: NexusColors.cyan),
-                  ),
-                ],
-              ),
-            if (box.isSavings) _SavingsHero(store: store, box: box) else _BudgetHero(store: store, box: box, month: _month),
+            if (box.isSavings) _SavingsHero(store: store, box: box) else _BudgetHero(store: store, box: box, month: month),
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,

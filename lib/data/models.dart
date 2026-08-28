@@ -491,7 +491,7 @@ class BudgetBox {
     this.kind = BoxKind.budget,
     this.spent = 0,
     this.tags = const [],
-    this.renewalDay = 1,
+    this.month,
     this.memo = '',
     this.targetAmount = 0,
     this.openingAmount = 0,
@@ -506,7 +506,7 @@ class BudgetBox {
   final Color color;
   final IconData icon;
   final List<String> tags;
-  final int renewalDay;
+  final DateTime? month;
   final String memo;
   final int targetAmount;
   final int openingAmount;
@@ -520,11 +520,12 @@ class BudgetBox {
       targetAmount == 0 ? 0 : (openingAmount / targetAmount).clamp(0, 1);
 
   BudgetBox copyWith({
+    String? id,
     String? name,
     int? monthlyBudget,
     int? spent,
     List<String>? tags,
-    int? renewalDay,
+    DateTime? month,
     String? memo,
     int? targetAmount,
     int? openingAmount,
@@ -533,7 +534,7 @@ class BudgetBox {
     Color? color,
   }) {
     return BudgetBox(
-      id: id,
+      id: id ?? this.id,
       name: name ?? this.name,
       kind: kind,
       monthlyBudget: monthlyBudget ?? this.monthlyBudget,
@@ -541,7 +542,7 @@ class BudgetBox {
       color: color ?? this.color,
       icon: icon ?? this.icon,
       tags: tags ?? this.tags,
-      renewalDay: renewalDay ?? this.renewalDay,
+      month: month ?? this.month,
       memo: memo ?? this.memo,
       targetAmount: targetAmount ?? this.targetAmount,
       openingAmount: openingAmount ?? this.openingAmount,
@@ -557,7 +558,7 @@ class BudgetBox {
         'color': color.toARGB32(),
         'icon': icon.codePoint,
         'tags': tags,
-        'renewalDay': renewalDay,
+        if (month != null) 'month': monthKey(month!),
         'memo': memo,
         'targetAmount': targetAmount,
         'openingAmount': openingAmount,
@@ -565,20 +566,31 @@ class BudgetBox {
       };
 
   factory BudgetBox.fromJson(Map<String, dynamic> json) {
+    final kind = json['kind'] == 'savings' ? BoxKind.savings : BoxKind.budget;
     return BudgetBox(
       id: json['id'] as String,
       name: json['name'] as String,
-      kind: json['kind'] == 'savings' ? BoxKind.savings : BoxKind.budget,
+      kind: kind,
       monthlyBudget: json['monthlyBudget'] as int? ?? 0,
       color: Color(json['color'] as int),
       icon: nexusIconFromCode(json['icon'] as int),
       tags: [for (final t in (json['tags'] as List? ?? const [])) t.toString()],
-      renewalDay: json['renewalDay'] as int? ?? 1,
+      month: kind == BoxKind.savings ? null : _monthFromJson(json['month']),
       memo: json['memo'] as String? ?? '',
       targetAmount: json['targetAmount'] as int? ?? 0,
       openingAmount: json['openingAmount'] as int? ?? 0,
       targetDate: json['targetDate'] == null ? null : DateTime.parse(json['targetDate'] as String),
     );
+  }
+
+  static DateTime? _monthFromJson(dynamic raw) {
+    if (raw is! String || raw.isEmpty) return null;
+    final parts = raw.split('-');
+    if (parts.length < 2) return null;
+    final year = int.tryParse(parts[0]);
+    final month = int.tryParse(parts[1]);
+    if (year == null || month == null) return null;
+    return DateTime(year, month);
   }
 }
 
@@ -670,6 +682,25 @@ class IncomeEntry {
   final int useYear;
   final int useMonth;
   final String memo;
+
+  IncomeEntry copyWith({
+    String? name,
+    int? amount,
+    DateTime? depositedAt,
+    int? useYear,
+    int? useMonth,
+    String? memo,
+  }) {
+    return IncomeEntry(
+      id: id,
+      name: name ?? this.name,
+      amount: amount ?? this.amount,
+      depositedAt: depositedAt ?? this.depositedAt,
+      useYear: useYear ?? this.useYear,
+      useMonth: useMonth ?? this.useMonth,
+      memo: memo ?? this.memo,
+    );
+  }
 
   Map<String, dynamic> toJson() => {
         'id': id,

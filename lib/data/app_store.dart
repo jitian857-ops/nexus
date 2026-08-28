@@ -116,8 +116,8 @@ class AppStore extends ChangeNotifier {
   MoneySnapshot moneyFor(DateTime day, {bool? deductBudget}) {
     final anchor = dateOnly(day);
     final budgetBoxes = [
-      for (final box in boxes.where((b) => !b.isSavings))
-        box.copyWith(spent: spentOfBox(box.id, periodOf: box, day: anchor)),
+      for (final box in boxes.where((b) => !b.isSavings && _boxInMonth(b, anchor)))
+        box.copyWith(spent: spentOfBox(box.id, month: anchor)),
     ];
     return MoneyCalc.compute(
       income: incomeForMonth(anchor),
@@ -167,44 +167,30 @@ class AppStore extends ChangeNotifier {
   int spentOfBox(
     String boxId, {
     DateTime? month,
-    BudgetBox? periodOf,
-    DateTime? day,
   }) {
-    DateTime? start;
-    DateTime? end;
-    if (periodOf != null) {
-      final period = budgetPeriod(periodOf, day ?? focusedDate);
-      start = period.start;
-      end = period.end;
-    }
+    final anchor = month ?? moneyMonth;
     return cards.where((c) {
       if (c.boxId != boxId || c.kind != MoneyCardKind.spend) return false;
-      if (start != null && end != null) {
-        final at = dateOnly(c.at);
-        return !at.isBefore(dateOnly(start)) && !at.isAfter(dateOnly(end));
-      }
-      if (month != null) return c.at.year == month.year && c.at.month == month.month;
-      return true;
+      return sameMonth(c.at, anchor);
     }).fold<int>(0, (sum, c) => sum + c.amount);
   }
 
-  ({DateTime start, DateTime end}) budgetPeriod(BudgetBox box, DateTime today) {
-    final d = dateOnly(today);
-    int clampDay(DateTime month, int day) {
-      final last = DateTime(month.year, month.month + 1, 0).day;
-      return day.clamp(1, last);
-    }
+  List<BudgetBox> get visibleBoxes => [
+        for (final box in boxes)
+          if (box.isSavings || _boxInMonth(box, moneyMonth)) box,
+      ];
 
-    late DateTime start;
-    if (d.day >= clampDay(d, box.renewalDay)) {
-      start = DateTime(d.year, d.month, clampDay(d, box.renewalDay));
-    } else {
-      final prev = DateTime(d.year, d.month - 1, 1);
-      start = DateTime(prev.year, prev.month, clampDay(prev, box.renewalDay));
-    }
-    final next = DateTime(start.year, start.month + 1, 1);
-    final nextStart = DateTime(next.year, next.month, clampDay(next, box.renewalDay));
-    return (start: start, end: nextStart.subtract(const Duration(days: 1)));
+  DateTime get moneyEntryDate {
+    final now = dateOnly(DateTime.now());
+    if (sameMonth(moneyMonth, now)) return now;
+    return monthStart(moneyMonth);
+  }
+
+  bool _boxInMonth(BudgetBox box, DateTime day) {
+    if (box.isSavings) return true;
+    final month = box.month;
+    if (month == null) return false;
+    return sameMonth(month, day);
   }
 
   int savingsBalance(BudgetBox box) {
@@ -843,11 +829,22 @@ class AppStore extends ChangeNotifier {
   }
 
   void reorderBoxes(int oldIndex, int newIndex) {
+    final vis = visibleBoxes;
     if (newIndex > oldIndex) newIndex -= 1;
-    if (oldIndex < 0 || oldIndex >= boxes.length) return;
-    if (newIndex < 0 || newIndex >= boxes.length) return;
-    final item = boxes.removeAt(oldIndex);
-    boxes.insert(newIndex, item);
+    if (oldIndex < 0 || oldIndex >= vis.length) return;
+    if (newIndex < 0 || newIndex >= vis.length) return;
+    final original = [...boxes];
+    final reordered = [...vis];
+    final item = reordered.removeAt(oldIndex);
+    reordered.insert(newIndex, item);
+    var i = 0;
+    final visibleIds = {for (final box in vis) box.id};
+    boxes
+      ..clear()
+      ..addAll([
+        for (final box in original)
+          if (visibleIds.contains(box.id)) reordered[i++] else box,
+      ]);
     notifyListeners();
     _saveUserData();
   }
@@ -920,15 +917,63 @@ class AppStore extends ChangeNotifier {
     _saveUserData();
   }
 
+  void updateIncome(IncomeEntry entry) {
+    final i = incomes.indexWhere((e) => e.id == entry.id);
+    if (i < 0) return;
+    incomes[i] = entry;
+    lastToast = '収入を更新しました';
+    notifyListeners();
+    _saveUserData();
+  }
+
+  void deleteIncome(String id) {
+    final before = incomes.length;
+    incomes.removeWhere((e) => e.id == id);
+    if (incomes.length == before) return;
+    lastToast = '収入を削除しました';
+    notifyListeners();
+    _saveUserData();
+  }
+
+  List<IncomeEntry> get incomeHistory {
+    final list = [...incomes];
+    list.sort((a, b) => b.depositedAt.compareTo(a.depositedAt));
+    return list;
+  }
+
+  List<MoneyCard> get spendHistory {
+    final list = [for (final card in cards) if (card.kind == MoneyCardKind.spend) card];
+    list.sort((a, b) => b.at.compareTo(a.at));
+    return list;
+  }
+
+  List<String> get expenseTags {
+    final tags = <String>{};
+    for (final card in cards) {
+      if (card.kind != MoneyCardKind.spend) continue;
+      final tag = card.tag.trim();
+      if (tag.isNotEmpty) tags.add(tag);
+    }
+    for (final box in boxes) {
+      for (final tag in box.tags) {
+        final text = tag.trim();
+        if (text.isNotEmpty) tags.add(text);
+      }
+    }
+    final list = tags.toList()..sort();
+    return list;
+  }
+
   BudgetBox addBudgetBox({
     required String name,
     required IconData icon,
     required Color color,
     required int monthlyBudget,
-    required int renewalDay,
     required List<String> tags,
     String memo = '',
+    DateTime? month,
   }) {
+    final assigned = monthStart(month ?? moneyMonth);
     final box = BudgetBox(
       id: _id(),
       name: name,
@@ -937,7 +982,7 @@ class AppStore extends ChangeNotifier {
       color: color,
       icon: icon,
       tags: tags,
-      renewalDay: renewalDay.clamp(1, 31),
+      month: assigned,
       memo: memo,
     );
     boxes.add(box);
@@ -1018,6 +1063,15 @@ class AppStore extends ChangeNotifier {
     if (i < 0) return;
     cards[i] = card;
     lastToast = 'カードを更新しました';
+    notifyListeners();
+    _saveUserData();
+  }
+
+  void deleteMoneyCard(String id) {
+    final before = cards.length;
+    cards.removeWhere((c) => c.id == id);
+    if (cards.length == before) return;
+    lastToast = 'カードを削除しました';
     notifyListeners();
     _saveUserData();
   }
@@ -1137,6 +1191,7 @@ class AppStore extends ChangeNotifier {
         boxes
           ..clear()
           ..addAll(savedBoxes);
+        _assignLegacyBoxMonths();
       }
       if (savedCards.isNotEmpty || savedBoxes.isNotEmpty) {
         cards
@@ -1201,6 +1256,15 @@ class AppStore extends ChangeNotifier {
       notifyListeners();
     }
     _canSave = true;
+  }
+
+  void _assignLegacyBoxMonths() {
+    final fallback = monthStart(moneyMonth);
+    for (var i = 0; i < boxes.length; i++) {
+      final box = boxes[i];
+      if (box.isSavings || box.month != null) continue;
+      boxes[i] = box.copyWith(month: fallback);
+    }
   }
 
   void _saveUserData() {

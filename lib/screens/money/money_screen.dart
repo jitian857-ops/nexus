@@ -9,6 +9,7 @@ import '../../widgets/glass_card.dart';
 import '../../widgets/ui_bits.dart';
 import 'box_detail_page.dart';
 import 'money_forms.dart';
+import 'money_ledgers.dart';
 
 class MoneyScreen extends StatefulWidget {
   const MoneyScreen({super.key});
@@ -59,7 +60,7 @@ class _MoneyScreenState extends State<MoneyScreen> {
               scrollDirection: Axis.horizontal,
               buildDefaultDragHandles: false,
               padding: EdgeInsets.zero,
-              itemCount: store.boxes.length,
+              itemCount: store.visibleBoxes.length,
               onReorder: store.reorderBoxes,
               proxyDecorator: (child, index, animation) {
                 return AnimatedBuilder(
@@ -68,7 +69,7 @@ class _MoneyScreenState extends State<MoneyScreen> {
                 );
               },
               itemBuilder: (context, i) {
-                final box = store.boxes[i];
+                final box = store.visibleBoxes[i];
                 return Padding(
                   key: ValueKey(box.id),
                   padding: const EdgeInsets.only(right: 10),
@@ -79,7 +80,7 @@ class _MoneyScreenState extends State<MoneyScreen> {
                         Positioned.fill(
                           child: ReorderableTapDragListener(
                             index: i,
-                            enabled: store.boxes.length > 1,
+                            enabled: store.visibleBoxes.length > 1,
                             onTap: () => _openBox(context, box.id),
                             child: box.isSavings
                                 ? _SavingsTile(store: store, box: box)
@@ -100,7 +101,7 @@ class _MoneyScreenState extends State<MoneyScreen> {
               },
             ),
           ),
-          if (store.boxes.length > 1)
+          if (store.visibleBoxes.length > 1)
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text(
@@ -204,7 +205,7 @@ class _MoneyScreenState extends State<MoneyScreen> {
                           ),
                         ),
                         Text(
-                          '${store.nextPaymentDue(p, store.focusedDate).month}/${store.nextPaymentDue(p, store.focusedDate).day}',
+                          '${store.nextPaymentDue(p, store.moneyMonth).month}/${store.nextPaymentDue(p, store.moneyMonth).day}',
                           style: TextStyle(color: NexusColors.textMuted),
                         ),
                         const SizedBox(width: 10),
@@ -347,54 +348,70 @@ class _MoneyBalanceCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
-                IgnorePointer(
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: NexusColors.income.withValues(alpha: 0.10),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: NexusColors.income.withValues(alpha: 0.3)),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.arrow_upward_rounded, size: 13, color: NexusColors.income),
-                            const SizedBox(width: 4),
-                            Text(
-                              '収入 ${yen(money.income)}',
-                              style: TextStyle(color: NexusColors.income, fontSize: 12, fontWeight: FontWeight.w700),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: NexusColors.expense.withValues(alpha: 0.10),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: NexusColors.expense.withValues(alpha: 0.3)),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.arrow_downward_rounded, size: 13, color: NexusColors.expense),
-                            const SizedBox(width: 4),
-                            Text(
-                              '支出 ${yen(-money.expense)}',
-                              style: TextStyle(color: NexusColors.expense, fontSize: 12, fontWeight: FontWeight.w700),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+                Row(
+                  children: [
+                    _BalanceStatChip(
+                      icon: Icons.arrow_upward_rounded,
+                      label: '収入 ${yen(money.income)}',
+                      color: NexusColors.income,
+                      onTap: () => openIncomeLedger(context),
+                    ),
+                    const SizedBox(width: 8),
+                    _BalanceStatChip(
+                      icon: Icons.arrow_downward_rounded,
+                      label: '支出 ${yen(-money.expense)}',
+                      color: NexusColors.expense,
+                      onTap: () => openExpenseLedger(context),
+                    ),
+                  ],
                 ),
               ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BalanceStatChip extends StatelessWidget {
+  const _BalanceStatChip({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: color.withValues(alpha: 0.3)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 13, color: color),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -435,7 +452,7 @@ class _BudgetTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final spent = store.spentOfBox(box.id, periodOf: box, day: store.moneyMonth);
+    final spent = store.spentOfBox(box.id, month: store.moneyMonth);
     final remaining = box.monthlyBudget - spent;
     final ratio = box.monthlyBudget == 0 ? 0.0 : spent / box.monthlyBudget;
     return GlassCard(

@@ -44,6 +44,18 @@ void main() {
     expect(find.text('カードを追加'), findsOneWidget);
     expect(find.text('支払予定を追加'), findsOneWidget);
 
+    await tester.tap(find.text('収入 ¥0'));
+    await tester.pumpAndSettle();
+    expect(find.text('収入の記録'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.close_rounded).first);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('支出 ¥0'));
+    await tester.pumpAndSettle();
+    expect(find.text('支出の記録'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.close_rounded).first);
+    await tester.pumpAndSettle();
+
     await tapTab('設定');
     expect(find.text('設定'), findsWidgets);
     expect(find.text('ホワイト'), findsOneWidget);

@@ -44,6 +44,12 @@ String remainingStudyLabel(int remainingMinutes) {
   return (year: deposited.year, month: deposited.month + 1);
 }
 
+bool queryMatches(String query, Iterable<String> fields) {
+  final q = query.trim().toLowerCase();
+  if (q.isEmpty) return true;
+  return fields.any((field) => field.toLowerCase().contains(q));
+}
+
 /// 時と分で表示。秒の端数は繰り上げ。
 String formatStudyHours(double hours) {
   if (hours <= 0) return '0分';
@@ -102,6 +108,12 @@ String daysLeftLabel(DateTime due, DateTime today) {
 }
 
 DateTime dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
+
+DateTime monthStart(DateTime d) => DateTime(d.year, d.month, 1);
+
+String monthKey(DateTime d) => '${d.year}-${two(d.month)}';
+
+bool sameMonth(DateTime a, DateTime b) => a.year == b.year && a.month == b.month;
 
 String dateKey(DateTime d) {
   final day = dateOnly(d);

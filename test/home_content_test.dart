@@ -143,7 +143,6 @@ void main() {
       icon: Icons.restaurant_rounded,
       color: const Color(0xFF3DA9FC),
       monthlyBudget: 30000,
-      renewalDay: 1,
       tags: const ['その他'],
     );
     expect(store.money.expense, 0);
@@ -220,7 +219,6 @@ void main() {
       icon: Icons.restaurant_rounded,
       color: const Color(0xFF3DA9FC),
       monthlyBudget: 30000,
-      renewalDay: 1,
       tags: const ['外食'],
     );
     final train = store.addBudgetBox(
@@ -228,7 +226,6 @@ void main() {
       icon: Icons.train_rounded,
       color: const Color(0xFF9B6BFF),
       monthlyBudget: 5000,
-      renewalDay: 1,
       tags: const ['電車'],
     );
     final card = store.addMoneyCard(
@@ -245,23 +242,35 @@ void main() {
     expect(store.spentOfBox(train.id, month: store.focusedDate), trainBefore + 1480);
   });
 
-  test('予算ボックスは指定した更新日から次の更新日前日までを一期間とする', () {
+  test('予算ボックスは作った月だけに出る', () {
     final store = AppStore.seed();
-    final created = store.addBudgetBox(
+    store.boxes.clear();
+    store.addBudgetBox(
       name: '食費',
       icon: Icons.restaurant_rounded,
       color: const Color(0xFF3DA9FC),
       monthlyBudget: 30000,
-      renewalDay: 10,
       tags: const ['外食'],
     );
-    final box = created.copyWith(renewalDay: 10);
-    final mid = store.budgetPeriod(box, DateTime(2026, 8, 18));
-    expect(mid.start, DateTime(2026, 8, 10));
-    expect(mid.end, DateTime(2026, 9, 9));
-    final early = store.budgetPeriod(box, DateTime(2026, 8, 5));
-    expect(early.start, DateTime(2026, 7, 10));
-    expect(early.end, DateTime(2026, 8, 9));
+    expect(store.visibleBoxes.where((b) => !b.isSavings), hasLength(1));
+    store.shiftMoneyMonth(-1);
+    expect(store.visibleBoxes.where((b) => !b.isSavings), isEmpty);
+    store.shiftMoneyMonth(1);
+    expect(store.visibleBoxes.single.name, '食費');
+  });
+
+  test('月を進めても予算ボックスは自動では入らない', () {
+    final store = AppStore.seed();
+    store.boxes.clear();
+    store.addBudgetBox(
+      name: '食費',
+      icon: Icons.restaurant_rounded,
+      color: const Color(0xFF3DA9FC),
+      monthlyBudget: 30000,
+      tags: const ['外食'],
+    );
+    store.shiftMoneyMonth(1);
+    expect(store.visibleBoxes.where((b) => !b.isSavings), isEmpty);
   });
 
   test('貯蓄ボックスは月が変わっても残高を持ち越し、カード移動で残高が入れ替わる', () {
@@ -282,7 +291,6 @@ void main() {
       icon: Icons.people_alt_rounded,
       color: const Color(0xFFFF8AD2),
       monthlyBudget: 10000,
-      renewalDay: 25,
       tags: const ['ご飯', 'その他'],
     );
     final friend = store.boxes.last;
@@ -290,13 +298,17 @@ void main() {
       boxId: friend.id,
       title: 'サイゼリヤ',
       amount: 1480,
-      at: DateTime(2026, 8, 18),
+      at: store.focusedDate,
       tag: 'ご飯',
     );
-    expect(store.spentOfBox(friend.id, month: DateTime(2026, 8, 1)), 1480);
+    expect(store.spentOfBox(friend.id, month: store.moneyMonth), 1480);
     store.updateMoneyCard(card.copyWith(boxId: korea.id, kind: MoneyCardKind.saveOut));
-    expect(store.spentOfBox(friend.id, month: DateTime(2026, 8, 1)), 0);
+    expect(store.spentOfBox(friend.id, month: store.moneyMonth), 0);
     expect(store.savingsBalance(korea), 72000 - 1480);
+    store.shiftMoneyMonth(1);
+    expect(store.visibleBoxes.any((b) => b.id == korea.id), isTrue);
+    expect(store.visibleBoxes.any((b) => b.id == friend.id), isFalse);
+    expect(store.visibleBoxes.where((b) => !b.isSavings), isEmpty);
   });
 
   test('教科の追加はJSON経由でも復元できる', () {
@@ -376,7 +388,6 @@ void main() {
       icon: Icons.inbox_rounded,
       color: const Color(0xFF8B9BB4),
       monthlyBudget: 0,
-      renewalDay: 1,
       tags: const ['その他'],
     );
     final food = store.addBudgetBox(
@@ -384,7 +395,6 @@ void main() {
       icon: Icons.restaurant_rounded,
       color: const Color(0xFF3DA9FC),
       monthlyBudget: 30000,
-      renewalDay: 1,
       tags: const ['外食'],
     );
     store.addMoneyCard(
@@ -468,7 +478,6 @@ void main() {
       icon: Icons.restaurant_rounded,
       color: NexusColors.boxPalette.first,
       monthlyBudget: 10000,
-      renewalDay: 1,
       tags: const ['その他'],
     );
     final trip = store.addSavingsBox(
@@ -553,6 +562,59 @@ void main() {
     expect(store.lifeDate.month, DateTime(today.year, today.month - 1).month);
     store.shiftLifeMonth(1);
     expect(store.lifeDate, today);
+  });
+
+  test('収入は更新と削除ができる', () {
+    final store = AppStore.seed();
+    store.incomes.clear();
+    store.addIncome(
+      name: '給料',
+      amount: 140000,
+      depositedAt: store.focusedDate,
+      useYear: store.focusedDate.year,
+      useMonth: store.focusedDate.month,
+    );
+    final id = store.incomes.single.id;
+    store.updateIncome(store.incomes.single.copyWith(name: 'ボーナス', amount: 20000));
+    expect(store.incomes.single.name, 'ボーナス');
+    expect(store.incomes.single.amount, 20000);
+    expect(store.incomeForMonth(store.focusedDate), 20000);
+    store.deleteIncome(id);
+    expect(store.incomes, isEmpty);
+    expect(store.incomeForMonth(store.focusedDate), 0);
+  });
+
+  test('支出カードはタグで探せ、検索にもヒットする', () {
+    final store = AppStore.seed();
+    store.boxes.clear();
+    store.cards.clear();
+    final food = store.addBudgetBox(
+      name: '食費',
+      icon: Icons.restaurant_rounded,
+      color: const Color(0xFF3DA9FC),
+      monthlyBudget: 30000,
+      tags: const ['外食', 'その他'],
+    );
+    store.addMoneyCard(
+      boxId: food.id,
+      title: 'サイゼリヤ',
+      amount: 1480,
+      at: store.focusedDate,
+      tag: '外食',
+    );
+    store.addMoneyCard(
+      boxId: food.id,
+      title: 'スーパー',
+      amount: 2200,
+      at: store.focusedDate,
+      tag: 'その他',
+    );
+    expect(store.expenseTags, containsAll(['外食', 'その他']));
+    expect(store.spendHistory, hasLength(2));
+    expect(queryMatches('サイゼ', ['サイゼリヤ', '外食', '食費']), isTrue);
+    expect(queryMatches('ホテル', ['サイゼリヤ', '外食', '食費']), isFalse);
+    store.deleteMoneyCard(store.spendHistory.firstWhere((c) => c.title == 'サイゼリヤ').id);
+    expect(store.spendHistory.single.title, 'スーパー');
   });
 
   test('習慣は更新と削除ができる', () {
