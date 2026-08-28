@@ -24,10 +24,10 @@ class AppStore extends ChangeNotifier {
   int tabIndex = NexusTab.home;
   DateTime focusedDate = dateOnly(DateTime.now());
   DateTime lifeDate = dateOnly(DateTime.now());
+  DateTime moneyMonth = dateOnly(DateTime.now());
 
   String userName = '蒼井 ユウ';
-  int level = 1;
-  double levelProgress = 0;
+  final Map<String, String> diaries = {};
 
   int dailyStudyGoalMinutes = 120;
   DateTime todayStudyDate = dateOnly(DateTime.now());
@@ -81,7 +81,6 @@ class AppStore extends ChangeNotifier {
   int energy = 0;
   int steps = 0;
   int stepGoal = 10000;
-  String diary = '';
 
   UserSettings settings = const UserSettings();
   AiProposal? proposal;
@@ -112,21 +111,34 @@ class AppStore extends ChangeNotifier {
     ];
   }
 
-  MoneySnapshot get money {
-    final day = focusedDate;
+  MoneySnapshot get money => moneyFor(moneyMonth);
+
+  MoneySnapshot moneyFor(DateTime day, {bool? deductBudget}) {
+    final anchor = dateOnly(day);
     final budgetBoxes = [
       for (final box in boxes.where((b) => !b.isSavings))
-        box.copyWith(spent: spentOfBox(box.id, periodOf: box, day: day)),
+        box.copyWith(spent: spentOfBox(box.id, periodOf: box, day: anchor)),
     ];
     return MoneyCalc.compute(
-      income: incomeForMonth(day),
+      income: incomeForMonth(anchor),
       boxes: budgetBoxes,
       payments: payments,
-      today: day,
-      unassignedSpent: unassignedSpentFor(day),
-      savingsAllocated: savingsAllocatedFor(day),
+      today: anchor,
+      unassignedSpent: unassignedSpentFor(anchor),
+      savingsAllocated: savingsAllocatedFor(anchor),
+      deductBudget: deductBudget ?? settings.deductBudgetFromBalance,
     );
   }
+
+  int get studyXpMinutes => sessions.fold<int>(0, (sum, s) => sum + s.minutes);
+
+  int get level => 1 + studyXpMinutes ~/ 60;
+
+  double get levelProgress => (studyXpMinutes % 60) / 60.0;
+
+  String diaryOn(DateTime day) => diaries[dateKey(day)] ?? '';
+
+  String get diary => diaryOn(lifeDate);
 
   int savingsAllocatedFor(DateTime day) {
     return cards.where((c) {
@@ -356,6 +368,21 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  void shiftLifeMonth(int delta) {
+    final next = DateTime(lifeDate.year, lifeDate.month + delta);
+    final today = dateOnly(DateTime.now());
+    if (next.year == today.year && next.month == today.month) {
+      setLifeDate(today);
+    } else {
+      setLifeDate(DateTime(next.year, next.month, 1));
+    }
+  }
+
+  void shiftMoneyMonth(int delta) {
+    moneyMonth = DateTime(moneyMonth.year, moneyMonth.month + delta, 1);
+    notifyListeners();
+  }
+
   void addSchedule({
     required String title,
     required DateTime startAt,
@@ -415,6 +442,25 @@ class AppStore extends ChangeNotifier {
     return habit;
   }
 
+  void updateHabit(Habit habit) {
+    final i = habits.indexWhere((h) => h.id == habit.id);
+    if (i < 0) return;
+    habits[i] = habit;
+    lastToast = '習慣「${habit.name}」を更新しました';
+    notifyListeners();
+    _saveUserData();
+  }
+
+  void deleteHabit(String id) {
+    final i = habits.indexWhere((h) => h.id == id);
+    if (i < 0) return;
+    final name = habits[i].name;
+    habits.removeAt(i);
+    lastToast = '習慣「$name」を削除しました';
+    notifyListeners();
+    _saveUserData();
+  }
+
   void startSleep({DateTime? at}) {
     sleepStartedAt = at ?? DateTime.now();
     lastToast = '就寝を記録しました';
@@ -461,6 +507,23 @@ class AppStore extends ChangeNotifier {
     return log;
   }
 
+  void setCheckIn({
+    required int mood,
+    required int energy,
+    List<String> tags = const [],
+    String diary = '',
+  }) {
+    this.mood = mood;
+    this.energy = energy;
+    if (diary.trim().isNotEmpty) {
+      setDiary(diary);
+      return;
+    }
+    notifyListeners();
+  }
+
+  ({List<String> tags}) checkInOn(DateTime day) => (tags: const <String>[]);
+
   void setMood(int value) {
     mood = value;
     notifyListeners();
@@ -471,9 +534,16 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setDiary(String value) {
-    diary = value;
+  void setDiary(String value, {DateTime? day}) {
+    final key = dateKey(day ?? lifeDate);
+    final text = value.trim();
+    if (text.isEmpty) {
+      diaries.remove(key);
+    } else {
+      diaries[key] = text;
+    }
     notifyListeners();
+    _saveUserData();
   }
 
   void setTimerSubject(String? id) {
@@ -529,9 +599,31 @@ class AppStore extends ChangeNotifier {
 
   void setTimerMinutes(int minutes) {
     if (timerRunning) return;
-    timerTotalSeconds = minutes.clamp(0, 12 * 60) * 60;
+    timerTotalSeconds = minutes.clamp(0, 12 * 60 + 59) * 60;
     timerAccumulatedSeconds = 0;
     notifyListeners();
+  }
+
+  void addTimerPreset(int minutes) {
+    final value = minutes.clamp(1, 12 * 60 + 59);
+    if (settings.timerPresets.contains(value)) {
+      lastToast = 'その時間はすでにあります';
+      notifyListeners();
+      return;
+    }
+    final next = [...settings.timerPresets, value]..sort();
+    lastToast = '${studyGoalLabel(value)}を追加しました';
+    updateSettings(settings.copyWith(timerPresets: next));
+  }
+
+  void removeTimerPreset(int minutes) {
+    if (!settings.timerPresets.contains(minutes)) return;
+    lastToast = '${studyGoalLabel(minutes)}を外しました';
+    updateSettings(
+      settings.copyWith(
+        timerPresets: [...settings.timerPresets]..remove(minutes),
+      ),
+    );
   }
 
   void setDailyStudyGoalMinutes(int minutes) {
@@ -1085,11 +1177,25 @@ class AppStore extends ChangeNotifier {
       if (savedName != null && savedName.isNotEmpty) {
         userName = savedName;
       }
+      diaries.clear();
+      final rawDiaries = data['diaries'];
+      if (rawDiaries is Map) {
+        for (final entry in rawDiaries.entries) {
+          final text = entry.value?.toString() ?? '';
+          if (text.isNotEmpty) diaries[entry.key.toString()] = text;
+        }
+      }
+      final legacyDiary = (data['diary'] as String?)?.trim();
+      if (legacyDiary != null && legacyDiary.isNotEmpty && diaries.isEmpty) {
+        diaries[dateKey(DateTime.now())] = legacyDiary;
+      }
       final rawSettings = data['settings'];
       if (rawSettings is Map) {
         settings = UserSettings.fromJson(Map<String, dynamic>.from(rawSettings));
       } else if (data['themeId'] is String) {
-        settings = settings.copyWith(themeId: data['themeId'] as String);
+        settings = settings.copyWith(
+          themeId: UserSettings.normalizeThemeId(data['themeId'] as String),
+        );
       }
       NexusColors.apply(NexusPalette.byId(settings.themeId));
       notifyListeners();
@@ -1113,6 +1219,7 @@ class AppStore extends ChangeNotifier {
       sleepStartedAt: sleepStartedAt,
       userName: userName,
       settings: settings,
+      diaries: diaries,
     );
   }
 
@@ -1197,6 +1304,7 @@ class AppStore extends ChangeNotifier {
     final today = dateOnly(DateTime.now());
     focusedDate = today;
     lifeDate = today;
+    moneyMonth = today;
     todayStudyDate = today;
     income = 0;
     weekStudyHours = 0;
@@ -1209,10 +1317,8 @@ class AppStore extends ChangeNotifier {
     mood = 0;
     energy = 0;
     steps = 0;
-    diary = '';
+    diaries.clear();
     proposal = null;
-    level = 1;
-    levelProgress = 0;
   }
 }
 

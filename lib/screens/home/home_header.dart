@@ -9,14 +9,6 @@ import '../../widgets/nexus_nav_bar.dart';
 class HomeHeader extends StatelessWidget {
   const HomeHeader({super.key});
 
-  String _greeting() {
-    final hour = DateTime.now().hour;
-    if (hour < 5) return 'こんばんは';
-    if (hour < 11) return 'おはよう';
-    if (hour < 18) return 'こんにちは';
-    return 'こんばんは';
-  }
-
   @override
   Widget build(BuildContext context) {
     final store = AppScope.of(context);
@@ -29,14 +21,6 @@ class HomeHeader extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                '${_greeting()}、',
-                style: TextStyle(
-                  color: NexusColors.textMuted,
-                  fontSize: 10,
-                  letterSpacing: 0.3,
-                ),
-              ),
               Text(
                 store.userName,
                 style: TextStyle(

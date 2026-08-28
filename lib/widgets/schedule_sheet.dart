@@ -4,6 +4,7 @@ import '../app/theme.dart';
 import '../core/format.dart';
 import '../data/models.dart';
 import '../data/app_store.dart';
+import 'duration_picker.dart';
 import 'ui_bits.dart';
 
 class ScheduleEditSheet extends StatefulWidget {
@@ -56,19 +57,11 @@ class _ScheduleEditSheetState extends State<ScheduleEditSheet> {
           style: TextStyle(color: NexusColors.text),
           decoration: _input('タイトル'),
         ),
-        const SizedBox(height: 10),
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          title: Text('時刻', style: TextStyle(color: NexusColors.textSecondary)),
-          trailing: Text(
-            '${two(_time.hour)}:${two(_time.minute)}',
-            style: TextStyle(color: NexusColors.cyan, fontWeight: FontWeight.w700),
+          const SizedBox(height: 10),
+          ClockTimePicker(
+            time: _time,
+            onChanged: (next) => setState(() => _time = next),
           ),
-          onTap: () async {
-            final next = await showTimePicker(context: context, initialTime: _time);
-            if (next != null) setState(() => _time = next);
-          },
-        ),
         const SizedBox(height: 8),
         FilledButton(
           onPressed: () {

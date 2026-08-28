@@ -143,17 +143,6 @@ class _FocusTimerPageState extends State<FocusTimerPage> {
                                     letterSpacing: 1.4,
                                   ),
                                 ),
-                                Text(
-                                  store.timerRunning ? '集中中' : '停止中',
-                                  style: TextStyle(
-                                    color: store.timerRunning
-                                        ? NexusColors.cyan
-                                        : NexusColors.textMuted,
-                                    fontWeight: store.timerRunning
-                                        ? FontWeight.w700
-                                        : FontWeight.w400,
-                                  ),
-                                ),
                               ],
                             ),
                           ),
@@ -166,6 +155,12 @@ class _FocusTimerPageState extends State<FocusTimerPage> {
                           kMaxStudyDurationMinutes,
                         ),
                         onChanged: store.setTimerMinutes,
+                        enabled: !store.timerRunning,
+                      ),
+                      const SizedBox(height: 10),
+                      _TimerPresets(
+                        store: store,
+                        currentMinutes: (store.timerTotalSeconds / 60).round(),
                         enabled: !store.timerRunning,
                       ),
                       const SizedBox(height: 16),
@@ -390,5 +385,62 @@ class _TimerSubjectPicker extends StatelessWidget {
   Future<void> _addSubject(BuildContext context) async {
     final created = await promptNewSubject(context, store);
     if (created != null) store.setTimerSubject(created.id);
+  }
+}
+
+class _TimerPresets extends StatelessWidget {
+  const _TimerPresets({
+    required this.store,
+    required this.currentMinutes,
+    required this.enabled,
+  });
+
+  final AppStore store;
+  final int currentMinutes;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('よく使う時間', style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final minutes in store.settings.timerPresets)
+              GestureDetector(
+                onLongPress: enabled ? () => store.removeTimerPreset(minutes) : null,
+                child: ActionChip(
+                  label: Text(studyGoalLabel(minutes)),
+                  backgroundColor: currentMinutes == minutes
+                      ? NexusColors.cyan.withValues(alpha: 0.22)
+                      : null,
+                  labelStyle: TextStyle(
+                    color: currentMinutes == minutes ? NexusColors.cyan : NexusColors.text,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  onPressed: enabled ? () => store.setTimerMinutes(minutes) : null,
+                ),
+              ),
+            ActionChip(
+              avatar: Icon(Icons.add_rounded, size: 16, color: NexusColors.cyan),
+              label: const Text('追加'),
+              labelStyle: TextStyle(color: NexusColors.cyan, fontWeight: FontWeight.w700),
+              onPressed: !enabled || currentMinutes <= 0
+                  ? null
+                  : () => store.addTimerPreset(currentMinutes),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'チップを押すとリールがその時間になります。長押しで削除。',
+          style: TextStyle(color: NexusColors.textMuted, fontSize: 11),
+        ),
+      ],
+    );
   }
 }

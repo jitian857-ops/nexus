@@ -28,11 +28,15 @@ class MoneyCalc {
     required DateTime today,
     int unassignedSpent = 0,
     int savingsAllocated = 0,
+    bool deductBudget = false,
   }) {
-    // 予算ボックスは作った時点で残高から引く。使いすぎ分だけさらに減らす。
-    final expense = boxes.fold<int>(0, (sum, b) => sum + (b.spent > b.monthlyBudget ? b.spent : b.monthlyBudget)) +
-        unassignedSpent +
-        savingsAllocated;
+    final boxCost = boxes.fold<int>(0, (sum, b) {
+      if (deductBudget) {
+        return sum + (b.spent > b.monthlyBudget ? b.spent : b.monthlyBudget);
+      }
+      return sum + b.spent;
+    });
+    final expense = boxCost + unassignedSpent + savingsAllocated;
     final monthEnd = DateTime(today.year, today.month + 1, 0);
     final remainingDays = monthEnd.day - today.day + 1;
     final upcoming = payments

@@ -16,7 +16,7 @@ class HomeWidgetCarousel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = AppScope.of(context);
-    final money = store.money;
+    final money = store.moneyFor(store.focusedDate);
 
     return Column(
       children: [

@@ -224,13 +224,10 @@ Future<void> _openBudgetBoxForm(BuildContext context, AppStore store, {BudgetBox
                       ),
                     ActionChip(
                       label: const Text('＋タグを追加'),
-                      onPressed: () {
-                        final text = tag.text.trim();
-                        if (text.isEmpty || tags.contains(text)) return;
-                        setSheet(() {
-                          tags = [...tags, text];
-                          tag.clear();
-                        });
+                      onPressed: () async {
+                        final text = await promptTagName(context);
+                        if (text == null || tags.contains(text)) return;
+                        setSheet(() => tags = [...tags, text]);
                       },
                     ),
                   ],
@@ -239,6 +236,14 @@ Future<void> _openBudgetBoxForm(BuildContext context, AppStore store, {BudgetBox
                   controller: tag,
                   style: TextStyle(color: NexusColors.text),
                   decoration: const InputDecoration(labelText: '新しいタグ名'),
+                  onSubmitted: (value) {
+                    final text = value.trim();
+                    if (text.isEmpty || tags.contains(text)) return;
+                    setSheet(() {
+                      tags = [...tags, text];
+                      tag.clear();
+                    });
+                  },
                 ),
                 TextField(
                   controller: memo,
@@ -355,13 +360,10 @@ Future<void> _openSavingsBoxForm(BuildContext context, AppStore store, {BudgetBo
                       ),
                     ActionChip(
                       label: const Text('＋タグを追加'),
-                      onPressed: () {
-                        final text = tag.text.trim();
-                        if (text.isEmpty || tags.contains(text)) return;
-                        setSheet(() {
-                          tags = [...tags, text];
-                          tag.clear();
-                        });
+                      onPressed: () async {
+                        final text = await promptTagName(context);
+                        if (text == null || tags.contains(text)) return;
+                        setSheet(() => tags = [...tags, text]);
                       },
                     ),
                   ],
@@ -370,6 +372,14 @@ Future<void> _openSavingsBoxForm(BuildContext context, AppStore store, {BudgetBo
                   controller: tag,
                   style: TextStyle(color: NexusColors.text),
                   decoration: const InputDecoration(labelText: '新しいタグ名'),
+                  onSubmitted: (value) {
+                    final text = value.trim();
+                    if (text.isEmpty || tags.contains(text)) return;
+                    setSheet(() {
+                      tags = [...tags, text];
+                      tag.clear();
+                    });
+                  },
                 ),
                 TextField(
                   controller: memo,
@@ -685,7 +695,7 @@ Future<void> openEditCard(BuildContext context, AppStore store, MoneyCard card) 
   memo.dispose();
 }
 
-Future<void> openAddTag(BuildContext context, AppStore store, String boxId) async {
+Future<String?> promptTagName(BuildContext context) async {
   final name = TextEditingController();
   final saved = await showNexusSheet<bool>(
     context: context,
@@ -701,6 +711,7 @@ Future<void> openAddTag(BuildContext context, AppStore store, String boxId) asyn
             autofocus: true,
             style: TextStyle(color: NexusColors.text),
             decoration: const InputDecoration(labelText: 'タグ名'),
+            onSubmitted: (_) => Navigator.pop(context, true),
           ),
           const SizedBox(height: 12),
           FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('追加')),
@@ -708,10 +719,15 @@ Future<void> openAddTag(BuildContext context, AppStore store, String boxId) asyn
       );
     },
   );
-  if (saved == true && name.text.trim().isNotEmpty) {
-    store.addBoxTag(boxId, name.text.trim());
-  }
+  final text = name.text.trim();
   name.dispose();
+  if (saved == true && text.isNotEmpty) return text;
+  return null;
+}
+
+Future<void> openAddTag(BuildContext context, AppStore store, String boxId) async {
+  final text = await promptTagName(context);
+  if (text != null) store.addBoxTag(boxId, text);
 }
 
 Future<void> openAddPayment(BuildContext context, AppStore store) async {

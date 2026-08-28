@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../app/theme.dart';
 import '../../data/app_store.dart';
+import '../../data/models.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/nexus_logo.dart';
 import '../../widgets/ui_bits.dart';
@@ -19,8 +20,6 @@ class SettingsScreen extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
           const GradientTitle('設定'),
-          const SizedBox(height: 4),
-          Text('Nexusを、自分らしく。', style: TextStyle(color: NexusColors.textSecondary)),
           const SizedBox(height: 14),
           GlassCard(
             glowColor: NexusColors.cyan,
@@ -30,19 +29,53 @@ class SettingsScreen extends StatelessWidget {
                 Text('テーマ', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
                 const SizedBox(height: 2),
                 Text(
-                  NexusPalette.byId(s.themeId).label,
+                  '${s.themeBase == 'white' ? 'ホワイト' : 'ブラック'} / ${NexusPalette.byId(s.themeId).label}',
                   style: TextStyle(color: NexusColors.textMuted, fontSize: 12),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _BaseToneChip(
+                        label: 'ホワイト',
+                        selected: s.themeBase == 'white',
+                        onTap: () => store.updateSettings(
+                          s.copyWith(
+                            themeId: UserSettings.composeThemeId('white', s.themeAccent),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _BaseToneChip(
+                        label: 'ブラック',
+                        selected: s.themeBase == 'black',
+                        onTap: () => store.updateSettings(
+                          s.copyWith(
+                            themeId: UserSettings.composeThemeId('black', s.themeAccent),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 12),
                 Wrap(
                   spacing: 10,
                   runSpacing: 12,
                   children: [
-                    for (final palette in NexusPalette.all)
+                    for (final accent in UserSettings.themeAccents)
                       _ThemeSwatch(
-                        palette: palette,
-                        selected: s.themeId == palette.id,
-                        onTap: () => store.updateSettings(s.copyWith(themeId: palette.id)),
+                        palette: NexusPalette.byId(
+                          UserSettings.composeThemeId(s.themeBase, accent.$1),
+                        ),
+                        selected: s.themeAccent == accent.$1,
+                        onTap: () => store.updateSettings(
+                          s.copyWith(
+                            themeId: UserSettings.composeThemeId(s.themeBase, accent.$1),
+                          ),
+                        ),
                       ),
                   ],
                 ),
@@ -190,6 +223,48 @@ class SettingsScreen extends StatelessWidget {
           const SizedBox(height: 8),
           Text(body, style: TextStyle(color: NexusColors.textSecondary, height: 1.4)),
         ],
+      ),
+    );
+  }
+}
+
+class _BaseToneChip extends StatelessWidget {
+  const _BaseToneChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? NexusColors.cyan.withValues(alpha: 0.16) : NexusColors.surface,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected ? NexusColors.cyan : NexusColors.border,
+              width: selected ? 1.6 : 1,
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: selected ? NexusColors.cyan : NexusColors.text,
+            ),
+          ),
+        ),
       ),
     );
   }

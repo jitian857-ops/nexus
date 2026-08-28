@@ -31,8 +31,6 @@ class LifeScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     GradientTitle('Life'),
-                    const SizedBox(height: 4),
-                    Text('毎日を、整える。', style: TextStyle(color: NexusColors.textSecondary)),
                   ],
                 ),
               ),
@@ -61,13 +59,13 @@ class LifeScreen extends StatelessWidget {
                     children: [
                       IconButton(
                         visualDensity: VisualDensity.compact,
-                        onPressed: () => store.setLifeDate(DateTime(day.year, day.month - 1, 1)),
+                        onPressed: () => store.shiftLifeMonth(-1),
                         icon: Icon(Icons.chevron_left, color: NexusColors.cyan),
                       ),
                       Text(jpMonth(day), style: const TextStyle(fontWeight: FontWeight.w700)),
                       IconButton(
                         visualDensity: VisualDensity.compact,
-                        onPressed: () => store.setLifeDate(DateTime(day.year, day.month + 1, 1)),
+                        onPressed: () => store.shiftLifeMonth(1),
                         icon: Icon(Icons.chevron_right, color: NexusColors.cyan),
                       ),
                     ],
@@ -151,15 +149,33 @@ class LifeScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SectionRow(title: '日記'),
-                const SizedBox(height: 4),
-                Text('今日を1分で振り返る', style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
+                SectionRow(
+                  title: '${day.month}月${day.day}日の日記',
+                  trailing: _DateButton(
+                    label: jpDate(day),
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: day,
+                        firstDate: DateTime(day.year - 1, 1, 1),
+                        lastDate: DateTime(day.year + 1, 12, 31),
+                      );
+                      if (picked != null) store.setLifeDate(picked);
+                    },
+                  ),
+                ),
                 const SizedBox(height: 8),
-                Text(store.diary, style: const TextStyle(height: 1.4)),
+                Text(
+                  store.diary.isEmpty ? 'この日の日記はまだありません' : store.diary,
+                  style: TextStyle(
+                    height: 1.4,
+                    color: store.diary.isEmpty ? NexusColors.textMuted : NexusColors.text,
+                  ),
+                ),
                 const SizedBox(height: 10),
                 OutlinedButton(
                   onPressed: () => _editDiary(context, store),
-                  child: const Text('続きを書く'),
+                  child: Text(store.diary.isEmpty ? '書く' : '続きを書く'),
                 ),
               ],
             ),
@@ -178,7 +194,10 @@ class LifeScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('日記', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+            Text(
+              '${store.lifeDate.month}月${store.lifeDate.day}日の日記',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+            ),
             const SizedBox(height: 8),
             TextField(
               controller: controller,
@@ -199,10 +218,10 @@ class LifeScreen extends StatelessWidget {
   }
 }
 
-Future<void> _openAddHabit(BuildContext context, AppStore store) async {
-  final name = TextEditingController();
-  var icon = Icons.wb_sunny_rounded;
-  var color = const Color(0xFFFFC857);
+Future<void> _openHabitForm(BuildContext context, AppStore store, {Habit? existing}) async {
+  final name = TextEditingController(text: existing?.name ?? '');
+  var icon = existing?.icon ?? Icons.wb_sunny_rounded;
+  var color = existing?.color ?? const Color(0xFFFFC857);
   const colors = [
     Color(0xFFFFC857),
     Color(0xFF00D4FF),
@@ -221,7 +240,7 @@ Future<void> _openAddHabit(BuildContext context, AppStore store) async {
     Icons.fitness_center_rounded,
     Icons.self_improvement_rounded,
   ];
-  final saved = await showNexusSheet<bool>(
+  final saved = await showNexusSheet<Object>(
     context: context,
     builder: (context) {
       return StatefulBuilder(
@@ -230,7 +249,7 @@ Future<void> _openAddHabit(BuildContext context, AppStore store) async {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('習慣を追加', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+              Text(existing == null ? '習慣を追加' : '習慣を編集', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
               const SizedBox(height: 12),
               TextField(
                 controller: name,
@@ -273,15 +292,32 @@ Future<void> _openAddHabit(BuildContext context, AppStore store) async {
                 ],
               ),
               const SizedBox(height: 12),
-              FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('追加')),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: Text(existing == null ? '追加' : '保存'),
+              ),
+              if (existing != null) ...[
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, 'delete'),
+                  child: Text('削除', style: TextStyle(color: NexusColors.expense)),
+                ),
+              ],
             ],
           );
         },
       );
     },
   );
-  if (saved == true && name.text.trim().isNotEmpty) {
-    store.addHabit(name: name.text.trim(), icon: icon, color: color);
+  if (saved == 'delete' && existing != null) {
+    store.deleteHabit(existing.id);
+    if (context.mounted) showNexusToast(context, store.lastToast);
+  } else if (saved == true && name.text.trim().isNotEmpty) {
+    if (existing == null) {
+      store.addHabit(name: name.text.trim(), icon: icon, color: color);
+    } else {
+      store.updateHabit(existing.copyWith(name: name.text.trim(), icon: icon, color: color));
+    }
     if (context.mounted) showNexusToast(context, store.lastToast);
   }
   name.dispose();
@@ -513,7 +549,7 @@ class _HabitCard extends StatelessWidget {
                 ),
               ),
               IconButton(
-                onPressed: () => _openAddHabit(context, store),
+                onPressed: () => _openHabitForm(context, store),
                 visualDensity: VisualDensity.compact,
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
@@ -574,6 +610,7 @@ class _HabitRowState extends State<_HabitRow> {
           _flash();
         }
       },
+      onLongPress: () => _openHabitForm(context, widget.store, existing: habit),
       borderRadius: BorderRadius.circular(10),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 280),

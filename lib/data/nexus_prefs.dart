@@ -23,6 +23,7 @@ class NexusPrefs {
     DateTime? sleepStartedAt,
     String? userName,
     UserSettings? settings,
+    Map<String, String>? diaries,
   }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -40,7 +41,9 @@ class NexusPrefs {
           'habits': [for (final h in habits) h.toJson()],
           'sleepLogs': [for (final s in sleepLogs) s.toJson()],
           'sleepStartedAt': sleepStartedAt?.toIso8601String(),
+          if (userName != null) 'userName': userName,
           if (settings != null) 'settings': settings.toJson(),
+          if (diaries != null) 'diaries': diaries,
         }),
       );
     } catch (_) {}

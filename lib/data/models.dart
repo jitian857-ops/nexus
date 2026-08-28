@@ -393,12 +393,17 @@ class Habit {
     return streakEndingOn(day.subtract(const Duration(days: 1)));
   }
 
-  Habit copyWith({Set<String>? doneDays}) {
+  Habit copyWith({
+    String? name,
+    IconData? icon,
+    Color? color,
+    Set<String>? doneDays,
+  }) {
     return Habit(
       id: id,
-      name: name,
-      icon: icon,
-      color: color,
+      name: name ?? this.name,
+      icon: icon ?? this.icon,
+      color: color ?? this.color,
       doneDays: doneDays ?? this.doneDays,
     );
   }
@@ -791,7 +796,7 @@ class AiProposal {
 
 class UserSettings {
   const UserSettings({
-    this.themeId = 'midnight',
+    this.themeId = 'white-midnight',
     this.notifyTasks = true,
     this.notifySchedule = true,
     this.notifyReview = true,
@@ -804,6 +809,8 @@ class UserSettings {
     this.diaryDefaultPrivate = true,
     this.negumoStrength = 0.5,
     this.proposalFrequency = 0.5,
+    this.deductBudgetFromBalance = false,
+    this.timerPresets = const [25, 50, 90],
   });
 
   final String themeId;
@@ -819,13 +826,58 @@ class UserSettings {
   final bool diaryDefaultPrivate;
   final double negumoStrength;
   final double proposalFrequency;
+  final bool deductBudgetFromBalance;
+  final List<int> timerPresets;
+
+  String get themeBase => themeId.startsWith('black-') ? 'black' : 'white';
+
+  String get themeAccent {
+    final dash = themeId.indexOf('-');
+    if (dash < 0) return 'midnight';
+    return themeId.substring(dash + 1);
+  }
+
+  static const themeAccents = [
+    ('midnight', 'ミッドナイト'),
+    ('sunset', 'サンセット'),
+    ('forest', 'フォレスト'),
+    ('crimson', 'クリムゾン'),
+    ('rose', 'ローズ'),
+  ];
+
+  static String composeThemeId(String base, String accent) => '$base-$accent';
+
+  static String normalizeThemeId(String? id) {
+    switch (id) {
+      case null:
+      case '':
+        return 'white-midnight';
+      case 'midnight':
+      case 'ocean':
+        return 'black-midnight';
+      case 'ivory':
+        return 'white-midnight';
+      case 'sakura':
+        return 'white-rose';
+      case 'crimson':
+        return 'black-crimson';
+      case 'forest':
+        return 'black-forest';
+      case 'sunset':
+        return 'black-sunset';
+      default:
+        return id;
+    }
+  }
 
   factory UserSettings.fromJson(Map<String, dynamic>? json) {
     if (json == null || json.isEmpty) return const UserSettings();
+    final presets = [
+      for (final item in (json['timerPresets'] as List? ?? const [25, 50, 90]))
+        (item as num).toInt(),
+    ];
     return UserSettings(
-      themeId: (json['themeId'] as String?)?.trim().isNotEmpty == true
-          ? json['themeId'] as String
-          : 'midnight',
+      themeId: UserSettings.normalizeThemeId(json['themeId'] as String?),
       notifyTasks: json['notifyTasks'] as bool? ?? true,
       notifySchedule: json['notifySchedule'] as bool? ?? true,
       notifyReview: json['notifyReview'] as bool? ?? true,
@@ -838,6 +890,8 @@ class UserSettings {
       diaryDefaultPrivate: json['diaryDefaultPrivate'] as bool? ?? true,
       negumoStrength: (json['negumoStrength'] as num?)?.toDouble() ?? 0.5,
       proposalFrequency: (json['proposalFrequency'] as num?)?.toDouble() ?? 0.5,
+      deductBudgetFromBalance: json['deductBudgetFromBalance'] as bool? ?? false,
+      timerPresets: presets.isEmpty ? const [25, 50, 90] : presets,
     );
   }
 
@@ -855,6 +909,8 @@ class UserSettings {
         'diaryDefaultPrivate': diaryDefaultPrivate,
         'negumoStrength': negumoStrength,
         'proposalFrequency': proposalFrequency,
+        'deductBudgetFromBalance': deductBudgetFromBalance,
+        'timerPresets': timerPresets,
       };
 
   UserSettings copyWith({
@@ -871,6 +927,8 @@ class UserSettings {
     bool? diaryDefaultPrivate,
     double? negumoStrength,
     double? proposalFrequency,
+    bool? deductBudgetFromBalance,
+    List<int>? timerPresets,
   }) {
     return UserSettings(
       themeId: themeId ?? this.themeId,
@@ -886,6 +944,8 @@ class UserSettings {
       diaryDefaultPrivate: diaryDefaultPrivate ?? this.diaryDefaultPrivate,
       negumoStrength: negumoStrength ?? this.negumoStrength,
       proposalFrequency: proposalFrequency ?? this.proposalFrequency,
+      deductBudgetFromBalance: deductBudgetFromBalance ?? this.deductBudgetFromBalance,
+      timerPresets: timerPresets ?? this.timerPresets,
     );
   }
 }

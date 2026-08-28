@@ -34,19 +34,20 @@ void main() {
     expect(find.text('総勉強時間'), findsOneWidget);
 
     await tapTab('Life');
-    expect(find.text('毎日を、整える。'), findsOneWidget);
+    expect(find.text('カレンダー'), findsOneWidget);
 
     await tapTab('Money');
-    expect(find.text('未来のために、今日を知る。'), findsOneWidget);
     expect(find.text('収入を追加'), findsOneWidget);
     expect(find.text('ボックスを追加'), findsOneWidget);
     expect(find.text('カードを追加'), findsOneWidget);
     expect(find.text('支払予定を追加'), findsOneWidget);
 
     await tapTab('設定');
-    expect(find.text('Nexusを、自分らしく。'), findsOneWidget);
+    expect(find.text('設定'), findsWidgets);
+    expect(find.text('ホワイト'), findsOneWidget);
+    expect(find.text('ブラック'), findsOneWidget);
     expect(find.text('ミッドナイト'), findsWidgets);
-    expect(find.text('アイボリー'), findsOneWidget);
+    expect(find.text('サンセット'), findsOneWidget);
     expect(find.text('クリムゾン'), findsOneWidget);
   });
 
@@ -79,7 +80,7 @@ void main() {
     );
   });
 
-  test('Moneyの残高は予算ボックスを引いた残り、使える額は残高を残日数で割る', () {
+  test('既定の残高は実支出だけを引き、予算差し引きは切替できる', () {
     final boxes = [
       const BudgetBox(
         id: 'a',
@@ -93,16 +94,26 @@ void main() {
     final payments = [
       PaymentPlan(id: 'p', title: 'x', amount: 1000, dueAt: DateTime(2026, 8, 25)),
     ];
-    final snap = MoneyCalc.compute(
+    final actual = MoneyCalc.compute(
       income: 40000,
       boxes: boxes,
       payments: payments,
       today: DateTime(2026, 8, 14),
     );
-    expect(snap.expense, 10000);
-    expect(snap.balance, 30000);
-    expect(snap.spendableToday, 1611);
-    expect(snap.spendableWeek, 1611 * 7);
+    expect(actual.expense, 3600);
+    expect(actual.balance, 36400);
+
+    final budgeted = MoneyCalc.compute(
+      income: 40000,
+      boxes: boxes,
+      payments: payments,
+      today: DateTime(2026, 8, 14),
+      deductBudget: true,
+    );
+    expect(budgeted.expense, 10000);
+    expect(budgeted.balance, 30000);
+    expect(budgeted.spendableToday, 1611);
+    expect(budgeted.spendableWeek, 1611 * 7);
   });
 
   test('ReviewScheduler は learnedAt から 1/5 日', () {

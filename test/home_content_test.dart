@@ -93,12 +93,12 @@ void main() {
     expect(store.sessions.first.focus, StudyFocus.peak);
   });
 
-  test('1分の学習は0.02hに繰り上げ表示される', () {
+  test('1分の学習は1分と表示される', () {
     final store = AppStore.seed();
     final math = store.addSubject(name: '数学');
     store.addStudySession(subjectId: math.id, minutes: 1, focus: StudyFocus.high);
     expect(store.weekStudyHours, closeTo(1 / 60, 0.0001));
-    expect(formatStudyHours(store.weekStudyHours), '0.02h');
+    expect(formatStudyHours(store.weekStudyHours), '1分');
   });
 
   test('新しい教科は一覧にすぐ追加される', () {
@@ -146,6 +146,9 @@ void main() {
       renewalDay: 1,
       tags: const ['その他'],
     );
+    expect(store.money.expense, 0);
+    expect(store.money.balance, 100000);
+    store.updateSettings(store.settings.copyWith(deductBudgetFromBalance: true));
     expect(store.money.expense, 30000);
     expect(store.money.balance, 70000);
   });
@@ -492,17 +495,76 @@ void main() {
     expect(store.selectedTimerSubjectId, english.id);
   });
 
-  test('テーマは7種類あり、不明なIDはミッドナイトになる', () {
-    expect(NexusPalette.all, hasLength(7));
-    expect(NexusPalette.byId('crimson').label, 'クリムゾン');
+  test('テーマはホワイトとブラックに5色ずつあり、古いIDは移行される', () {
+    expect(NexusPalette.all, hasLength(10));
+    expect(NexusPalette.byId('crimson').id, 'black-crimson');
     expect(NexusPalette.byId('ivory').isLight, isTrue);
-    expect(NexusPalette.byId('unknown').id, 'midnight');
+    expect(NexusPalette.byId('unknown').id, 'white-midnight');
   });
 
   test('テーマ設定はJSONで保存して戻せる', () {
     final saved = const UserSettings().copyWith(themeId: 'sakura', reduceMotion: true);
     final restored = UserSettings.fromJson(saved.toJson());
-    expect(restored.themeId, 'sakura');
+    expect(restored.themeId, 'white-rose');
     expect(restored.reduceMotion, isTrue);
+  });
+
+  test('勉強時間でレベルと経験値が進む', () {
+    final store = AppStore.seed();
+    final math = store.addSubject(name: '数学');
+    expect(store.level, 1);
+    expect(store.levelProgress, 0);
+    store.addStudySession(subjectId: math.id, minutes: 30, focus: StudyFocus.high);
+    expect(store.level, 1);
+    expect(store.levelProgress, closeTo(0.5, 0.001));
+    store.addStudySession(subjectId: math.id, minutes: 30, focus: StudyFocus.high);
+    expect(store.level, 2);
+    expect(store.levelProgress, 0);
+  });
+
+  test('日記は日付ごとに残る', () {
+    final store = AppStore.seed();
+    final today = store.lifeDate;
+    store.setDiary('今日の話');
+    store.setLifeDate(today.subtract(const Duration(days: 1)));
+    expect(store.diary, isEmpty);
+    store.setDiary('昨日の話');
+    store.setLifeDate(today);
+    expect(store.diary, '今日の話');
+    store.setLifeDate(today.subtract(const Duration(days: 1)));
+    expect(store.diary, '昨日の話');
+  });
+
+  test('Moneyの月を動かしてもHomeの日付は変わらない', () {
+    final store = AppStore.seed();
+    final today = store.focusedDate;
+    store.shiftMoneyMonth(-1);
+    expect(store.moneyMonth.month, DateTime(today.year, today.month - 1).month);
+    expect(store.focusedDate, today);
+    store.shiftMoneyMonth(1);
+    expect(store.moneyMonth.month, today.month);
+  });
+
+  test('Lifeの月移動で今月に戻ると今日が選ばれる', () {
+    final store = AppStore.seed();
+    final today = dateOnly(DateTime.now());
+    store.shiftLifeMonth(-1);
+    expect(store.lifeDate.day, 1);
+    expect(store.lifeDate.month, DateTime(today.year, today.month - 1).month);
+    store.shiftLifeMonth(1);
+    expect(store.lifeDate, today);
+  });
+
+  test('習慣は更新と削除ができる', () {
+    final store = AppStore.seed();
+    final added = store.addHabit(
+      name: '読書',
+      icon: Icons.menu_book_rounded,
+      color: const Color(0xFF00D4FF),
+    );
+    store.updateHabit(added.copyWith(name: '朝の読書'));
+    expect(store.habits.firstWhere((h) => h.id == added.id).name, '朝の読書');
+    store.deleteHabit(added.id);
+    expect(store.habits.any((h) => h.id == added.id), isFalse);
   });
 }

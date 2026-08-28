@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -259,8 +261,23 @@ class ReorderableTapDragListener extends StatefulWidget {
 }
 
 class _ReorderableTapDragListenerState extends State<ReorderableTapDragListener> {
-  var _moved = false;
-  Offset? _origin;
+  Timer? _tapTimer;
+  var _taps = 0;
+  var _dragging = false;
+
+  @override
+  void dispose() {
+    _tapTimer?.cancel();
+    super.dispose();
+  }
+
+  void _scheduleTap() {
+    _tapTimer?.cancel();
+    _tapTimer = Timer(const Duration(milliseconds: 280), () {
+      _taps = 0;
+      if (mounted) widget.onTap();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -269,30 +286,39 @@ class _ReorderableTapDragListenerState extends State<ReorderableTapDragListener>
       child: Listener(
         behavior: HitTestBehavior.opaque,
         onPointerDown: (event) {
-          _moved = false;
-          _origin = event.position;
           if (!widget.enabled) return;
+          _taps += 1;
+          if (_taps < 2) return;
+          _tapTimer?.cancel();
+          _taps = 0;
           final list = SliverReorderableList.maybeOf(context);
           if (list == null) return;
+          _dragging = true;
           list.startItemDragReorder(
             index: widget.index,
             event: event,
             recognizer: _MoveToDragGestureRecognizer(
               debugOwner: this,
-              onAccepted: () => _moved = true,
+              onAccepted: () {},
             ),
           );
         },
-        onPointerMove: (event) {
-          final origin = _origin;
-          if (origin == null) return;
-          if ((event.position - origin).distance > 8) _moved = true;
-        },
         onPointerUp: (_) {
-          if (!_moved) widget.onTap();
-          _origin = null;
+          if (_dragging) {
+            _dragging = false;
+            return;
+          }
+          if (!widget.enabled) {
+            widget.onTap();
+            return;
+          }
+          if (_taps == 1) _scheduleTap();
         },
-        onPointerCancel: (_) => _origin = null,
+        onPointerCancel: (_) {
+          _dragging = false;
+          _taps = 0;
+          _tapTimer?.cancel();
+        },
         child: widget.child,
       ),
     );

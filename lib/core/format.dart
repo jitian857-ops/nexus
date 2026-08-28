@@ -44,13 +44,15 @@ String remainingStudyLabel(int remainingMinutes) {
   return (year: deposited.year, month: deposited.month + 1);
 }
 
-/// 百分の一まで表示。千分の一以上があれば繰り上げ。
+/// 時と分で表示。秒の端数は繰り上げ。
 String formatStudyHours(double hours) {
-  if (hours <= 0) return '0.00h';
-  final hundredths = hours * 100;
-  final whole = hundredths.floor();
-  final rounded = (hundredths - whole) > 1e-9 ? whole + 1 : whole;
-  return '${(rounded / 100).toStringAsFixed(2)}h';
+  if (hours <= 0) return '0分';
+  final minutes = (hours * 60).ceil();
+  final h = minutes ~/ 60;
+  final m = minutes % 60;
+  if (h <= 0) return '$m分';
+  if (m == 0) return '$h時間';
+  return '$h時間$m分';
 }
 
 /// グラフの上限と横線。切りのいい数字に合わせる。

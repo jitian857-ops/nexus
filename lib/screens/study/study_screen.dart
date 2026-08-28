@@ -182,7 +182,7 @@ class _StudyScreenState extends State<StudyScreen> {
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text(
-                'つかんでドロップすると順番を変えられます',
+                'ダブルタップしてからドラッグすると順番を変えられます',
                 style: TextStyle(color: NexusColors.textMuted, fontSize: 11),
               ),
             ),
@@ -311,11 +311,6 @@ class _StudyScreenState extends State<StudyScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SectionRow(title: '今日の問題'),
-                const SizedBox(height: 4),
-                Text(
-                  '写真で記録すると、1日後と5日後の復習カードが作られます。',
-                  style: TextStyle(color: NexusColors.textMuted, fontSize: 12),
-                ),
                 const SizedBox(height: 10),
                 for (final p in store.problems) _ProblemRow(problem: p, store: store),
                 const SizedBox(height: 8),
@@ -492,14 +487,15 @@ class _TimerCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        subject == null ? 'タップして教科を選んで集中' : '${subject.name}  ・  タップして全画面で集中',
-                        style: TextStyle(
-                          color: subject?.color ?? NexusColors.textMuted,
-                          fontSize: 12,
-                          fontWeight: subject == null ? FontWeight.w400 : FontWeight.w600,
+                      if (subject != null)
+                        Text(
+                          subject.name,
+                          style: TextStyle(
+                            color: subject.color,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
                     ],
                   ),
                 ),

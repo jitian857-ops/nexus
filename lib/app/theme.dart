@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../data/models.dart';
 import 'motion.dart';
 
 class NexusPalette {
@@ -60,8 +61,143 @@ class NexusPalette {
 
   List<Color> get accentSweep => [cyan, periwinkle, purple];
 
-  static const midnight = NexusPalette(
-    id: 'midnight',
+  static const whiteMidnight = NexusPalette(
+    id: 'white-midnight',
+    label: 'ミッドナイト',
+    swatch: Color(0xFF0A8CA8),
+    brightness: Brightness.light,
+    background: Color(0xFFF7F8FA),
+    surface: Color(0xFFFFFFFF),
+    card: Color(0xFFFFFFFF),
+    cardTop: Color(0xFFF3F6FA),
+    navBar: Color(0xF2FFFFFF),
+    cyan: Color(0xFF0A8CA8),
+    cyanMuted: Color(0xFF4E8EA0),
+    purple: Color(0xFF6B5AE0),
+    periwinkle: Color(0xFF5B74D6),
+    green: Color(0xFF1F9A58),
+    gold: Color(0xFF9A7B3C),
+    income: Color(0xFF1F9A58),
+    expense: Color(0xFFD6455D),
+    text: Color(0xFF1C2430),
+    textSecondary: Color(0xFF5B6573),
+    textMuted: Color(0xFF8A93A0),
+    border: Color(0xFFE2E6ED),
+    hairline: Color(0x22000000),
+    pageTop: Color(0xFFF7F8FA),
+    frame: Color(0xFFE8ECF2),
+  );
+
+  static const whiteSunset = NexusPalette(
+    id: 'white-sunset',
+    label: 'サンセット',
+    swatch: Color(0xFFE06A2A),
+    brightness: Brightness.light,
+    background: Color(0xFFFFF8F2),
+    surface: Color(0xFFFFFFFF),
+    card: Color(0xFFFFFFFF),
+    cardTop: Color(0xFFFFF1E6),
+    navBar: Color(0xF2FFFFFF),
+    cyan: Color(0xFFE06A2A),
+    cyanMuted: Color(0xFFC4926A),
+    purple: Color(0xFFD45A78),
+    periwinkle: Color(0xFFE8A040),
+    green: Color(0xFF2E9A58),
+    gold: Color(0xFFC4892A),
+    income: Color(0xFF2E9A58),
+    expense: Color(0xFFD6455D),
+    text: Color(0xFF2A1C14),
+    textSecondary: Color(0xFF6E5A4C),
+    textMuted: Color(0xFF9A8878),
+    border: Color(0xFFEEDDCC),
+    hairline: Color(0x22E06A2A),
+    pageTop: Color(0xFFFFF8F2),
+    frame: Color(0xFFF0E4D8),
+  );
+
+  static const whiteForest = NexusPalette(
+    id: 'white-forest',
+    label: 'フォレスト',
+    swatch: Color(0xFF1F9A58),
+    brightness: Brightness.light,
+    background: Color(0xFFF4F8F4),
+    surface: Color(0xFFFFFFFF),
+    card: Color(0xFFFFFFFF),
+    cardTop: Color(0xFFECF6EE),
+    navBar: Color(0xF2FFFFFF),
+    cyan: Color(0xFF1F9A58),
+    cyanMuted: Color(0xFF5A9A72),
+    purple: Color(0xFF3D8A62),
+    periwinkle: Color(0xFF2EAA72),
+    green: Color(0xFF1F9A58),
+    gold: Color(0xFF9A7B3C),
+    income: Color(0xFF1F9A58),
+    expense: Color(0xFFD6455D),
+    text: Color(0xFF163024),
+    textSecondary: Color(0xFF4E6A58),
+    textMuted: Color(0xFF7A9484),
+    border: Color(0xFFD4E4D8),
+    hairline: Color(0x221F9A58),
+    pageTop: Color(0xFFF4F8F4),
+    frame: Color(0xFFE0EBE2),
+  );
+
+  static const whiteCrimson = NexusPalette(
+    id: 'white-crimson',
+    label: 'クリムゾン',
+    swatch: Color(0xFFD6455D),
+    brightness: Brightness.light,
+    background: Color(0xFFFFF6F7),
+    surface: Color(0xFFFFFFFF),
+    card: Color(0xFFFFFFFF),
+    cardTop: Color(0xFFFFEEF0),
+    navBar: Color(0xF2FFFFFF),
+    cyan: Color(0xFFD6455D),
+    cyanMuted: Color(0xFFC47A86),
+    purple: Color(0xFFC45A78),
+    periwinkle: Color(0xFFE07080),
+    green: Color(0xFF2E9A58),
+    gold: Color(0xFFB8894A),
+    income: Color(0xFF2E9A58),
+    expense: Color(0xFFD6455D),
+    text: Color(0xFF2A1418),
+    textSecondary: Color(0xFF6E4A52),
+    textMuted: Color(0xFF9A7880),
+    border: Color(0xFFF0D8DC),
+    hairline: Color(0x22D6455D),
+    pageTop: Color(0xFFFFF6F7),
+    frame: Color(0xFFF3E0E4),
+  );
+
+  static const whiteRose = NexusPalette(
+    id: 'white-rose',
+    label: 'ローズ',
+    swatch: Color(0xFFE0569B),
+    brightness: Brightness.light,
+    background: Color(0xFFFFF5F8),
+    surface: Color(0xFFFFFFFF),
+    card: Color(0xFFFFFFFF),
+    cardTop: Color(0xFFFFE8F0),
+    navBar: Color(0xF2FFFFFF),
+    cyan: Color(0xFFE0569B),
+    cyanMuted: Color(0xFFC47A9A),
+    purple: Color(0xFFB44AD4),
+    periwinkle: Color(0xFFFF8AD2),
+    green: Color(0xFF2EAA72),
+    gold: Color(0xFFB8894A),
+    income: Color(0xFF2EAA72),
+    expense: Color(0xFFE04560),
+    text: Color(0xFF3A2430),
+    textSecondary: Color(0xFF7A5A68),
+    textMuted: Color(0xFFA88894),
+    border: Color(0xFFF0D0DC),
+    hairline: Color(0x33E0569B),
+    pageTop: Color(0xFFFFF7FA),
+    frame: Color(0xFFF3D8E2),
+  );
+
+  static const blackMidnight = NexusPalette(
+    id: 'black-midnight',
     label: 'ミッドナイト',
     swatch: Color(0xFF00D4FF),
     brightness: Brightness.dark,
@@ -87,116 +223,8 @@ class NexusPalette {
     frame: Color(0xFF020308),
   );
 
-  static const ivory = NexusPalette(
-    id: 'ivory',
-    label: 'アイボリー',
-    swatch: Color(0xFFF6F1E8),
-    brightness: Brightness.light,
-    background: Color(0xFFF6F1E8),
-    surface: Color(0xFFFFFBF4),
-    card: Color(0xFFFFFFFF),
-    cardTop: Color(0xFFFFF8EC),
-    navBar: Color(0xF2FFFFFF),
-    cyan: Color(0xFF0A8CA8),
-    cyanMuted: Color(0xFF4E8EA0),
-    purple: Color(0xFF7A4FE0),
-    periwinkle: Color(0xFF5B74D6),
-    green: Color(0xFF1F9A58),
-    gold: Color(0xFF9A7B3C),
-    income: Color(0xFF1F9A58),
-    expense: Color(0xFFD6455D),
-    text: Color(0xFF1C2430),
-    textSecondary: Color(0xFF5B6573),
-    textMuted: Color(0xFF8A93A0),
-    border: Color(0xFFE4D9C8),
-    hairline: Color(0x33000000),
-    pageTop: Color(0xFFFFF8EE),
-    frame: Color(0xFFE8DFD2),
-  );
-
-  static const crimson = NexusPalette(
-    id: 'crimson',
-    label: 'クリムゾン',
-    swatch: Color(0xFFFF4D6A),
-    brightness: Brightness.dark,
-    background: Color(0xFF12060A),
-    surface: Color(0xFF1A0B10),
-    card: Color(0xFF241018),
-    cardTop: Color(0xFF3A1824),
-    navBar: Color(0xD1160A0E),
-    cyan: Color(0xFFFF6B81),
-    cyanMuted: Color(0xFFC47A86),
-    purple: Color(0xFFFF8FA0),
-    periwinkle: Color(0xFFFFB4A2),
-    green: Color(0xFFFFC857),
-    gold: Color(0xFFE8C9A0),
-    income: Color(0xFF7DFFB3),
-    expense: Color(0xFFFF4D6A),
-    text: Color(0xFFFFF0F2),
-    textSecondary: Color(0xFFC9A8AE),
-    textMuted: Color(0xFF8E6A72),
-    border: Color(0xFF4A2230),
-    hairline: Color(0x33FF8FA0),
-    pageTop: Color(0xFF1A080E),
-    frame: Color(0xFF0A0306),
-  );
-
-  static const forest = NexusPalette(
-    id: 'forest',
-    label: 'フォレスト',
-    swatch: Color(0xFF3DFF8A),
-    brightness: Brightness.dark,
-    background: Color(0xFF06110C),
-    surface: Color(0xFF0B1812),
-    card: Color(0xFF10241A),
-    cardTop: Color(0xFF1B3A2A),
-    navBar: Color(0xD1081610),
-    cyan: Color(0xFF5CFFB0),
-    cyanMuted: Color(0xFF6AAF8C),
-    purple: Color(0xFFA6E08A),
-    periwinkle: Color(0xFF7CDBB0),
-    green: Color(0xFF3DFF8A),
-    gold: Color(0xFFD7C48A),
-    income: Color(0xFF3DFF8A),
-    expense: Color(0xFFFF7A6A),
-    text: Color(0xFFEEF8F1),
-    textSecondary: Color(0xFF9BB8A8),
-    textMuted: Color(0xFF6A8778),
-    border: Color(0xFF244033),
-    hairline: Color(0x283DFF8A),
-    pageTop: Color(0xFF08160F),
-    frame: Color(0xFF030A07),
-  );
-
-  static const ocean = NexusPalette(
-    id: 'ocean',
-    label: 'オーシャン',
-    swatch: Color(0xFF3DA9FC),
-    brightness: Brightness.dark,
-    background: Color(0xFF061018),
-    surface: Color(0xFF0B1822),
-    card: Color(0xFF102230),
-    cardTop: Color(0xFF1A3448),
-    navBar: Color(0xD108141C),
-    cyan: Color(0xFF4ECBFF),
-    cyanMuted: Color(0xFF6A9BB4),
-    purple: Color(0xFF6B8CFF),
-    periwinkle: Color(0xFF7C9CFF),
-    green: Color(0xFF5CFFD4),
-    gold: Color(0xFFC4B7A0),
-    income: Color(0xFF5CFFD4),
-    expense: Color(0xFFFF6B8A),
-    text: Color(0xFFECF6FF),
-    textSecondary: Color(0xFF8AABC0),
-    textMuted: Color(0xFF5C7A8E),
-    border: Color(0xFF244056),
-    hairline: Color(0x284ECBFF),
-    pageTop: Color(0xFF08141C),
-    frame: Color(0xFF03080C),
-  );
-
-  static const sunset = NexusPalette(
-    id: 'sunset',
+  static const blackSunset = NexusPalette(
+    id: 'black-sunset',
     label: 'サンセット',
     swatch: Color(0xFFFF7A4D),
     brightness: Brightness.dark,
@@ -222,47 +250,115 @@ class NexusPalette {
     frame: Color(0xFF0A0603),
   );
 
-  static const sakura = NexusPalette(
-    id: 'sakura',
-    label: 'サクラ',
-    swatch: Color(0xFFFF8AD2),
-    brightness: Brightness.light,
-    background: Color(0xFFFFF2F6),
-    surface: Color(0xFFFFF7FA),
-    card: Color(0xFFFFFFFF),
-    cardTop: Color(0xFFFFE8F0),
-    navBar: Color(0xF2FFFFFF),
-    cyan: Color(0xFFE0569B),
-    cyanMuted: Color(0xFFC47A9A),
-    purple: Color(0xFFB44AD4),
-    periwinkle: Color(0xFFFF8AD2),
-    green: Color(0xFF2EAA72),
-    gold: Color(0xFFB8894A),
-    income: Color(0xFF2EAA72),
-    expense: Color(0xFFE04560),
-    text: Color(0xFF3A2430),
-    textSecondary: Color(0xFF7A5A68),
-    textMuted: Color(0xFFA88894),
-    border: Color(0xFFF0D0DC),
-    hairline: Color(0x33E0569B),
-    pageTop: Color(0xFFFFF7FA),
-    frame: Color(0xFFF3D8E2),
+  static const blackForest = NexusPalette(
+    id: 'black-forest',
+    label: 'フォレスト',
+    swatch: Color(0xFF3DFF8A),
+    brightness: Brightness.dark,
+    background: Color(0xFF06110C),
+    surface: Color(0xFF0B1812),
+    card: Color(0xFF10241A),
+    cardTop: Color(0xFF1B3A2A),
+    navBar: Color(0xD1081610),
+    cyan: Color(0xFF5CFFB0),
+    cyanMuted: Color(0xFF6AAF8C),
+    purple: Color(0xFFA6E08A),
+    periwinkle: Color(0xFF7CDBB0),
+    green: Color(0xFF3DFF8A),
+    gold: Color(0xFFD7C48A),
+    income: Color(0xFF3DFF8A),
+    expense: Color(0xFFFF7A6A),
+    text: Color(0xFFEEF8F1),
+    textSecondary: Color(0xFF9BB8A8),
+    textMuted: Color(0xFF6A8778),
+    border: Color(0xFF244033),
+    hairline: Color(0x283DFF8A),
+    pageTop: Color(0xFF08160F),
+    frame: Color(0xFF030A07),
   );
 
-  static const all = [midnight, ivory, crimson, forest, ocean, sunset, sakura];
+  static const blackCrimson = NexusPalette(
+    id: 'black-crimson',
+    label: 'クリムゾン',
+    swatch: Color(0xFFFF4D6A),
+    brightness: Brightness.dark,
+    background: Color(0xFF12060A),
+    surface: Color(0xFF1A0B10),
+    card: Color(0xFF241018),
+    cardTop: Color(0xFF3A1824),
+    navBar: Color(0xD1160A0E),
+    cyan: Color(0xFFFF6B81),
+    cyanMuted: Color(0xFFC47A86),
+    purple: Color(0xFFFF8FA0),
+    periwinkle: Color(0xFFFFB4A2),
+    green: Color(0xFFFFC857),
+    gold: Color(0xFFE8C9A0),
+    income: Color(0xFF7DFFB3),
+    expense: Color(0xFFFF4D6A),
+    text: Color(0xFFFFF0F2),
+    textSecondary: Color(0xFFC9A8AE),
+    textMuted: Color(0xFF8E6A72),
+    border: Color(0xFF4A2230),
+    hairline: Color(0x33FF8FA0),
+    pageTop: Color(0xFF1A080E),
+    frame: Color(0xFF0A0306),
+  );
+
+  static const blackRose = NexusPalette(
+    id: 'black-rose',
+    label: 'ローズ',
+    swatch: Color(0xFFFF8AD2),
+    brightness: Brightness.dark,
+    background: Color(0xFF140810),
+    surface: Color(0xFF1C0E16),
+    card: Color(0xFF26141C),
+    cardTop: Color(0xFF3A2030),
+    navBar: Color(0xD1160A12),
+    cyan: Color(0xFFFF8AD2),
+    cyanMuted: Color(0xFFC47A9A),
+    purple: Color(0xFFB44AD4),
+    periwinkle: Color(0xFFE0569B),
+    green: Color(0xFF5CFFB0),
+    gold: Color(0xFFE8C9A0),
+    income: Color(0xFF7DFFB3),
+    expense: Color(0xFFFF5B7A),
+    text: Color(0xFFFFF0F6),
+    textSecondary: Color(0xFFC9A8B8),
+    textMuted: Color(0xFF8E6A7A),
+    border: Color(0xFF4A2238),
+    hairline: Color(0x33FF8AD2),
+    pageTop: Color(0xFF1A0A12),
+    frame: Color(0xFF0A0308),
+  );
+
+  static const midnight = blackMidnight;
+
+  static const all = [
+    whiteMidnight,
+    whiteSunset,
+    whiteForest,
+    whiteCrimson,
+    whiteRose,
+    blackMidnight,
+    blackSunset,
+    blackForest,
+    blackCrimson,
+    blackRose,
+  ];
 
   static NexusPalette byId(String? id) {
+    final normalized = UserSettings.normalizeThemeId(id);
     for (final palette in all) {
-      if (palette.id == id) return palette;
+      if (palette.id == normalized) return palette;
     }
-    return midnight;
+    return whiteMidnight;
   }
 }
 
 class NexusColors {
   NexusColors._();
 
-  static NexusPalette _active = NexusPalette.midnight;
+  static NexusPalette _active = NexusPalette.whiteMidnight;
 
   static NexusPalette get active => _active;
 

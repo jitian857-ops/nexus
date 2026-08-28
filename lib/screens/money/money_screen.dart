@@ -39,27 +39,73 @@ class _MoneyScreenState extends State<MoneyScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 4),
-          Text('未来のために、今日を知る。', style: TextStyle(color: NexusColors.textSecondary)),
           const SizedBox(height: 14),
-          GlassCard(
-            glowColor: NexusColors.gold,
-            borderColor: NexusColors.gold.withValues(alpha: 0.28),
+          GestureDetector(
+            onHorizontalDragEnd: (details) {
+              final velocity = details.primaryVelocity ?? 0;
+              if (velocity > 180) {
+                store.shiftMoneyMonth(-1);
+              } else if (velocity < -180) {
+                store.shiftMoneyMonth(1);
+              }
+            },
+            child: GlassCard(
+              glowColor: NexusColors.gold,
+              borderColor: NexusColors.gold.withValues(alpha: 0.28),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  '${focusedMonthLabel(store.focusedDate)}の残高',
-                  style: TextStyle(color: NexusColors.textSecondary),
+                Row(
+                  children: [
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () => store.shiftMoneyMonth(-1),
+                      icon: Icon(Icons.chevron_left, color: NexusColors.gold),
+                    ),
+                    Expanded(
+                      child: Text(
+                        '${jpMonth(store.moneyMonth)}の残高',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: NexusColors.textSecondary),
+                      ),
+                    ),
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () => store.shiftMoneyMonth(1),
+                      icon: Icon(Icons.chevron_right, color: NexusColors.gold),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 6),
-                CountUpYen(
-                  value: money.balance,
-                  style: TextStyle(
-                    fontSize: 36,
-                    fontWeight: FontWeight.w700,
-                    color: NexusColors.gold,
-                    letterSpacing: 0.4,
+                Center(
+                  child: CountUpYen(
+                    value: money.balance,
+                    style: TextStyle(
+                      fontSize: 36,
+                      fontWeight: FontWeight.w700,
+                      color: NexusColors.gold,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.center,
+                  child: FilterChip(
+                    selected: store.settings.deductBudgetFromBalance,
+                    label: Text(
+                      store.settings.deductBudgetFromBalance ? '予算を差し引いて表示中' : '予算を差し引いて表示',
+                    ),
+                    selectedColor: NexusColors.gold.withValues(alpha: 0.22),
+                    labelStyle: TextStyle(
+                      color: store.settings.deductBudgetFromBalance
+                          ? NexusColors.gold
+                          : NexusColors.textSecondary,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                    ),
+                    onSelected: (value) => store.updateSettings(
+                      store.settings.copyWith(deductBudgetFromBalance: value),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -109,6 +155,7 @@ class _MoneyScreenState extends State<MoneyScreen> {
               ],
             ),
           ),
+        ),
           const SizedBox(height: 14),
           const SectionRow(title: 'ボックス'),
           const SizedBox(height: 8),
@@ -172,7 +219,7 @@ class _MoneyScreenState extends State<MoneyScreen> {
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text(
-                'つかんでドロップすると順番を変えられます',
+                'ダブルタップしてからドラッグすると順番を変えられます',
                 style: TextStyle(color: NexusColors.textMuted, fontSize: 11),
               ),
             ),
@@ -340,8 +387,6 @@ Future<bool> _confirm(BuildContext context, {required String title, required Str
   return result == true;
 }
 
-String focusedMonthLabel(DateTime d) => '${d.month}月';
-
 class _BudgetTile extends StatelessWidget {
   const _BudgetTile({required this.store, required this.box});
 
@@ -350,7 +395,7 @@ class _BudgetTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final spent = store.spentOfBox(box.id, periodOf: box, day: store.focusedDate);
+    final spent = store.spentOfBox(box.id, periodOf: box, day: store.moneyMonth);
     final remaining = box.monthlyBudget - spent;
     final ratio = box.monthlyBudget == 0 ? 0.0 : spent / box.monthlyBudget;
     return GlassCard(
