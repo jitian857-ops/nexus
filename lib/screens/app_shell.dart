@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/app_store.dart';
 import '../widgets/nexus_nav_bar.dart';
+import '../app/theme.dart';
 import 'home/home_screen.dart';
 import 'life/life_screen.dart';
 import 'money/money_screen.dart';
@@ -16,7 +17,7 @@ class AppShell extends StatelessWidget {
     final store = AppScope.of(context);
     final bottom = MediaQuery.paddingOf(context).bottom;
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: NexusColors.background,
       extendBody: true,
       body: Stack(
         children: [

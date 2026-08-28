@@ -7,14 +7,14 @@
   <meta content="IE=edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="NEXUS — Study / Money / Life / Health をひとつにまとめるパーソナルハブ">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#05070E">
+  <meta name="theme-color" content="#F7F8FA">
 
   <meta property="og:title" content="NEXUS">
   <meta property="og:description" content="Study / Money / Life / Health をひとつにまとめるパーソナルハブ">
   <meta property="og:type" content="website">
 
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="NEXUS">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
@@ -25,33 +25,23 @@
 
   <style>
     :root {
-      --cyan: #00d4ff;
-      --purple: #9b6bff;
-      --void: #04060c;
+      --cyan: #0a8ca8;
+      --purple: #6b5ae0;
+      --paper: #f7f8fa;
     }
     html, body {
       margin: 0;
       padding: 0;
       height: 100%;
       overflow: hidden;
-      background: var(--void);
-      color: #f4f1ea;
+      background: var(--paper);
+      color: #1c2430;
       font-family: system-ui, -apple-system, Segoe UI, sans-serif;
     }
     body::before,
     body::after {
-      content: "";
-      position: fixed;
-      inset: -20%;
-      pointer-events: none;
-      z-index: 0;
+      content: none;
     }
-    body::before {
-      background:
-        radial-gradient(42vw 32vw at 18% 12%, rgba(0, 212, 255, 0.16), transparent 58%),
-        radial-gradient(38vw 30vw at 88% 78%, rgba(155, 107, 255, 0.14), transparent 55%);
-    }
-    body::after { display: none; }
     flutter-view, flt-glass-pane, canvas {
       position: relative;
       z-index: 1;
@@ -67,8 +57,8 @@
       letter-spacing: 0.42em;
       font-weight: 800;
       font-size: 22px;
-      color: #e8fbff;
-      text-shadow: 0 0 24px rgba(0, 212, 255, 0.55), 0 0 48px rgba(155, 107, 255, 0.35);
+      color: #1c2430;
+      text-shadow: none;
       animation: title-pulse 1.4s ease-in-out infinite alternate;
     }
     .loading::after {

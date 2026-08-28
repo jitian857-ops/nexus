@@ -27,10 +27,10 @@ class GlassCard extends StatelessWidget {
         borderRadius: radius,
         boxShadow: [
           BoxShadow(
-            color: (glowColor ?? (light ? Colors.black : NexusColors.cyan)).withValues(
-              alpha: glowColor == null ? (light ? 0.06 : 0.05) : 0.16,
-            ),
-            blurRadius: glowColor == null ? 16 : 22,
+            color: light
+                ? Colors.black.withValues(alpha: 0.05)
+                : (glowColor ?? NexusColors.cyan).withValues(alpha: glowColor == null ? 0.05 : 0.16),
+            blurRadius: light || glowColor == null ? 16 : 22,
             offset: const Offset(0, 8),
           ),
         ],
@@ -86,7 +86,7 @@ class GlassCard extends StatelessWidget {
                   ),
                 ),
               ),
-              if (glowColor != null)
+              if (glowColor != null && !light)
                 Positioned(
                   top: -46,
                   left: -36,

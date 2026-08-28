@@ -35,9 +35,11 @@ void main() {
 
     await tapTab('Life');
     expect(find.text('カレンダー'), findsOneWidget);
+    expect(find.text('書く'), findsNothing);
 
     await tapTab('Money');
     expect(find.text('収入を追加'), findsOneWidget);
+    expect(find.text('予算を差し引いて表示'), findsOneWidget);
     expect(find.text('ボックスを追加'), findsOneWidget);
     expect(find.text('カードを追加'), findsOneWidget);
     expect(find.text('支払予定を追加'), findsOneWidget);

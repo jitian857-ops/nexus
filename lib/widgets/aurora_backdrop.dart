@@ -7,7 +7,7 @@ class AuroraBackdrop extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final light = NexusColors.isLight;
+    if (NexusColors.isLight) return const SizedBox.shrink();
     return IgnorePointer(
       child: DecoratedBox(
         decoration: BoxDecoration(
@@ -15,7 +15,7 @@ class AuroraBackdrop extends StatelessWidget {
             center: const Alignment(-0.85, -0.9),
             radius: 1.2,
             colors: [
-              NexusColors.cyan.withValues(alpha: light ? 0.10 : 0.16),
+              NexusColors.cyan.withValues(alpha: 0.16),
               Colors.transparent,
             ],
           ),
@@ -26,7 +26,7 @@ class AuroraBackdrop extends StatelessWidget {
               center: const Alignment(0.95, 0.85),
               radius: 1.05,
               colors: [
-                NexusColors.purple.withValues(alpha: light ? 0.08 : 0.14),
+                NexusColors.purple.withValues(alpha: 0.14),
                 Colors.transparent,
               ],
             ),

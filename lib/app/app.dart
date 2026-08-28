@@ -76,7 +76,7 @@ class _ThemedMaterialAppState extends State<_ThemedMaterialApp> {
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: overlay,
         statusBarBrightness: palette.isLight ? Brightness.light : Brightness.dark,
-        systemNavigationBarColor: palette.navBar,
+        systemNavigationBarColor: palette.background,
         systemNavigationBarIconBrightness: overlay,
       ),
     );
@@ -120,18 +120,32 @@ class PhoneScope extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                NexusColors.cyan.withValues(alpha: 0.45),
-                NexusColors.purple.withValues(alpha: 0.28),
-                NexusColors.text.withValues(alpha: 0.08),
-              ],
+              colors: NexusColors.isLight
+                  ? [
+                      NexusColors.border,
+                      NexusColors.frame,
+                      NexusColors.border,
+                    ]
+                  : [
+                      NexusColors.cyan.withValues(alpha: 0.45),
+                      NexusColors.purple.withValues(alpha: 0.28),
+                      NexusColors.text.withValues(alpha: 0.08),
+                    ],
             ),
-            boxShadow: [
-              BoxShadow(
-                color: NexusColors.cyan.withValues(alpha: 0.18),
-                blurRadius: 28,
-              ),
-            ],
+            boxShadow: NexusColors.isLight
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 18,
+                      offset: const Offset(0, 8),
+                    ),
+                  ]
+                : [
+                    BoxShadow(
+                      color: NexusColors.cyan.withValues(alpha: 0.18),
+                      blurRadius: 28,
+                    ),
+                  ],
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(32),

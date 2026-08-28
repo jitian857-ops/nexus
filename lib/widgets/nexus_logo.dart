@@ -18,18 +18,26 @@ class NexusLogo extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(radius),
-          boxShadow: [
-            BoxShadow(
-              color: NexusColors.cyan.withValues(alpha: 0.22),
-              blurRadius: size * 0.42,
-              offset: Offset(0, size * 0.04),
-            ),
-            BoxShadow(
-              color: NexusColors.purple.withValues(alpha: 0.4),
-              blurRadius: size * 0.55,
-              offset: Offset(0, size * 0.12),
-            ),
-          ],
+          boxShadow: NexusColors.isLight
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: size * 0.18,
+                    offset: Offset(0, size * 0.06),
+                  ),
+                ]
+              : [
+                  BoxShadow(
+                    color: NexusColors.cyan.withValues(alpha: 0.22),
+                    blurRadius: size * 0.42,
+                    offset: Offset(0, size * 0.04),
+                  ),
+                  BoxShadow(
+                    color: NexusColors.purple.withValues(alpha: 0.4),
+                    blurRadius: size * 0.55,
+                    offset: Offset(0, size * 0.12),
+                  ),
+                ],
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(radius),

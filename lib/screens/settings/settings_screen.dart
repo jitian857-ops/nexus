@@ -304,7 +304,7 @@ class _ThemeSwatch extends StatelessWidget {
                   color: selected ? palette.cyan : palette.border,
                   width: selected ? 2.5 : 1,
                 ),
-                boxShadow: selected
+                boxShadow: selected && !NexusColors.isLight
                     ? [BoxShadow(color: palette.cyan.withValues(alpha: 0.35), blurRadius: 10)]
                     : null,
               ),

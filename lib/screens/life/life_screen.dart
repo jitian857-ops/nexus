@@ -145,39 +145,43 @@ class LifeScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          GlassCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SectionRow(
-                  title: '${day.month}月${day.day}日の日記',
-                  trailing: _DateButton(
-                    label: jpDate(day),
-                    onTap: () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: day,
-                        firstDate: DateTime(day.year - 1, 1, 1),
-                        lastDate: DateTime(day.year + 1, 12, 31),
-                      );
-                      if (picked != null) store.setLifeDate(picked);
-                    },
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => _editDiary(context, store),
+            child: GlassCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SectionRow(
+                    title: '${day.month}月${day.day}日の日記',
+                    trailing: GestureDetector(
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: day,
+                          firstDate: DateTime(day.year - 1, 1, 1),
+                          lastDate: DateTime(day.year + 1, 12, 31),
+                        );
+                        if (picked != null) store.setLifeDate(picked);
+                      },
+                      child: AbsorbPointer(
+                        child: _DateButton(
+                          label: jpDate(day),
+                          onTap: () {},
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  store.diary.isEmpty ? 'この日の日記はまだありません' : store.diary,
-                  style: TextStyle(
-                    height: 1.4,
-                    color: store.diary.isEmpty ? NexusColors.textMuted : NexusColors.text,
+                  const SizedBox(height: 8),
+                  Text(
+                    store.diary.isEmpty ? 'この日の日記はまだありません' : store.diary,
+                    style: TextStyle(
+                      height: 1.4,
+                      color: store.diary.isEmpty ? NexusColors.textMuted : NexusColors.text,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 10),
-                OutlinedButton(
-                  onPressed: () => _editDiary(context, store),
-                  child: Text(store.diary.isEmpty ? '書く' : '続きを書く'),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],
@@ -447,12 +451,14 @@ class _DayCell extends StatelessWidget {
                       gradient: LinearGradient(
                         colors: [NexusColors.cyan, NexusColors.purple],
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: NexusColors.cyan.withValues(alpha: 0.35),
-                          blurRadius: 10,
-                        ),
-                      ],
+                      boxShadow: NexusColors.isLight
+                          ? null
+                          : [
+                              BoxShadow(
+                                color: NexusColors.cyan.withValues(alpha: 0.35),
+                                blurRadius: 10,
+                              ),
+                            ],
                     )
                   : isToday
                       ? BoxDecoration(
@@ -467,7 +473,7 @@ class _DayCell extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12,
                   color: isSelected
-                      ? NexusColors.text
+                      ? Colors.white
                       : isToday
                           ? NexusColors.cyan
                           : NexusColors.textSecondary,

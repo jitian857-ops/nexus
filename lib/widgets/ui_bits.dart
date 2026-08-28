@@ -103,13 +103,15 @@ class AddChip extends StatelessWidget {
                 ],
               ),
               border: Border.all(color: NexusColors.cyan.withValues(alpha: 0.4)),
-              boxShadow: [
-                BoxShadow(
-                  color: NexusColors.cyan.withValues(alpha: 0.18),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+              boxShadow: NexusColors.isLight
+                  ? null
+                  : [
+                      BoxShadow(
+                        color: NexusColors.cyan.withValues(alpha: 0.18),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,

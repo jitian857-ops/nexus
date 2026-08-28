@@ -40,122 +40,7 @@ class _MoneyScreenState extends State<MoneyScreen> {
             ],
           ),
           const SizedBox(height: 14),
-          GestureDetector(
-            onHorizontalDragEnd: (details) {
-              final velocity = details.primaryVelocity ?? 0;
-              if (velocity > 180) {
-                store.shiftMoneyMonth(-1);
-              } else if (velocity < -180) {
-                store.shiftMoneyMonth(1);
-              }
-            },
-            child: GlassCard(
-              glowColor: NexusColors.gold,
-              borderColor: NexusColors.gold.withValues(alpha: 0.28),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    IconButton(
-                      visualDensity: VisualDensity.compact,
-                      onPressed: () => store.shiftMoneyMonth(-1),
-                      icon: Icon(Icons.chevron_left, color: NexusColors.gold),
-                    ),
-                    Expanded(
-                      child: Text(
-                        '${jpMonth(store.moneyMonth)}の残高',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: NexusColors.textSecondary),
-                      ),
-                    ),
-                    IconButton(
-                      visualDensity: VisualDensity.compact,
-                      onPressed: () => store.shiftMoneyMonth(1),
-                      icon: Icon(Icons.chevron_right, color: NexusColors.gold),
-                    ),
-                  ],
-                ),
-                Center(
-                  child: CountUpYen(
-                    value: money.balance,
-                    style: TextStyle(
-                      fontSize: 36,
-                      fontWeight: FontWeight.w700,
-                      color: NexusColors.gold,
-                      letterSpacing: 0.4,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.center,
-                  child: FilterChip(
-                    selected: store.settings.deductBudgetFromBalance,
-                    label: Text(
-                      store.settings.deductBudgetFromBalance ? '予算を差し引いて表示中' : '予算を差し引いて表示',
-                    ),
-                    selectedColor: NexusColors.gold.withValues(alpha: 0.22),
-                    labelStyle: TextStyle(
-                      color: store.settings.deductBudgetFromBalance
-                          ? NexusColors.gold
-                          : NexusColors.textSecondary,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 12,
-                    ),
-                    onSelected: (value) => store.updateSettings(
-                      store.settings.copyWith(deductBudgetFromBalance: value),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: NexusColors.income.withValues(alpha: 0.10),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: NexusColors.income.withValues(alpha: 0.3)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.arrow_upward_rounded, size: 13, color: NexusColors.income),
-                          const SizedBox(width: 4),
-                          Text(
-                            '収入 ${yen(money.income)}',
-                            style: TextStyle(color: NexusColors.income, fontSize: 12, fontWeight: FontWeight.w700),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: NexusColors.expense.withValues(alpha: 0.10),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: NexusColors.expense.withValues(alpha: 0.3)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.arrow_downward_rounded, size: 13, color: NexusColors.expense),
-                          const SizedBox(width: 4),
-                          Text(
-                            '支出 ${yen(-money.expense)}',
-                            style: TextStyle(color: NexusColors.expense, fontSize: 12, fontWeight: FontWeight.w700),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
+          const _MoneyBalanceCard(),
           const SizedBox(height: 14),
           const SectionRow(title: 'ボックス'),
           const SizedBox(height: 8),
@@ -385,6 +270,161 @@ Future<bool> _confirm(BuildContext context, {required String title, required Str
     },
   );
   return result == true;
+}
+
+class _MoneyBalanceCard extends StatelessWidget {
+  const _MoneyBalanceCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final store = AppScope.of(context);
+    final money = store.money;
+    return GestureDetector(
+      onHorizontalDragEnd: (details) {
+        final velocity = details.primaryVelocity ?? 0;
+        if (velocity > 180) {
+          store.shiftMoneyMonth(-1);
+        } else if (velocity < -180) {
+          store.shiftMoneyMonth(1);
+        }
+      },
+      child: GlassCard(
+        glowColor: NexusColors.gold,
+        borderColor: NexusColors.gold.withValues(alpha: 0.28),
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onTap: () => store.shiftMoneyMonth(-1),
+                    ),
+                  ),
+                  Expanded(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onTap: () => store.shiftMoneyMonth(1),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: IgnorePointer(
+                        child: Text(
+                          jpMonth(store.moneyMonth),
+                          style: TextStyle(color: NexusColors.textSecondary),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Align(
+                        alignment: Alignment.topRight,
+                        child: _BudgetDeductChip(store: store),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                IgnorePointer(
+                  child: CountUpYen(
+                    value: money.balance,
+                    style: TextStyle(
+                      fontSize: 36,
+                      fontWeight: FontWeight.w700,
+                      color: NexusColors.gold,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                IgnorePointer(
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: NexusColors.income.withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: NexusColors.income.withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.arrow_upward_rounded, size: 13, color: NexusColors.income),
+                            const SizedBox(width: 4),
+                            Text(
+                              '収入 ${yen(money.income)}',
+                              style: TextStyle(color: NexusColors.income, fontSize: 12, fontWeight: FontWeight.w700),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: NexusColors.expense.withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: NexusColors.expense.withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.arrow_downward_rounded, size: 13, color: NexusColors.expense),
+                            const SizedBox(width: 4),
+                            Text(
+                              '支出 ${yen(-money.expense)}',
+                              style: TextStyle(color: NexusColors.expense, fontSize: 12, fontWeight: FontWeight.w700),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BudgetDeductChip extends StatelessWidget {
+  const _BudgetDeductChip({required this.store});
+
+  final AppStore store;
+
+  @override
+  Widget build(BuildContext context) {
+    final on = store.settings.deductBudgetFromBalance;
+    return FilterChip(
+      visualDensity: VisualDensity.compact,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      selected: on,
+      label: Text(on ? '予算を差し引いて表示中' : '予算を差し引いて表示'),
+      selectedColor: NexusColors.gold.withValues(alpha: 0.22),
+      labelStyle: TextStyle(
+        color: on ? NexusColors.gold : NexusColors.textSecondary,
+        fontWeight: FontWeight.w700,
+        fontSize: 10,
+      ),
+      onSelected: (value) => store.updateSettings(
+        store.settings.copyWith(deductBudgetFromBalance: value),
+      ),
+    );
+  }
 }
 
 class _BudgetTile extends StatelessWidget {

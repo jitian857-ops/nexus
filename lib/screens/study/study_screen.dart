@@ -342,13 +342,15 @@ class _PulsingPlay extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: [NexusColors.cyan, NexusColors.purple],
         ),
-        boxShadow: [
-          BoxShadow(
-            color: NexusColors.cyan.withValues(alpha: 0.28),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        boxShadow: NexusColors.isLight
+            ? null
+            : [
+                BoxShadow(
+                  color: NexusColors.cyan.withValues(alpha: 0.28),
+                  blurRadius: 14,
+                  offset: const Offset(0, 6),
+                ),
+              ],
       ),
       child: Icon(
         running ? Icons.pause_rounded : Icons.play_arrow_rounded,

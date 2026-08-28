@@ -111,7 +111,9 @@ class _FocusTimerPageState extends State<FocusTimerPage> {
                         alignment: Alignment.center,
                         children: [
                           IgnorePointer(
-                            child: Container(
+                            child: NexusColors.isLight
+                                ? const SizedBox.shrink()
+                                : Container(
                               width: 300,
                               height: 300,
                               decoration: BoxDecoration(
@@ -148,19 +150,19 @@ class _FocusTimerPageState extends State<FocusTimerPage> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 16),
+                      _TimerPresets(
+                        store: store,
+                        currentMinutes: (store.timerTotalSeconds / 60).round(),
+                        enabled: !store.timerRunning,
+                      ),
+                      const SizedBox(height: 12),
                       DurationMinutesPicker(
                         minutes: (store.timerTotalSeconds / 60).round().clamp(
                           kMinStudyDurationMinutes,
                           kMaxStudyDurationMinutes,
                         ),
                         onChanged: store.setTimerMinutes,
-                        enabled: !store.timerRunning,
-                      ),
-                      const SizedBox(height: 10),
-                      _TimerPresets(
-                        store: store,
-                        currentMinutes: (store.timerTotalSeconds / 60).round(),
                         enabled: !store.timerRunning,
                       ),
                       const SizedBox(height: 16),
@@ -262,12 +264,14 @@ class _FocusTimerPageState extends State<FocusTimerPage> {
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: NexusColors.cyan.withValues(alpha: 0.14),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: NexusColors.cyan.withValues(alpha: 0.28),
-                                  blurRadius: 24,
-                                ),
-                              ],
+                              boxShadow: NexusColors.isLight
+                                  ? null
+                                  : [
+                                      BoxShadow(
+                                        color: NexusColors.cyan.withValues(alpha: 0.28),
+                                        blurRadius: 24,
+                                      ),
+                                    ],
                             ),
                             child: Icon(Icons.check_rounded, color: NexusColors.cyan, size: 40),
                           ),
@@ -436,10 +440,6 @@ class _TimerPresets extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 4),
-        Text(
-          'チップを押すとリールがその時間になります。長押しで削除。',
-          style: TextStyle(color: NexusColors.textMuted, fontSize: 11),
-        ),
       ],
     );
   }

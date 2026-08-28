@@ -101,7 +101,9 @@ class _HeroRow extends StatelessWidget {
                     Positioned(
                       right: -18,
                       top: -10,
-                      child: Container(
+                      child: NexusColors.isLight
+                          ? const SizedBox.shrink()
+                          : Container(
                         width: 90,
                         height: 90,
                         decoration: BoxDecoration(
@@ -174,7 +176,7 @@ class _HeroRow extends StatelessWidget {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.92),
+                          color: NexusColors.text,
                           fontSize: 12,
                           height: 1.3,
                           fontWeight: FontWeight.w600,
