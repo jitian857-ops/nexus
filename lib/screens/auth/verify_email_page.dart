@@ -32,8 +32,13 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
           const GradientTitle('メール認証', size: 26),
           const SizedBox(height: 8),
           Text(
-            '$email に認証の案内を送りました。',
+            '$email の受信箱に、認証用のリンクを送りました。',
             style: TextStyle(color: NexusColors.textSecondary, height: 1.4),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '送信元は noreply@nexus-50e0e.firebaseapp.com です。届かないときは迷惑メールも見てください。アプリ内のメールボックスは控えだけです。',
+            style: TextStyle(color: NexusColors.textMuted, height: 1.4, fontSize: 13),
           ),
           const SizedBox(height: 16),
           GlassCard(
@@ -60,6 +65,11 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: Text(cloud.lastError, style: TextStyle(color: NexusColors.expense)),
+                  ),
+                if (cloud.lastNotice.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(cloud.lastNotice, style: TextStyle(color: NexusColors.green)),
                   ),
                 FilledButton(
                   onPressed: cloud.busy ? null : () => cloud.confirmVerification(code: _code.text),

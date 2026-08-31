@@ -23,8 +23,42 @@ class FirebaseBackend implements CloudBackend {
 
   DocumentReference<Map<String, dynamic>> _user(String uid) => _db.collection('users').doc(uid);
 
+  ActionCodeSettings _continueSettings() {
+    return ActionCodeSettings(
+      url: 'https://jitian857-ops.github.io/nexus/',
+      handleCodeInApp: false,
+    );
+  }
+
+  Future<void> _sendVerificationEmail(User user) async {
+    await _auth.setLanguageCode('ja');
+    try {
+      await user.sendEmailVerification(_continueSettings());
+    } catch (error) {
+      final text = error.toString();
+      final continueUriBad = error is FirebaseAuthException &&
+              (error.code == 'unauthorized-continue-uri' ||
+                  error.code == 'invalid-continue-uri' ||
+                  error.code == 'missing-continue-uri') ||
+          text.contains('continue-uri') ||
+          text.contains('continue_uri');
+      if (continueUriBad) {
+        await user.sendEmailVerification();
+        return;
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> _safeAddMail(String uid, MailItem item) async {
+    try {
+      await addMail(uid, item);
+    } catch (_) {}
+  }
+
   @override
   Future<void> init() async {
+    await _auth.setLanguageCode('ja');
     final user = _auth.currentUser;
     if (user == null) {
       _session = null;
@@ -77,14 +111,14 @@ class FirebaseBackend implements CloudBackend {
       if (user == null) throw CloudException('登録できませんでした');
       await user.updateDisplayName(displayName.trim());
       await _writeProfile(user, displayName: displayName.trim(), occupation: occupation.trim());
-      await user.sendEmailVerification();
+      await _sendVerificationEmail(user);
       _session = await _sessionFrom(user);
-      await addMail(
+      await _safeAddMail(
         user.uid,
         MailItem(
           id: _db.collection('_').doc().id,
           title: 'NEXUS へようこそ',
-          body: '認証メールを ${user.email} に送りました。届いたリンクを開いてください。',
+          body: '${user.email} の受信箱（Gmail など）を見てください。送信元は noreply@nexus-50e0e.firebaseapp.com です。この画面は控えです。',
           at: DateTime.now(),
           kind: 'verify',
         ),
@@ -124,13 +158,13 @@ class FirebaseBackend implements CloudBackend {
   Future<void> sendVerification() async {
     final user = _auth.currentUser;
     if (user == null) throw CloudException('ログインしてください');
-    await user.sendEmailVerification();
-    await addMail(
+    await _sendVerificationEmail(user);
+    await _safeAddMail(
       user.uid,
       MailItem(
         id: _db.collection('_').doc().id,
         title: '認証メールを再送しました',
-        body: '${user.email} に認証用のメールを送りました。リンクを開いたら、認証画面で確認してください。',
+        body: '${user.email} の受信箱と迷惑メールを見てください。送信元は noreply@nexus-50e0e.firebaseapp.com です。',
         at: DateTime.now(),
         kind: 'verify',
       ),
@@ -148,7 +182,7 @@ class FirebaseBackend implements CloudBackend {
       throw CloudException('メールのリンクを開いてから、もう一度確認してください');
     }
     _session = await _sessionFrom(fresh);
-    await addMail(
+    await _safeAddMail(
       fresh.uid,
       MailItem(
         id: _db.collection('_').doc().id,
@@ -174,7 +208,21 @@ class FirebaseBackend implements CloudBackend {
   Future<void> sendPasswordReset(String email) async {
     if (!isValidEmail(email)) throw CloudException('メールアドレスの形が正しくありません');
     try {
-      await _auth.sendPasswordResetEmail(email: email.trim());
+      await _auth.setLanguageCode('ja');
+      try {
+        await _auth.sendPasswordResetEmail(
+          email: email.trim(),
+          actionCodeSettings: _continueSettings(),
+        );
+      } on FirebaseAuthException catch (error) {
+        if (error.code == 'unauthorized-continue-uri' ||
+            error.code == 'invalid-continue-uri' ||
+            error.code == 'missing-continue-uri') {
+          await _auth.sendPasswordResetEmail(email: email.trim());
+          return;
+        }
+        rethrow;
+      }
     } catch (error) {
       throw CloudException(cloudErrorMessage(error));
     }
