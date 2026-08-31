@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../app/theme.dart';
 import '../../core/format.dart';
 import '../../data/app_store.dart';
-import '../../widgets/nexus_logo.dart';
 import '../../widgets/nexus_nav_bar.dart';
 
 class HomeHeader extends StatelessWidget {
@@ -15,8 +14,6 @@ class HomeHeader extends StatelessWidget {
 
     return Row(
       children: [
-        const NexusLogo(size: 46),
-        const SizedBox(width: 10),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

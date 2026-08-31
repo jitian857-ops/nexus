@@ -105,7 +105,7 @@ DateTime weekMonday(DateTime day) {
 String weekDaySpan(DateTime day) {
   final monday = weekMonday(day);
   final sunday = monday.add(const Duration(days: 6));
-  return '${monday.day}–${sunday.day}';
+  return '${monday.month}月${monday.day}日ー${sunday.month}月${sunday.day}日';
 }
 
 String weekdayLabelOf(DateTime d) => weekLabels[mondayIndex(d)];

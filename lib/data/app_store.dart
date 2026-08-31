@@ -1326,12 +1326,6 @@ class AppStore extends ChangeNotifier {
     }
     _canSave = true;
     _saveUserData();
-    try {
-      final vault = await cloud.listVault();
-      if (vault.isEmpty) {
-        await cloud.sealVault('初回保管', toCloudMap());
-      }
-    } catch (_) {}
     notifyListeners();
   }
 

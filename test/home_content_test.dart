@@ -116,7 +116,8 @@ void main() {
     expect(store.focusedDate, today);
     expect(store.moneyMonth, money);
     expect(store.studyWeekMonday, weekMonday(today).subtract(const Duration(days: 7)));
-    expect(weekDaySpan(DateTime(2026, 8, 24)), '24–30');
+    expect(weekDaySpan(DateTime(2026, 8, 24)), '8月24日ー8月30日');
+    expect(weekDaySpan(DateTime(2026, 8, 31)), '8月31日ー9月6日');
   });
 
   test('学習記録は更新と削除ができる', () {

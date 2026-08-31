@@ -83,7 +83,9 @@ void main() {
     expect(find.text('クリムゾン'), findsOneWidget);
     expect(find.text('ログアウト'), findsOneWidget);
     expect(find.text('メールボックス'), findsOneWidget);
-    expect(find.text('保管庫'), findsOneWidget);
+    expect(find.text('保管庫'), findsNothing);
+    expect(find.text('動きを減らす'), findsNothing);
+    expect(find.text('セキュリティ'), findsNothing);
   });
 
   testWidgets('ログインと新規登録の画面がある', (tester) async {
@@ -104,6 +106,7 @@ void main() {
       ),
     );
     await tester.pump();
+    expect(find.textContaining('ネグモ'), findsWidgets);
     expect(find.text('ログイン'), findsWidgets);
     expect(find.text('新規登録'), findsOneWidget);
     expect(find.text('パスワードを忘れた'), findsOneWidget);

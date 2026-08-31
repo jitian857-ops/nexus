@@ -232,6 +232,37 @@ Future<T?> showNexusSheet<T>({
   );
 }
 
+Future<bool> confirmLogout(BuildContext context) async {
+  final ok = await showNexusSheet<bool>(
+    context: context,
+    useRootNavigator: true,
+    builder: (sheetContext) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text('ログアウトしますか？', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          Text(
+            'この端末から出ます。学習やMoneyのデータはアカウントに残ります。',
+            style: TextStyle(color: NexusColors.textSecondary, height: 1.4),
+          ),
+          const SizedBox(height: 16),
+          FilledButton(
+            onPressed: () => Navigator.pop(sheetContext, true),
+            child: const Text('ログアウト'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(sheetContext, false),
+            child: const Text('キャンセル'),
+          ),
+        ],
+      );
+    },
+  );
+  return ok == true;
+}
+
 void showNexusToast(BuildContext context, String message) {
   if (message.isEmpty) return;
   ScaffoldMessenger.of(context).hideCurrentSnackBar();

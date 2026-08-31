@@ -8,7 +8,6 @@ import '../../widgets/glass_card.dart';
 import '../../widgets/nexus_logo.dart';
 import '../../widgets/ui_bits.dart';
 import 'mailbox_page.dart';
-import 'vault_page.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -124,18 +123,9 @@ class SettingsScreen extends StatelessWidget {
                   icon: Icons.mail_outline_rounded,
                   color: NexusColors.cyan,
                   title: 'メールボックス',
-                  subtitle: cloud.unreadMail == 0 ? '認証や保管の案内' : '未読 ${cloud.unreadMail} 通',
+                  subtitle: cloud.unreadMail == 0 ? '認証などの案内' : '未読 ${cloud.unreadMail} 通',
                   onTap: () => Navigator.of(context, rootNavigator: true).push(
                     MaterialPageRoute<void>(builder: (_) => const MailboxPage()),
-                  ),
-                ),
-                _Item(
-                  icon: Icons.inventory_2_rounded,
-                  color: NexusColors.gold,
-                  title: '保管庫',
-                  subtitle: 'アプリからは書き換えできない保存',
-                  onTap: () => Navigator.of(context, rootNavigator: true).push(
-                    MaterialPageRoute<void>(builder: (_) => const VaultPage()),
                   ),
                 ),
                 _Item(
@@ -144,6 +134,7 @@ class SettingsScreen extends StatelessWidget {
                   title: 'ログアウト',
                   subtitle: cloud.session?.email ?? '',
                   onTap: () async {
+                    if (!await confirmLogout(context)) return;
                     await cloud.signOut();
                     store.detachCloud();
                   },
@@ -187,42 +178,12 @@ class SettingsScreen extends StatelessWidget {
                   subtitle: 'カレンダー・時間割・ヘルスは明示許可',
                   onTap: () => _open(context, '連携', '端末カレンダー、学校時間割、ヘルスデータはまだ接続していません。許可するまで読み取りません。'),
                 ),
-                _ToggleItem(
-                  icon: Icons.motion_photos_off_rounded,
-                  color: NexusColors.purple,
-                  title: '動きを減らす',
-                  subtitle: '画面のアニメーションを抑える',
-                  value: s.reduceMotion,
-                  onChanged: (v) => store.updateSettings(s.copyWith(reduceMotion: v)),
-                ),
-                _Item(
-                  icon: Icons.lock_rounded,
-                  color: NexusColors.expense,
-                  title: 'セキュリティ',
-                  subtitle: 'アプリロック設定',
-                  onTap: () => _open(context, 'セキュリティ', '端末認証とアプリロックは次のフェーズで接続します。通信は暗号化前提です。'),
-                ),
                 _Item(
                   icon: Icons.help_outline,
                   color: NexusColors.periwinkle,
                   title: 'ヘルプ',
                   subtitle: 'FAQ と問い合わせ',
                   onTap: () => _open(context, 'ヘルプ', 'Nexus OS 0.1 のFAQです。投資・借入・購入の誘導はありません。'),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          GlassCard(
-            child: Row(
-              children: [
-                Icon(Icons.shield_outlined, color: NexusColors.cyan),
-                SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'あなたのデータは、あなたが管理します。何を保存するかをいつでも確認・変更できます。',
-                    style: TextStyle(height: 1.4, fontSize: 13),
-                  ),
                 ),
               ],
             ),
@@ -294,7 +255,7 @@ class SettingsScreen extends StatelessWidget {
             Text('アカウントを削除', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: NexusColors.expense)),
             const SizedBox(height: 8),
             Text(
-              '学習・Money・日記などの同期データと保管庫も消えます。保管庫は画面から直したり消したりできませんが、アカウント削除のときだけまとめて消します。',
+              '学習・Money・日記などの同期データも消えます。この操作は取り消せません。',
               style: TextStyle(color: NexusColors.textSecondary, height: 1.4),
             ),
             TextField(

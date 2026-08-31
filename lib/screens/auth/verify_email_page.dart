@@ -81,7 +81,12 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
                   child: const Text('認証メールを再送'),
                 ),
                 TextButton(
-                  onPressed: cloud.busy ? null : cloud.signOut,
+                  onPressed: cloud.busy
+                      ? null
+                      : () async {
+                          if (!await confirmLogout(context)) return;
+                          await cloud.signOut();
+                        },
                   child: const Text('ログアウト'),
                 ),
               ],
