@@ -32,23 +32,17 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   final _occupation = TextEditingController();
   final _code = TextEditingController();
   final _newPassword = TextEditingController();
-  late final AnimationController _float;
   late final AnimationController _orbit;
 
   @override
   void initState() {
     super.initState();
-    _float = AnimationController(vsync: this, duration: const Duration(milliseconds: 2600));
     _orbit = AnimationController(vsync: this, duration: const Duration(milliseconds: 14000));
-    if (!NexusMotion.inWidgetTest) {
-      _float.repeat();
-      _orbit.repeat();
-    }
+    if (!NexusMotion.inWidgetTest) _orbit.repeat();
   }
 
   @override
   void dispose() {
-    _float.dispose();
     _orbit.dispose();
     _email.dispose();
     _password.dispose();
@@ -62,7 +56,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
 
   String get _speech {
     if (_reset) return 'メールに再設定の案内が届くよ。迷惑メールも見てねネグ。';
-    if (!_showForm) return 'ボクはネグモ！いっしょに NEXUS を始めようネグ。';
+    if (!_showForm) return 'ボクはネグモ！歩いたり飛んだりして案内するよ。いっしょに始めようネグ。';
     if (_tab == 1) return 'メール・パスワード・名前を書いてね。パスワードは8文字以上だよ。';
     return '登録したメールとパスワードで入るネグ。';
   }
@@ -112,53 +106,49 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     final cloud = CloudScope.of(context);
     return PageScaffold(
-      child: AnimatedBuilder(
-        animation: Listenable.merge([_float, _orbit]),
-        builder: (context, _) {
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(22, 18, 22, 32),
-            children: [
-              const Center(child: GradientTitle('NEXUS', size: 30)),
-              const SizedBox(height: 4),
-              Center(
-                child: Text(
-                  _reset ? 'パスワード再設定' : (_showForm ? (_tab == 0 ? 'おかえり' : 'はじめまして') : 'Launch Your Days'),
-                  style: TextStyle(
-                    color: NexusColors.textSecondary,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 15,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(22, 18, 22, 32),
+        children: [
+          const Center(child: GradientTitle('NEXUS', size: 30)),
+          const SizedBox(height: 4),
+          Center(
+            child: Text(
+              _reset ? 'パスワード再設定' : (_showForm ? (_tab == 0 ? 'おかえり' : 'はじめまして') : 'Launch Your Days'),
+              style: TextStyle(
+                color: NexusColors.textSecondary,
+                fontWeight: FontWeight.w600,
+                fontSize: 15,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: _showForm ? 176 : 236,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Positioned.fill(
+                  child: AnimatedBuilder(
+                    animation: _orbit,
+                    builder: (_, _) => CustomPaint(painter: _LoginSkyPainter(t: _orbit.value)),
                   ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                height: _showForm ? 168 : 228,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Positioned.fill(
-                      child: CustomPaint(painter: _LoginSkyPainter(t: _orbit.value)),
-                    ),
-                    Transform.translate(
-                      offset: Offset(math.sin(_float.value * math.pi * 2) * 6, 0),
-                      child: NegumoMascot(
-                        t: _float.value,
-                        size: _showForm ? 132 : 176,
-                        pose: _tab == 1 ? NegumoPose.wave : NegumoPose.float,
-                      ),
-                    ),
-                  ],
+                NegumoMascot(
+                  size: _showForm ? 148 : 196,
+                  action: !_showForm
+                      ? NegumoAction.auto
+                      : (_tab == 1 ? NegumoAction.wave : NegumoAction.idle),
                 ),
-              ),
-              NegumoSpeech(text: _speech),
-              const SizedBox(height: 16),
-              AnimatedSwitcher(
-                duration: NexusMotion.inWidgetTest ? Duration.zero : const Duration(milliseconds: 320),
-                child: _showForm ? _form(cloud) : _landing(cloud),
-              ),
-            ],
-          );
-        },
+              ],
+            ),
+          ),
+          NegumoSpeech(text: _speech),
+          const SizedBox(height: 16),
+          AnimatedSwitcher(
+            duration: NexusMotion.inWidgetTest ? Duration.zero : const Duration(milliseconds: 320),
+            child: _showForm ? _form(cloud) : _landing(cloud),
+          ),
+        ],
       ),
     );
   }
@@ -247,6 +237,17 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                   style: TextStyle(color: NexusColors.text),
                   decoration: const InputDecoration(labelText: 'パスワード'),
                 ),
+                if (_tab == 0) ...[
+                  const SizedBox(height: 10),
+                  OutlinedButton(
+                    onPressed: cloud.busy ? null : () => cloud.enterGuestSession(),
+                    child: const Text('ゲストログイン'),
+                  ),
+                  Text(
+                    'テスト用。この端末だけに残ります。',
+                    style: TextStyle(color: NexusColors.textMuted, fontSize: 11),
+                  ),
+                ],
                 if (_tab == 1) ...[
                   TextField(
                     controller: _confirm,

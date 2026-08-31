@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../app/motion.dart';
 import '../config/firebase_options.dart';
@@ -13,7 +14,10 @@ import 'local_backend.dart';
 class NexusCloud extends ChangeNotifier {
   NexusCloud();
 
+  static const _guestFlag = 'nexus_guest_v1';
+
   CloudBackend _backend = LocalBackend();
+  CloudBackend? _hosted;
   var ready = false;
   var busy = false;
   String lastError = '';
@@ -29,6 +33,8 @@ class NexusCloud extends ChangeNotifier {
   bool get emailVerified => session?.emailVerified ?? false;
 
   bool get usesFirebase => _backend.usesFirebase;
+
+  bool get isGuest => session?.uid == 'guest';
 
   String get uid => session?.uid ?? '';
 
@@ -49,8 +55,11 @@ class NexusCloud extends ChangeNotifier {
       _backend = LocalBackend();
     }
     await _backend.init();
+    _hosted = _backend;
     if (NexusMotion.inWidgetTest) {
       await enterTestSession();
+    } else if (await _guestFlagOn()) {
+      await _applyGuest();
     }
     await _refreshMailBadge();
     ready = true;
@@ -71,6 +80,46 @@ class NexusCloud extends ChangeNotifier {
       ),
     );
     _backend = local;
+  }
+
+  Future<bool> _guestFlagOn() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool(_guestFlag) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _setGuestFlag(bool value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_guestFlag, value);
+    } catch (_) {}
+  }
+
+  Future<void> _applyGuest() async {
+    final local = LocalBackend();
+    await local.init();
+    local.enterMemorySession(
+      const CloudSession(
+        uid: 'guest',
+        email: 'guest@nexus.local',
+        displayName: 'ゲスト',
+        occupation: '',
+        emailVerified: true,
+        usesFirebase: false,
+      ),
+    );
+    _backend = local;
+    await _setGuestFlag(true);
+  }
+
+  Future<void> enterGuestSession() {
+    return _run(() async {
+      await _applyGuest();
+      lastNotice = 'ゲストで入りました';
+    });
   }
 
   Future<T> _run<T>(Future<T> Function() task) async {
@@ -123,6 +172,12 @@ class NexusCloud extends ChangeNotifier {
     return _run(() async {
       await _backend.signOut();
       unreadMail = 0;
+      await _setGuestFlag(false);
+      final hosted = _hosted;
+      if (hosted != null && !identical(_backend, hosted)) {
+        _backend = hosted;
+        await _backend.init();
+      }
     });
   }
 

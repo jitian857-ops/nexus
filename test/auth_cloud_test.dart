@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:nexus/cloud/cloud_models.dart';
 import 'package:nexus/cloud/local_backend.dart';
+import 'package:nexus/cloud/nexus_cloud.dart';
 import 'package:nexus/cloud/password.dart';
 import 'package:nexus/data/app_store.dart';
 import 'package:nexus/data/models.dart';
@@ -128,6 +129,18 @@ void main() {
     expect(other.occupation, '学生');
     expect(other.sessions, hasLength(1));
     expect(other.subjects.single.name, '数学');
+  });
+
+  test('ゲストログインは認証済みで入れ、ログアウトできる', () async {
+    final cloud = NexusCloud();
+    await cloud.enterGuestSession();
+    expect(cloud.isGuest, isTrue);
+    expect(cloud.isSignedIn, isTrue);
+    expect(cloud.emailVerified, isTrue);
+    expect(cloud.session?.displayName, 'ゲスト');
+    await cloud.signOut();
+    expect(cloud.isSignedIn, isFalse);
+    expect(cloud.isGuest, isFalse);
   });
 
   test('パスワードのハッシュは同じ塩で一致する', () {

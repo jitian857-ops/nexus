@@ -4,8 +4,8 @@ import '../../app/theme.dart';
 import '../../data/app_store.dart';
 import '../../data/models.dart';
 import '../../widgets/glass_card.dart';
+import '../../widgets/negumo.dart';
 import '../../widgets/ui_bits.dart';
-import 'negumo_mascot.dart';
 
 class AiScreen extends StatefulWidget {
   const AiScreen({super.key});
@@ -56,7 +56,7 @@ class _AiScreenState extends State<AiScreen> {
                   style: TextStyle(color: NexusColors.textMuted, fontSize: 11),
                 ),
                 const SizedBox(height: 12),
-                const Center(child: NegumoMascot()),
+                const Center(child: NegumoMascot(size: 168, action: NegumoAction.wave)),
                 const SizedBox(height: 12),
                 GlassCard(
                   child: Column(

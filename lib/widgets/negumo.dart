@@ -2,189 +2,123 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-/// ネグモ。3Dシートの雰囲気を、動くマスコットとして描く。
-class NegumoMascot extends StatelessWidget {
+import '../app/motion.dart';
+
+enum NegumoAction { idle, walk, fly, wave, auto }
+
+/// ネグモ。2Dスプライトをコマ送りして、歩き・飛び・手振りをループする。
+class NegumoMascot extends StatefulWidget {
   const NegumoMascot({
     super.key,
-    required this.t,
-    this.size = 168,
-    this.pose = NegumoPose.float,
+    this.size = 176,
+    this.action = NegumoAction.auto,
   });
 
-  final double t;
   final double size;
-  final NegumoPose pose;
+  final NegumoAction action;
+
+  @override
+  State<NegumoMascot> createState() => _NegumoMascotState();
+}
+
+class _NegumoMascotState extends State<NegumoMascot> with SingleTickerProviderStateMixin {
+  late final AnimationController _loop;
+
+  static const _idle = 'assets/mascot/negumo_idle.png';
+  static const _walkA = 'assets/mascot/negumo_walk_a.png';
+  static const _walkB = 'assets/mascot/negumo_walk_b.png';
+  static const _walkC = 'assets/mascot/negumo_walk_c.png';
+  static const _fly = 'assets/mascot/negumo_fly.png';
+  static const _wave = 'assets/mascot/negumo_wave.png';
+
+  @override
+  void initState() {
+    super.initState();
+    _loop = AnimationController(vsync: this, duration: const Duration(milliseconds: 9000));
+    if (!NexusMotion.inWidgetTest) _loop.repeat();
+  }
+
+  @override
+  void dispose() {
+    _loop.dispose();
+    super.dispose();
+  }
+
+  NegumoAction get _action {
+    if (widget.action != NegumoAction.auto) return widget.action;
+    final t = _loop.value;
+    if (t < 0.18) return NegumoAction.wave;
+    if (t < 0.58) return NegumoAction.walk;
+    if (t < 0.82) return NegumoAction.fly;
+    return NegumoAction.idle;
+  }
+
+  String get _frame {
+    final t = _loop.value;
+    switch (_action) {
+      case NegumoAction.walk:
+        final step = ((t * 24) % 4).floor();
+        return switch (step) {
+          0 => _walkA,
+          1 => _walkB,
+          2 => _walkC,
+          _ => _walkB,
+        };
+      case NegumoAction.fly:
+        return _fly;
+      case NegumoAction.wave:
+        return ((t * 8) % 1) < 0.55 ? _wave : _idle;
+      case NegumoAction.idle:
+      case NegumoAction.auto:
+        return _idle;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: size,
-      height: size * 1.12,
-      child: CustomPaint(
-        painter: _NegumoPainter(t: t, pose: pose),
-      ),
+    return AnimatedBuilder(
+      animation: _loop,
+      builder: (context, _) {
+        final t = _loop.value;
+        final action = _action;
+        var dx = 0.0;
+        var dy = 0.0;
+        var flip = false;
+        var scale = 1.0;
+        if (widget.action == NegumoAction.auto && action == NegumoAction.walk) {
+          final walkT = ((t - 0.18) / 0.40).clamp(0.0, 1.0);
+          dx = -72 + walkT * 144;
+          flip = walkT > 0.97;
+        } else if (action == NegumoAction.fly) {
+          dy = math.sin(t * math.pi * 6) * 16;
+          dx = math.cos(t * math.pi * 4) * 10;
+        } else if (action == NegumoAction.idle || action == NegumoAction.wave) {
+          dy = math.sin(t * math.pi * 2) * 6;
+          scale = 1 + math.sin(t * math.pi * 2) * 0.015;
+        }
+        return Transform.translate(
+          offset: Offset(dx, dy),
+          child: Transform.flip(
+            flipX: flip,
+            child: Transform.scale(
+              scale: scale,
+              child: SizedBox(
+                width: widget.size,
+                height: widget.size,
+                child: Image.asset(
+                  _frame,
+                  fit: BoxFit.contain,
+                  filterQuality: FilterQuality.high,
+                  gaplessPlayback: true,
+                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
-}
-
-enum NegumoPose { float, wave, hop, point }
-
-class _NegumoPainter extends CustomPainter {
-  _NegumoPainter({required this.t, required this.pose});
-
-  final double t;
-  final NegumoPose pose;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2;
-    final bob = math.sin(t * math.pi * 2) * size.height * 0.028;
-    final squash = 1 + math.sin(t * math.pi * 2) * 0.03;
-    canvas.translate(cx, size.height * 0.62 + bob);
-    canvas.scale(1 + (pose == NegumoPose.hop ? math.sin(t * math.pi) * 0.06 : 0), squash);
-
-    _bubbles(canvas, size);
-    _antennas(canvas, size);
-    _body(canvas, size);
-    _face(canvas, size);
-    _arms(canvas, size);
-  }
-
-  void _body(Canvas canvas, Size size) {
-    final w = size.width * 0.42;
-    final h = size.height * 0.34;
-    final body = Path()
-      ..addOval(Rect.fromCenter(center: Offset.zero, width: w * 2, height: h * 2));
-    canvas.drawPath(
-      body,
-      Paint()
-        ..color = const Color(0xF5F7F1E8)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 0.4),
-    );
-    canvas.drawPath(
-      body,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
-        ..color = const Color(0x55C8BFAF),
-    );
-
-    final coreR = size.width * 0.09;
-    canvas.drawCircle(Offset(0, size.height * 0.02), coreR * 1.35, Paint()..color = const Color(0x333DA9FC));
-    canvas.drawCircle(Offset(0, size.height * 0.02), coreR, Paint()..color = const Color(0xFF3DA9FC));
-    _star(canvas, Offset(0, size.height * 0.02), coreR * 0.55, Colors.white);
-  }
-
-  void _face(Canvas canvas, Size size) {
-    final blink = (t % 1) > 0.92 && (t % 1) < 0.97;
-    final eyeH = blink ? 1.4 : size.width * 0.028;
-    final eyeW = size.width * 0.028;
-    canvas.drawOval(Rect.fromCenter(center: Offset(-size.width * 0.07, -size.height * 0.08), width: eyeW, height: eyeH), Paint()..color = const Color(0xFF1A1A1A));
-    canvas.drawOval(Rect.fromCenter(center: Offset(size.width * 0.07, -size.height * 0.08), width: eyeW, height: eyeH), Paint()..color = const Color(0xFF1A1A1A));
-    canvas.drawCircle(Offset(-size.width * 0.11, -size.height * 0.04), size.width * 0.018, Paint()..color = const Color(0x88FF8A9A));
-    canvas.drawCircle(Offset(size.width * 0.11, -size.height * 0.04), size.width * 0.018, Paint()..color = const Color(0x88FF8A9A));
-    final mouth = Path()
-      ..moveTo(-size.width * 0.03, -size.height * 0.02)
-      ..quadraticBezierTo(0, size.height * 0.01, size.width * 0.03, -size.height * 0.02);
-    canvas.drawPath(
-      mouth,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6
-        ..strokeCap = StrokeCap.round
-        ..color = const Color(0xFF333333),
-    );
-  }
-
-  void _antennas(Canvas canvas, Size size) {
-    final sway = math.sin(t * math.pi * 2) * 10;
-    _antenna(canvas, size, left: true, sway: sway);
-    _antenna(canvas, size, left: false, sway: -sway);
-  }
-
-  void _antenna(Canvas canvas, Size size, {required bool left, required double sway}) {
-    final start = Offset(left ? -size.width * 0.08 : size.width * 0.08, -size.height * 0.16);
-    final mid = Offset(left ? -size.width * 0.22 + sway * 0.4 : size.width * 0.22 + sway * 0.4, -size.height * 0.38);
-    final end = Offset(left ? -size.width * 0.28 + sway : size.width * 0.28 + sway, -size.height * 0.48);
-    final path = Path()
-      ..moveTo(start.dx, start.dy)
-      ..quadraticBezierTo(mid.dx, mid.dy, end.dx, end.dy);
-    canvas.drawPath(
-      path,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = size.width * 0.028
-        ..strokeCap = StrokeCap.round
-        ..color = const Color(0xCCF7F1E8),
-    );
-    final node = end;
-    if (left) {
-      canvas.drawCircle(node, size.width * 0.055, Paint()..color = Colors.white);
-      canvas.drawCircle(node, size.width * 0.028, Paint()..color = const Color(0xFF3DA9FC));
-    } else {
-      final r = size.width * 0.048;
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(Rect.fromCenter(center: node, width: r * 2, height: r * 2), const Radius.circular(5)),
-        Paint()..color = Colors.white,
-      );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(Rect.fromCenter(center: node, width: r, height: r), const Radius.circular(3)),
-        Paint()..color = const Color(0xFF3DA9FC),
-      );
-    }
-    canvas.drawCircle(node + Offset(left ? -size.width * 0.04 : size.width * 0.04, 0), 3.2, Paint()..color = const Color(0xFFFF8A4A));
-  }
-
-  void _arms(Canvas canvas, Size size) {
-    final wave = pose == NegumoPose.wave || pose == NegumoPose.float ? math.sin(t * math.pi * 2) * 16 : 0.0;
-    final point = pose == NegumoPose.point ? -28.0 : 0.0;
-    _arm(canvas, size, left: true, lift: wave);
-    _arm(canvas, size, left: false, lift: point);
-  }
-
-  void _arm(Canvas canvas, Size size, {required bool left, required double lift}) {
-    final start = Offset(left ? -size.width * 0.28 : size.width * 0.28, size.height * 0.02);
-    final end = Offset(left ? -size.width * 0.38 : size.width * 0.4, -size.height * 0.02 - lift);
-    canvas.drawLine(
-      start,
-      end,
-      Paint()
-        ..strokeWidth = size.width * 0.055
-        ..strokeCap = StrokeCap.round
-        ..color = const Color(0xF5F7F1E8),
-    );
-  }
-
-  void _bubbles(Canvas canvas, Size size) {
-    for (var i = 0; i < 5; i++) {
-      final a = (t + i * 0.18) % 1;
-      final x = math.sin(i * 1.7) * size.width * 0.34;
-      final y = size.height * 0.22 - a * size.height * 0.42;
-      canvas.drawCircle(
-        Offset(x, y),
-        3 + (i % 3).toDouble(),
-        Paint()..color = const Color(0x55FFFFFF),
-      );
-    }
-  }
-
-  void _star(Canvas canvas, Offset c, double r, Color color) {
-    final path = Path();
-    for (var i = 0; i < 5; i++) {
-      final a = -math.pi / 2 + i * 4 * math.pi / 5;
-      final p = Offset(c.dx + math.cos(a) * r, c.dy + math.sin(a) * r);
-      if (i == 0) {
-        path.moveTo(p.dx, p.dy);
-      } else {
-        path.lineTo(p.dx, p.dy);
-      }
-    }
-    path.close();
-    canvas.drawPath(path, Paint()..color = color);
-  }
-
-  @override
-  bool shouldRepaint(covariant _NegumoPainter oldDelegate) => oldDelegate.t != t || oldDelegate.pose != pose;
 }
 
 class NegumoSpeech extends StatelessWidget {
