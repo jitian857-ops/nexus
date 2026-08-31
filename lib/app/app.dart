@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../app/theme.dart';
+import '../cloud/nexus_cloud.dart';
 import '../data/app_store.dart';
-import '../screens/app_shell.dart';
+import '../screens/auth/auth_gate.dart';
 
 class NexusApp extends StatefulWidget {
   const NexusApp({super.key});
@@ -14,24 +15,47 @@ class NexusApp extends StatefulWidget {
 
 class _NexusAppState extends State<NexusApp> {
   final AppStore _store = AppStore.seed();
+  final NexusCloud _cloud = NexusCloud();
+  var _bound = false;
 
   @override
   void initState() {
     super.initState();
-    _store.hydrate();
+    _cloud.addListener(_onCloud);
+    _cloud.boot();
+  }
+
+  void _onCloud() {
+    if (_cloud.isSignedIn && _cloud.emailVerified) {
+      if (!_bound) {
+        _bound = true;
+        _store.attachCloud(_cloud);
+      }
+    } else {
+      if (_bound || !_cloud.isSignedIn) {
+        _bound = false;
+        if (!_cloud.isSignedIn) _store.detachCloud();
+      }
+    }
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    _cloud.removeListener(_onCloud);
     _store.dispose();
+    _cloud.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return AppScope(
-      store: _store,
-      child: _ThemedMaterialApp(store: _store),
+    return CloudScope(
+      cloud: _cloud,
+      child: AppScope(
+        store: _store,
+        child: _ThemedMaterialApp(store: _store),
+      ),
     );
   }
 }
@@ -87,7 +111,7 @@ class _ThemedMaterialAppState extends State<_ThemedMaterialApp> {
       builder: (context, child) {
         return PhoneScope(child: child ?? const SizedBox.shrink());
       },
-      home: const AppShell(),
+      home: const AuthGate(),
     );
   }
 }

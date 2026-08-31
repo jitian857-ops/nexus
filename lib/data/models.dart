@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -61,6 +62,30 @@ class ScheduleItem {
       source: source,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'startAt': startAt.toIso8601String(),
+        'endAt': endAt?.toIso8601String(),
+        'allDay': allDay,
+        'location': location,
+        'category': category,
+        'source': source,
+      };
+
+  factory ScheduleItem.fromJson(Map<String, dynamic> json) {
+    return ScheduleItem(
+      id: json['id'] as String,
+      title: json['title'] as String? ?? '',
+      startAt: DateTime.parse(json['startAt'] as String),
+      endAt: json['endAt'] == null ? null : DateTime.tryParse(json['endAt'] as String),
+      allDay: json['allDay'] as bool? ?? false,
+      location: json['location'] as String?,
+      category: json['category'] as String? ?? 'life',
+      source: json['source'] as String? ?? 'user',
+    );
+  }
 }
 
 class StudySubject {
@@ -70,6 +95,7 @@ class StudySubject {
     required this.color,
     required this.weekHours,
     required this.icon,
+    this.archived = false,
   });
 
   final String id;
@@ -77,14 +103,22 @@ class StudySubject {
   final Color color;
   final double weekHours;
   final IconData icon;
+  final bool archived;
 
-  StudySubject copyWith({double? weekHours, String? name, Color? color, IconData? icon}) {
+  StudySubject copyWith({
+    double? weekHours,
+    String? name,
+    Color? color,
+    IconData? icon,
+    bool? archived,
+  }) {
     return StudySubject(
       id: id,
       name: name ?? this.name,
       color: color ?? this.color,
       weekHours: weekHours ?? this.weekHours,
       icon: icon ?? this.icon,
+      archived: archived ?? this.archived,
     );
   }
 
@@ -94,6 +128,7 @@ class StudySubject {
         'color': color.toARGB32(),
         'weekHours': weekHours,
         'icon': icon.codePoint,
+        'archived': archived,
       };
 
   factory StudySubject.fromJson(Map<String, dynamic> json) {
@@ -103,6 +138,7 @@ class StudySubject {
       color: Color(json['color'] as int),
       weekHours: (json['weekHours'] as num).toDouble(),
       icon: nexusIconFromCode(json['icon'] as int),
+      archived: json['archived'] as bool? ?? false,
     );
   }
 }
@@ -121,6 +157,21 @@ class StudySession {
   final int minutes;
   final StudyFocus focus;
   final DateTime at;
+
+  StudySession copyWith({
+    String? subjectId,
+    int? minutes,
+    StudyFocus? focus,
+    DateTime? at,
+  }) {
+    return StudySession(
+      id: id,
+      subjectId: subjectId ?? this.subjectId,
+      minutes: minutes ?? this.minutes,
+      focus: focus ?? this.focus,
+      at: at ?? this.at,
+    );
+  }
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -242,6 +293,24 @@ class Assignment {
   final String title;
   final DateTime dueAt;
   final bool done;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'subjectId': subjectId,
+        'title': title,
+        'dueAt': dueAt.toIso8601String(),
+        'done': done,
+      };
+
+  factory Assignment.fromJson(Map<String, dynamic> json) {
+    return Assignment(
+      id: json['id'] as String,
+      subjectId: json['subjectId'] as String? ?? '',
+      title: json['title'] as String? ?? '',
+      dueAt: DateTime.parse(json['dueAt'] as String),
+      done: json['done'] as bool? ?? false,
+    );
+  }
 }
 
 class Exam {
@@ -328,6 +397,27 @@ class ProblemRecord {
   final DateTime learnedAt;
   final Uint8List? photoBytes;
   final String answer;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'subjectId': subjectId,
+        'title': title,
+        'learnedAt': learnedAt.toIso8601String(),
+        'answer': answer,
+        if (photoBytes != null && photoBytes!.length <= 180000) 'photo': base64Encode(photoBytes!),
+      };
+
+  factory ProblemRecord.fromJson(Map<String, dynamic> json) {
+    final photo = json['photo'] as String?;
+    return ProblemRecord(
+      id: json['id'] as String,
+      subjectId: json['subjectId'] as String? ?? '',
+      title: json['title'] as String? ?? '',
+      learnedAt: DateTime.parse(json['learnedAt'] as String),
+      answer: json['answer'] as String? ?? '',
+      photoBytes: photo == null || photo.isEmpty ? null : base64Decode(photo),
+    );
+  }
 }
 
 class ReviewCard {
@@ -355,6 +445,26 @@ class ReviewCard {
       intervalStep: intervalStep,
       status: status ?? this.status,
       lastRating: lastRating ?? this.lastRating,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'problemId': problemId,
+        'dueAt': dueAt.toIso8601String(),
+        'intervalStep': intervalStep,
+        'status': status,
+        'lastRating': lastRating?.name,
+      };
+
+  factory ReviewCard.fromJson(Map<String, dynamic> json) {
+    return ReviewCard(
+      id: json['id'] as String,
+      problemId: json['problemId'] as String? ?? '',
+      dueAt: DateTime.parse(json['dueAt'] as String),
+      intervalStep: json['intervalStep'] as int? ?? 1,
+      status: json['status'] as String? ?? 'pending',
+      lastRating: ReviewRating.values.where((v) => v.name == json['lastRating']).firstOrNull,
     );
   }
 }

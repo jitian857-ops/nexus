@@ -15,8 +15,8 @@ Future<void> openIncomeForm(BuildContext context, AppStore store, {IncomeEntry? 
   final amount = TextEditingController(text: existing == null ? '' : '${existing.amount}');
   final memo = TextEditingController(text: existing?.memo ?? '');
   var deposited = existing?.depositedAt ?? store.moneyEntryDate;
-  var useYear = existing?.useYear ?? nextUseMonth(deposited).year;
-  var useMonth = existing?.useMonth ?? nextUseMonth(deposited).month;
+  var useYear = existing?.useYear ?? store.moneyMonth.year;
+  var useMonth = existing?.useMonth ?? store.moneyMonth.month;
   final saved = await showNexusSheet<bool>(
     context: context,
     builder: (context) {

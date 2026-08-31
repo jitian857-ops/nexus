@@ -39,9 +39,10 @@ class _IncomeLedgerPageState extends State<IncomeLedgerPage> {
   @override
   Widget build(BuildContext context) {
     final store = AppScope.of(context);
+    final month = store.moneyMonth;
     final q = _query.text;
     final list = [
-      for (final item in store.incomeHistory)
+      for (final item in store.incomesInMonth(month))
         if (queryMatches(q, [
           item.name,
           item.memo,
@@ -65,8 +66,11 @@ class _IncomeLedgerPageState extends State<IncomeLedgerPage> {
                   onPressed: () => Navigator.pop(context),
                   icon: Icon(Icons.close_rounded, color: NexusColors.text),
                 ),
-                const Expanded(
-                  child: Text('収入の記録', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600)),
+                Expanded(
+                  child: Text(
+                    '${jpMonth(store.moneyMonth)}の収入',
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
+                  ),
                 ),
                 AddChip(label: '収入を追加', onTap: () => openIncomeForm(context, store)),
               ],
@@ -82,7 +86,7 @@ class _IncomeLedgerPageState extends State<IncomeLedgerPage> {
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 24),
                 child: Text(
-                  store.incomes.isEmpty ? '収入はまだありません' : '一致する収入がありません',
+                  store.incomesInMonth(store.moneyMonth).isEmpty ? 'この月の収入はまだありません' : '一致する収入がありません',
                   style: TextStyle(color: NexusColors.textMuted),
                 ),
               )
@@ -150,10 +154,12 @@ class _ExpenseLedgerPageState extends State<ExpenseLedgerPage> {
   @override
   Widget build(BuildContext context) {
     final store = AppScope.of(context);
+    final month = store.moneyMonth;
     final q = _query.text;
-    final tags = store.expenseTags;
+    final tags = store.expenseTagsInMonth(month);
+    final spend = store.spendCardsInMonth(month);
     final list = [
-      for (final card in store.spendHistory)
+      for (final card in spend)
         if ((_tag == null || card.tag == _tag) &&
             queryMatches(q, [
               card.title,
@@ -179,8 +185,11 @@ class _ExpenseLedgerPageState extends State<ExpenseLedgerPage> {
                   onPressed: () => Navigator.pop(context),
                   icon: Icon(Icons.close_rounded, color: NexusColors.text),
                 ),
-                const Expanded(
-                  child: Text('支出の記録', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600)),
+                Expanded(
+                  child: Text(
+                    '${jpMonth(store.moneyMonth)}の支出',
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
+                  ),
                 ),
                 AddChip(label: 'カードを追加', onTap: () => openAddCard(context, store)),
               ],
@@ -220,7 +229,7 @@ class _ExpenseLedgerPageState extends State<ExpenseLedgerPage> {
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 24),
                 child: Text(
-                  store.spendHistory.isEmpty ? '支出カードはまだありません' : '一致する支出がありません',
+                  spend.isEmpty ? 'この月の支出カードはまだありません' : '一致する支出がありません',
                   style: TextStyle(color: NexusColors.textMuted),
                 ),
               )

@@ -307,6 +307,7 @@ class _ClockReels extends StatelessWidget {
     return SizedBox(
       height: 168,
       child: Stack(
+        clipBehavior: Clip.hardEdge,
         alignment: Alignment.center,
         children: [
           IgnorePointer(

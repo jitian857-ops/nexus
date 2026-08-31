@@ -93,6 +93,46 @@ void main() {
     expect(store.sessions.first.focus, StudyFocus.peak);
   });
 
+  test('教科を消してもグラフに勉強時間は残る', () {
+    final store = AppStore.seed();
+    final math = store.addSubject(name: '数学');
+    store.addStudySession(subjectId: math.id, minutes: 60, focus: StudyFocus.high);
+    final hours = store.weekStudyHoursFor(store.studyWeek);
+    store.deleteSubject(math.id);
+    expect(store.visibleSubjects, isEmpty);
+    expect(store.weekStudyHoursFor(store.studyWeek), hours);
+    expect(store.weekChartSubjects(store.studyWeek).any((s) => s.id == math.id), isTrue);
+    expect(
+      store.weekStackedHours(store.studyWeek).any((day) => day.any((value) => value > 0)),
+      isTrue,
+    );
+  });
+
+  test('Studyの週を動かしてもHomeとMoneyの日付は変わらない', () {
+    final store = AppStore.seed();
+    final today = store.focusedDate;
+    final money = store.moneyMonth;
+    store.shiftStudyWeek(-1);
+    expect(store.focusedDate, today);
+    expect(store.moneyMonth, money);
+    expect(store.studyWeekMonday, weekMonday(today).subtract(const Duration(days: 7)));
+    expect(weekDaySpan(DateTime(2026, 8, 24)), '24–30');
+  });
+
+  test('学習記録は更新と削除ができる', () {
+    final store = AppStore.seed();
+    final math = store.addSubject(name: '数学');
+    store.addStudySession(subjectId: math.id, minutes: 30, focus: StudyFocus.high);
+    final session = store.sessions.single;
+    store.updateStudySession(session.copyWith(minutes: 90, focus: StudyFocus.peak));
+    expect(store.sessions.single.minutes, 90);
+    expect(store.sessions.single.focus, StudyFocus.peak);
+    expect(store.totalStudyHours, closeTo(1.5, 0.0001));
+    store.deleteStudySession(session.id);
+    expect(store.sessions, isEmpty);
+    expect(store.totalStudyHours, 0);
+  });
+
   test('1分の学習は1分と表示される', () {
     final store = AppStore.seed();
     final math = store.addSubject(name: '数学');
@@ -615,6 +655,58 @@ void main() {
     expect(queryMatches('ホテル', ['サイゼリヤ', '外食', '食費']), isFalse);
     store.deleteMoneyCard(store.spendHistory.firstWhere((c) => c.title == 'サイゼリヤ').id);
     expect(store.spendHistory.single.title, 'スーパー');
+  });
+
+  test('収入と支出の記録はその月だけを出す', () {
+    final store = AppStore.seed();
+    store.boxes.clear();
+    store.cards.clear();
+    store.incomes.clear();
+    final august = DateTime(2026, 8, 1);
+    final september = DateTime(2026, 9, 1);
+    store.moneyMonth = august;
+    final food = store.addBudgetBox(
+      name: '食費',
+      icon: Icons.restaurant_rounded,
+      color: const Color(0xFF3DA9FC),
+      monthlyBudget: 30000,
+      tags: const ['外食'],
+      month: august,
+    );
+    store.addIncome(
+      name: '8月の給料',
+      amount: 140000,
+      depositedAt: DateTime(2026, 8, 25),
+      useYear: 2026,
+      useMonth: 8,
+    );
+    store.addIncome(
+      name: '9月の給料',
+      amount: 150000,
+      depositedAt: DateTime(2026, 9, 25),
+      useYear: 2026,
+      useMonth: 9,
+    );
+    store.addMoneyCard(
+      boxId: food.id,
+      title: '8月の外食',
+      amount: 1480,
+      at: DateTime(2026, 8, 10),
+      tag: '外食',
+    );
+    store.addMoneyCard(
+      boxId: food.id,
+      title: '9月の外食',
+      amount: 2200,
+      at: DateTime(2026, 9, 3),
+      tag: '外食',
+    );
+    expect(store.incomesInMonth(august).map((e) => e.name), ['8月の給料']);
+    expect(store.spendCardsInMonth(august).map((c) => c.title), ['8月の外食']);
+    expect(store.expenseTagsInMonth(august), contains('外食'));
+    store.moneyMonth = september;
+    expect(store.incomesInMonth(september).map((e) => e.name), ['9月の給料']);
+    expect(store.spendCardsInMonth(september).map((c) => c.title), ['9月の外食']);
   });
 
   test('習慣は更新と削除ができる', () {

@@ -156,15 +156,6 @@ class _FocusTimerPageState extends State<FocusTimerPage> {
                         currentMinutes: (store.timerTotalSeconds / 60).round(),
                         enabled: !store.timerRunning,
                       ),
-                      const SizedBox(height: 12),
-                      DurationMinutesPicker(
-                        minutes: (store.timerTotalSeconds / 60).round().clamp(
-                          kMinStudyDurationMinutes,
-                          kMaxStudyDurationMinutes,
-                        ),
-                        onChanged: store.setTimerMinutes,
-                        enabled: !store.timerRunning,
-                      ),
                       const SizedBox(height: 16),
                       Align(
                         alignment: Alignment.centerLeft,
@@ -179,6 +170,16 @@ class _FocusTimerPageState extends State<FocusTimerPage> {
                         selectedId: selectedId,
                         enabled: !store.timerRunning,
                       ),
+                      const SizedBox(height: 12),
+                      DurationMinutesPicker(
+                        minutes: (store.timerTotalSeconds / 60).round().clamp(
+                          kMinStudyDurationMinutes,
+                          kMaxStudyDurationMinutes,
+                        ),
+                        onChanged: store.setTimerMinutes,
+                        enabled: !store.timerRunning,
+                      ),
+                      const SizedBox(height: 12),
                     ],
                   ),
                 ),
@@ -345,7 +346,7 @@ class _TimerSubjectPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (store.subjects.isEmpty) {
+    if (store.visibleSubjects.isEmpty) {
       return Align(
         alignment: Alignment.centerLeft,
         child: ActionChip(
@@ -356,33 +357,53 @@ class _TimerSubjectPicker extends StatelessWidget {
         ),
       );
     }
-    return SizedBox(
-      height: 40,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: [
-          for (final s in store.subjects) ...[
-            ChoiceChip(
-              label: Text(s.name),
-              avatar: Icon(s.icon, size: 16, color: selectedId == s.id ? s.color : NexusColors.textMuted),
-              selected: selectedId == s.id,
-              selectedColor: s.color.withValues(alpha: 0.28),
-              labelStyle: TextStyle(
-                color: selectedId == s.id ? s.color : NexusColors.text,
-                fontWeight: FontWeight.w700,
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final s in store.visibleSubjects)
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: enabled ? () => store.setTimerSubject(s.id) : null,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 160),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: selectedId == s.id
+                    ? s.color.withValues(alpha: 0.22)
+                    : NexusColors.surface,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: selectedId == s.id ? s.color : NexusColors.border,
+                ),
               ),
-              onSelected: enabled ? (_) => store.setTimerSubject(s.id) : null,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    s.icon,
+                    size: 16,
+                    color: selectedId == s.id ? s.color : NexusColors.textMuted,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    s.name,
+                    style: TextStyle(
+                      color: selectedId == s.id ? s.color : NexusColors.text,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(width: 8),
-          ],
-          ActionChip(
-            avatar: Icon(Icons.add, size: 16, color: NexusColors.cyan),
-            label: Text('＋ 教科を追加'),
-            labelStyle: TextStyle(color: NexusColors.cyan, fontWeight: FontWeight.w700),
-            onPressed: enabled ? () => _addSubject(context) : null,
           ),
-        ],
-      ),
+        ActionChip(
+          avatar: Icon(Icons.add, size: 16, color: NexusColors.cyan),
+          label: Text('＋ 教科を追加'),
+          labelStyle: TextStyle(color: NexusColors.cyan, fontWeight: FontWeight.w700),
+          onPressed: enabled ? () => _addSubject(context) : null,
+        ),
+      ],
     );
   }
 

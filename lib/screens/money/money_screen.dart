@@ -6,6 +6,7 @@ import '../../data/app_store.dart';
 import '../../data/models.dart';
 import '../../widgets/count_up_yen.dart';
 import '../../widgets/glass_card.dart';
+import '../../widgets/period_slide.dart';
 import '../../widgets/ui_bits.dart';
 import 'box_detail_page.dart';
 import 'money_forms.dart';
@@ -279,97 +280,82 @@ class _MoneyBalanceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = AppScope.of(context);
-    final money = store.money;
-    return GestureDetector(
-      onHorizontalDragEnd: (details) {
-        final velocity = details.primaryVelocity ?? 0;
-        if (velocity > 180) {
-          store.shiftMoneyMonth(-1);
-        } else if (velocity < -180) {
-          store.shiftMoneyMonth(1);
-        }
-      },
-      child: GlassCard(
-        glowColor: NexusColors.gold,
-        borderColor: NexusColors.gold.withValues(alpha: 0.28),
-        child: Stack(
+    return GlassCard(
+      glowColor: NexusColors.gold,
+      borderColor: NexusColors.gold.withValues(alpha: 0.28),
+      child: PeriodSlide(
+        periodKey: monthKey(store.moneyMonth),
+        onPrevious: () => store.shiftMoneyMonth(-1),
+        onNext: () => store.shiftMoneyMonth(1),
+        child: _MoneyBalanceBody(store: store, month: store.moneyMonth),
+      ),
+    );
+  }
+}
+
+class _MoneyBalanceBody extends StatelessWidget {
+  const _MoneyBalanceBody({required this.store, required this.month});
+
+  final AppStore store;
+  final DateTime month;
+
+  @override
+  Widget build(BuildContext context) {
+    final money = store.moneyFor(month);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Positioned.fill(
-              child: Row(
-                children: [
-                  Expanded(
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.translucent,
-                      onTap: () => store.shiftMoneyMonth(-1),
-                    ),
-                  ),
-                  Expanded(
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.translucent,
-                      onTap: () => store.shiftMoneyMonth(1),
-                    ),
-                  ),
-                ],
+            Expanded(
+              child: IgnorePointer(
+                child: Text(
+                  jpMonth(month),
+                  style: TextStyle(color: NexusColors.textSecondary),
+                ),
               ),
             ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: IgnorePointer(
-                        child: Text(
-                          jpMonth(store.moneyMonth),
-                          style: TextStyle(color: NexusColors.textSecondary),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Align(
-                        alignment: Alignment.topRight,
-                        child: _BudgetDeductChip(store: store),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                IgnorePointer(
-                  child: CountUpYen(
-                    value: money.balance,
-                    style: TextStyle(
-                      fontSize: 36,
-                      fontWeight: FontWeight.w700,
-                      color: NexusColors.gold,
-                      letterSpacing: 0.4,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    _BalanceStatChip(
-                      icon: Icons.arrow_upward_rounded,
-                      label: '収入 ${yen(money.income)}',
-                      color: NexusColors.income,
-                      onTap: () => openIncomeLedger(context),
-                    ),
-                    const SizedBox(width: 8),
-                    _BalanceStatChip(
-                      icon: Icons.arrow_downward_rounded,
-                      label: '支出 ${yen(-money.expense)}',
-                      color: NexusColors.expense,
-                      onTap: () => openExpenseLedger(context),
-                    ),
-                  ],
-                ),
-              ],
+            const SizedBox(width: 8),
+            Flexible(
+              child: Align(
+                alignment: Alignment.topRight,
+                child: _BudgetDeductChip(store: store),
+              ),
             ),
           ],
         ),
-      ),
+        const SizedBox(height: 6),
+        IgnorePointer(
+          child: CountUpYen(
+            value: money.balance,
+            style: TextStyle(
+              fontSize: 36,
+              fontWeight: FontWeight.w700,
+              color: NexusColors.gold,
+              letterSpacing: 0.4,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            _BalanceStatChip(
+              icon: Icons.arrow_upward_rounded,
+              label: '収入 ${yen(money.income)}',
+              color: NexusColors.income,
+              onTap: () => openIncomeLedger(context),
+            ),
+            const SizedBox(width: 8),
+            _BalanceStatChip(
+              icon: Icons.arrow_downward_rounded,
+              label: '支出 ${yen(-money.expense)}',
+              color: NexusColors.expense,
+              onTap: () => openExpenseLedger(context),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

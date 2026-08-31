@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 
 import '../../app/theme.dart';
+import '../../cloud/nexus_cloud.dart';
 import '../../data/app_store.dart';
 import '../../data/models.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/nexus_logo.dart';
 import '../../widgets/ui_bits.dart';
+import 'mailbox_page.dart';
+import 'vault_page.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -13,6 +16,7 @@ class SettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = AppScope.of(context);
+    final cloud = CloudScope.of(context);
     final s = store.settings;
 
     return PageScaffold(
@@ -93,13 +97,56 @@ class SettingsScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(store.userName, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
-                      Text('Lv.${store.level}', style: TextStyle(color: NexusColors.gold, fontSize: 12, letterSpacing: 0.4)),
+                      Text(
+                        store.occupation.isEmpty ? 'Lv.${store.level}' : '${store.occupation}  ·  Lv.${store.level}',
+                        style: TextStyle(color: NexusColors.gold, fontSize: 12, letterSpacing: 0.4),
+                      ),
+                      if (cloud.session != null)
+                        Text(cloud.session!.email, style: TextStyle(color: NexusColors.textMuted, fontSize: 11)),
                     ],
                   ),
                 ),
                 OutlinedButton(
                   onPressed: () => _editProfile(context, store),
                   child: Text('プロフィールを編集'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text('アカウント', style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
+          const SizedBox(height: 8),
+          GlassCard(
+            padding: EdgeInsets.zero,
+            child: Column(
+              children: [
+                _Item(
+                  icon: Icons.mail_outline_rounded,
+                  color: NexusColors.cyan,
+                  title: 'メールボックス',
+                  subtitle: cloud.unreadMail == 0 ? '認証や保管の案内' : '未読 ${cloud.unreadMail} 通',
+                  onTap: () => Navigator.of(context, rootNavigator: true).push(
+                    MaterialPageRoute<void>(builder: (_) => const MailboxPage()),
+                  ),
+                ),
+                _Item(
+                  icon: Icons.inventory_2_rounded,
+                  color: NexusColors.gold,
+                  title: '保管庫',
+                  subtitle: 'アプリからは書き換えできない保存',
+                  onTap: () => Navigator.of(context, rootNavigator: true).push(
+                    MaterialPageRoute<void>(builder: (_) => const VaultPage()),
+                  ),
+                ),
+                _Item(
+                  icon: Icons.logout_rounded,
+                  color: NexusColors.purple,
+                  title: 'ログアウト',
+                  subtitle: cloud.session?.email ?? '',
+                  onTap: () async {
+                    await cloud.signOut();
+                    store.detachCloud();
+                  },
                 ),
               ],
             ),
@@ -182,6 +229,13 @@ class SettingsScreen extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Center(
+            child: TextButton(
+              onPressed: () => _deleteAccount(context, store, cloud),
+              child: Text('アカウントを削除', style: TextStyle(color: NexusColors.expense)),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Center(
             child: Text('Nexus OS 0.1', style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
           ),
         ],
@@ -190,7 +244,9 @@ class SettingsScreen extends StatelessWidget {
   }
 
   Future<void> _editProfile(BuildContext context, AppStore store) async {
-    final controller = TextEditingController(text: store.userName);
+    final cloud = CloudScope.of(context);
+    final name = TextEditingController(text: store.userName);
+    final job = TextEditingController(text: store.occupation);
     final saved = await showNexusSheet<bool>(
       context: context,
       builder: (context) {
@@ -199,17 +255,72 @@ class SettingsScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text('プロフィール', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-            TextField(controller: controller, style: TextStyle(color: NexusColors.text)),
+            TextField(
+              controller: name,
+              style: TextStyle(color: NexusColors.text),
+              decoration: const InputDecoration(labelText: '名前'),
+            ),
+            TextField(
+              controller: job,
+              style: TextStyle(color: NexusColors.text),
+              decoration: const InputDecoration(labelText: '職業'),
+            ),
             const SizedBox(height: 12),
             FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('保存')),
           ],
         );
       },
     );
-    if (saved == true && controller.text.trim().isNotEmpty) {
-      store.setUserName(controller.text.trim());
+    if (saved == true && name.text.trim().isNotEmpty) {
+      store.setUserName(name.text.trim());
+      store.setOccupation(job.text);
+      try {
+        await cloud.updateProfile(displayName: name.text.trim(), occupation: job.text.trim());
+      } catch (_) {}
     }
-    controller.dispose();
+    name.dispose();
+    job.dispose();
+  }
+
+  Future<void> _deleteAccount(BuildContext context, AppStore store, NexusCloud cloud) async {
+    final password = TextEditingController();
+    final ok = await showNexusSheet<bool>(
+      context: context,
+      builder: (context) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('アカウントを削除', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: NexusColors.expense)),
+            const SizedBox(height: 8),
+            Text(
+              '学習・Money・日記などの同期データと保管庫も消えます。保管庫は画面から直したり消したりできませんが、アカウント削除のときだけまとめて消します。',
+              style: TextStyle(color: NexusColors.textSecondary, height: 1.4),
+            ),
+            TextField(
+              controller: password,
+              obscureText: true,
+              style: TextStyle(color: NexusColors.text),
+              decoration: const InputDecoration(labelText: 'パスワード'),
+            ),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('削除する'),
+            ),
+          ],
+        );
+      },
+    );
+    if (ok == true) {
+      try {
+        await cloud.deleteAccount(password: password.text);
+        store.detachCloud();
+      } catch (_) {
+        if (context.mounted) showNexusToast(context, cloud.lastError);
+      }
+    }
+    password.dispose();
   }
 
   Future<void> _open(BuildContext context, String title, String body) {

@@ -97,6 +97,17 @@ const weekLabels = ['月', '火', '水', '木', '金', '土', '日'];
 
 int mondayIndex(DateTime d) => (d.weekday + 6) % 7;
 
+DateTime weekMonday(DateTime day) {
+  final d = dateOnly(day);
+  return d.subtract(Duration(days: mondayIndex(d)));
+}
+
+String weekDaySpan(DateTime day) {
+  final monday = weekMonday(day);
+  final sunday = monday.add(const Duration(days: 6));
+  return '${monday.day}–${sunday.day}';
+}
+
 String weekdayLabelOf(DateTime d) => weekLabels[mondayIndex(d)];
 
 String daysLeftLabel(DateTime due, DateTime today) {

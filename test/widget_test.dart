@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:nexus/app/app.dart';
+import 'package:nexus/app/theme.dart';
+import 'package:nexus/cloud/nexus_cloud.dart';
 import 'package:nexus/data/app_store.dart';
 import 'package:nexus/data/models.dart';
 import 'package:nexus/domain/money_calc.dart';
 import 'package:nexus/domain/review_scheduler.dart';
+import 'package:nexus/screens/auth/login_page.dart';
+import 'package:nexus/screens/study/focus_timer_page.dart';
 import 'package:nexus/widgets/nexus_nav_bar.dart';
 
 void main() {
@@ -14,13 +19,26 @@ void main() {
     GoogleFonts.config.allowRuntimeFetching = false;
   });
 
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
+
+  Future<void> pumpSignedInApp(WidgetTester tester) async {
+    await tester.pumpWidget(const NexusApp());
+    for (var i = 0; i < 40; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+      if (find.text('今日の予定').evaluate().isNotEmpty) return;
+    }
+    fail('ホーム画面が出ませんでした');
+  }
+
   testWidgets('5タブを切り替えられる', (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(const NexusApp());
+    await pumpSignedInApp(tester);
 
     expect(find.text('蒼井 ユウ'), findsWidgets);
     expect(find.text('今日の予定'), findsOneWidget);
@@ -46,13 +64,13 @@ void main() {
 
     await tester.tap(find.text('収入 ¥0'));
     await tester.pumpAndSettle();
-    expect(find.text('収入の記録'), findsOneWidget);
+    expect(find.textContaining('の収入'), findsWidgets);
     await tester.tap(find.byIcon(Icons.close_rounded).first);
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('支出 ¥0'));
     await tester.pumpAndSettle();
-    expect(find.text('支出の記録'), findsOneWidget);
+    expect(find.textContaining('の支出'), findsWidgets);
     await tester.tap(find.byIcon(Icons.close_rounded).first);
     await tester.pumpAndSettle();
 
@@ -63,6 +81,69 @@ void main() {
     expect(find.text('ミッドナイト'), findsWidgets);
     expect(find.text('サンセット'), findsOneWidget);
     expect(find.text('クリムゾン'), findsOneWidget);
+    expect(find.text('ログアウト'), findsOneWidget);
+    expect(find.text('メールボックス'), findsOneWidget);
+    expect(find.text('保管庫'), findsOneWidget);
+  });
+
+  testWidgets('ログインと新規登録の画面がある', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final cloud = NexusCloud();
+    cloud.ready = true;
+    await tester.pumpWidget(
+      CloudScope(
+        cloud: cloud,
+        child: MaterialApp(
+          theme: NexusTheme.of(NexusPalette.byId('white-midnight')),
+          home: const LoginPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.text('ログイン'), findsWidgets);
+    expect(find.text('新規登録'), findsOneWidget);
+    expect(find.text('パスワードを忘れた'), findsOneWidget);
+
+    await tester.tap(find.text('新規登録'));
+    await tester.pump();
+    expect(find.text('職業'), findsOneWidget);
+    expect(find.text('登録する'), findsOneWidget);
+
+    await tester.tap(find.text('パスワードを忘れた'));
+    await tester.pump();
+    expect(find.text('コードを送る'), findsOneWidget);
+  });
+
+  testWidgets('集中タイマーで教科を選べる', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final store = AppStore.seed();
+    store.addSubject(name: '数学');
+    final english = store.addSubject(name: '英語');
+
+    await tester.pumpWidget(
+      AppScope(
+        store: store,
+        child: MaterialApp(
+          theme: NexusTheme.of(NexusPalette.byId(store.settings.themeId)),
+          home: const FocusTimerPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(store.selectedTimerSubjectId, isNot(english.id));
+    await tester.tap(find.text('英語'));
+    await tester.pump();
+    expect(store.selectedTimerSubjectId, english.id);
+
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 
   test('問題記録で1・5日の復習カードが作られる', () {

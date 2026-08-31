@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
 import '../app/theme.dart';
+import '../cloud/nexus_cloud.dart';
 import '../core/format.dart';
 import '../domain/daily_quotes.dart';
 import '../domain/day_occasions.dart';
@@ -25,8 +27,10 @@ class AppStore extends ChangeNotifier {
   DateTime focusedDate = dateOnly(DateTime.now());
   DateTime lifeDate = dateOnly(DateTime.now());
   DateTime moneyMonth = dateOnly(DateTime.now());
+  DateTime studyWeek = dateOnly(DateTime.now());
 
   String userName = '蒼井 ユウ';
+  String occupation = '';
   final Map<String, String> diaries = {};
 
   int dailyStudyGoalMinutes = 120;
@@ -50,6 +54,9 @@ class AppStore extends ChangeNotifier {
   final List<ChatMessage> messages = [];
 
   bool _canSave = false;
+  String? dataUid;
+  NexusCloud? _cloud;
+  Timer? _cloudPush;
 
   int income = 0;
   double weekStudyHours = 0;
@@ -274,24 +281,74 @@ class AppStore extends ChangeNotifier {
     return null;
   }
 
-  List<List<double>> weekStackedHours() {
-    final monday = dateOnly(focusedDate).subtract(Duration(days: mondayIndex(focusedDate)));
-    final stacks = List.generate(subjects.isEmpty ? 0 : 7, (_) {
-      return List<double>.filled(subjects.length, 0);
-    });
-    if (subjects.isEmpty) return stacks;
+  List<StudySubject> get visibleSubjects => [
+        for (final s in subjects)
+          if (!s.archived) s,
+      ];
+
+  static const otherSubjectId = '__other';
+
+  DateTime get studyWeekMonday => weekMonday(studyWeek);
+
+  DateTime get studyEntryDate {
+    final now = DateTime.now();
+    final monday = studyWeekMonday;
+    final sunday = monday.add(const Duration(days: 6));
+    final today = dateOnly(now);
+    if (!today.isBefore(monday) && !today.isAfter(sunday)) return now;
+    return DateTime(monday.year, monday.month, monday.day, now.hour, now.minute);
+  }
+
+  List<StudySubject> weekChartSubjects([DateTime? week]) {
+    final monday = weekMonday(week ?? studyWeek);
+    final used = <String>{};
     for (final session in sessions) {
       final idx = dateOnly(session.at).difference(monday).inDays;
       if (idx < 0 || idx > 6) continue;
-      final si = subjects.indexWhere((s) => s.id == session.subjectId);
+      used.add(session.subjectId);
+    }
+    final list = [
+      for (final s in subjects)
+        if (!s.archived) s,
+    ];
+    for (final s in subjects) {
+      if (s.archived && used.contains(s.id)) list.add(s);
+    }
+    final known = {for (final s in list) s.id};
+    if (used.any((id) => !known.contains(id))) {
+      list.add(
+        StudySubject(
+          id: otherSubjectId,
+          name: 'その他',
+          color: NexusColors.textMuted,
+          weekHours: 0,
+          icon: Icons.more_horiz_rounded,
+          archived: true,
+        ),
+      );
+    }
+    return list;
+  }
+
+  List<List<double>> weekStackedHours([DateTime? week]) {
+    final monday = weekMonday(week ?? studyWeek);
+    final series = weekChartSubjects(week);
+    if (series.isEmpty) return const [];
+    final stacks = List.generate(7, (_) => List<double>.filled(series.length, 0));
+    final indexOf = {for (var i = 0; i < series.length; i++) series[i].id: i};
+    final otherIndex = indexOf[otherSubjectId] ?? -1;
+    for (final session in sessions) {
+      final idx = dateOnly(session.at).difference(monday).inDays;
+      if (idx < 0 || idx > 6) continue;
+      final si = indexOf[session.subjectId] ?? otherIndex;
       if (si < 0) continue;
       stacks[idx][si] += session.minutes / 60.0;
     }
     return stacks;
   }
 
-  List<double> weekDayHours() {
-    final monday = dateOnly(focusedDate).subtract(Duration(days: mondayIndex(focusedDate)));
+  List<double> weekDayHours([DateTime? week]) {
+    final monday = weekMonday(week ?? focusedDate);
     final hours = List<double>.filled(7, 0);
     for (final session in sessions) {
       final idx = dateOnly(session.at).difference(monday).inDays;
@@ -301,8 +358,24 @@ class AppStore extends ChangeNotifier {
     return hours;
   }
 
+  double weekStudyHoursFor(DateTime week) {
+    return weekDayHours(week).fold<double>(0, (a, b) => a + b);
+  }
+
+  List<StudySession> sessionsInWeek(DateTime week) {
+    final monday = weekMonday(week);
+    final list = [
+      for (final session in sessions)
+        if ((dateOnly(session.at).difference(monday).inDays) >= 0 &&
+            (dateOnly(session.at).difference(monday).inDays) <= 6)
+          session,
+    ];
+    list.sort((a, b) => b.at.compareTo(a.at));
+    return list;
+  }
+
   void _refreshWeekBars() {
-    final monday = dateOnly(focusedDate).subtract(Duration(days: mondayIndex(focusedDate)));
+    final monday = weekMonday(focusedDate);
     final dayMinutes = List<int>.filled(7, 0);
     for (final session in sessions) {
       final idx = dateOnly(session.at).difference(monday).inDays;
@@ -314,12 +387,16 @@ class AppStore extends ChangeNotifier {
     weekBars = [
       for (final total in dayMinutes) max <= 0 ? 0.2 : (total / max).clamp(0.08, 1.0),
     ];
-    if (subjects.isEmpty) return;
-    final stacks = weekStackedHours();
     for (var i = 0; i < subjects.length; i++) {
-      final hours = stacks.fold<double>(0, (sum, day) => sum + day[i]);
+      if (subjects[i].archived) continue;
+      final hours = subjectWeekHours(subjects[i].id).fold<double>(0, (a, b) => a + b);
       subjects[i] = subjects[i].copyWith(weekHours: hours);
     }
+  }
+
+  void _syncStudyTotals() {
+    totalStudyHours = sessions.fold<int>(0, (a, s) => a + s.minutes) / 60.0;
+    _refreshWeekBars();
   }
 
   int reviewDueCount() {
@@ -362,6 +439,11 @@ class AppStore extends ChangeNotifier {
     } else {
       setLifeDate(DateTime(next.year, next.month, 1));
     }
+  }
+
+  void shiftStudyWeek(int delta) {
+    studyWeek = dateOnly(studyWeek).add(Duration(days: 7 * delta));
+    notifyListeners();
   }
 
   void shiftMoneyMonth(int delta) {
@@ -542,8 +624,11 @@ class AppStore extends ChangeNotifier {
 
   String? get selectedTimerSubjectId {
     final current = timerSubjectId ?? (nextStudySubjectId.isEmpty ? null : nextStudySubjectId);
-    if (current != null && subjectById(current) != null) return current;
-    return subjects.isEmpty ? null : subjects.first.id;
+    if (current != null) {
+      final subject = subjectById(current);
+      if (subject != null && !subject.archived) return current;
+    }
+    return visibleSubjects.isEmpty ? null : visibleSubjects.first.id;
   }
 
   void startTimer() {
@@ -638,15 +723,48 @@ class AppStore extends ChangeNotifier {
       ),
     );
     final seconds = loggedSeconds ?? minutes * 60;
-    totalStudyHours += seconds / 3600;
     if (sameDay(when, DateTime.now())) {
       _rollTodayStudyIfNeeded();
       todayStudyLoggedSeconds += seconds;
     }
-    _refreshWeekBars();
+    _syncStudyTotals();
     lastToast = '学習を記録しました';
     notifyListeners();
     _saveUserData();
+  }
+
+  void updateStudySession(StudySession session) {
+    final i = sessions.indexWhere((s) => s.id == session.id);
+    if (i < 0) return;
+    final prev = sessions[i];
+    sessions[i] = session;
+    _adjustTodayStudySeconds(prev, session);
+    _syncStudyTotals();
+    lastToast = '学習を更新しました';
+    notifyListeners();
+    _saveUserData();
+  }
+
+  void deleteStudySession(String id) {
+    final i = sessions.indexWhere((s) => s.id == id);
+    if (i < 0) return;
+    final prev = sessions.removeAt(i);
+    _adjustTodayStudySeconds(prev, null);
+    _syncStudyTotals();
+    lastToast = '学習を削除しました';
+    notifyListeners();
+    _saveUserData();
+  }
+
+  void _adjustTodayStudySeconds(StudySession? prev, StudySession? next) {
+    _rollTodayStudyIfNeeded();
+    final today = dateOnly(DateTime.now());
+    if (prev != null && sameDay(prev.at, today)) {
+      todayStudyLoggedSeconds = (todayStudyLoggedSeconds - prev.minutes * 60).clamp(0, 24 * 3600);
+    }
+    if (next != null && sameDay(next.at, today)) {
+      todayStudyLoggedSeconds += next.minutes * 60;
+    }
   }
 
   void addAssignment({
@@ -795,12 +913,13 @@ class AppStore extends ChangeNotifier {
     Color? color,
   }) {
     const palette = NexusColors.boxPalette;
+    final n = visibleSubjects.length;
     final subject = StudySubject(
       id: _id(),
       name: name.trim(),
-      color: color ?? palette[subjects.length % palette.length],
+      color: color ?? palette[n % palette.length],
       weekHours: 0,
-      icon: icon ?? kStudyIcons[subjects.length % kStudyIcons.length],
+      icon: icon ?? kStudyIcons[n % kStudyIcons.length],
     );
     subjects.add(subject);
     lastToast = '教科「${subject.name}」を追加しました';
@@ -819,11 +938,22 @@ class AppStore extends ChangeNotifier {
   }
 
   void reorderSubjects(int oldIndex, int newIndex) {
+    final vis = visibleSubjects;
     if (newIndex > oldIndex) newIndex -= 1;
-    if (oldIndex < 0 || oldIndex >= subjects.length) return;
-    if (newIndex < 0 || newIndex >= subjects.length) return;
-    final item = subjects.removeAt(oldIndex);
-    subjects.insert(newIndex, item);
+    if (oldIndex < 0 || oldIndex >= vis.length) return;
+    if (newIndex < 0 || newIndex >= vis.length) return;
+    final original = [...subjects];
+    final reordered = [...vis];
+    final item = reordered.removeAt(oldIndex);
+    reordered.insert(newIndex, item);
+    var i = 0;
+    final visibleIds = {for (final s in vis) s.id};
+    subjects
+      ..clear()
+      ..addAll([
+        for (final s in original)
+          if (visibleIds.contains(s.id)) reordered[i++] else s,
+      ]);
     notifyListeners();
     _saveUserData();
   }
@@ -850,13 +980,11 @@ class AppStore extends ChangeNotifier {
   }
 
   void shiftSubject(int index, int delta) {
+    final vis = visibleSubjects;
     final next = index + delta;
-    if (index < 0 || index >= subjects.length) return;
-    if (next < 0 || next >= subjects.length) return;
-    final item = subjects.removeAt(index);
-    subjects.insert(next, item);
-    notifyListeners();
-    _saveUserData();
+    if (index < 0 || index >= vis.length) return;
+    if (next < 0 || next >= vis.length) return;
+    reorderSubjects(index, delta > 0 ? next + 1 : next);
   }
 
   void shiftBox(int index, int delta) {
@@ -870,7 +998,7 @@ class AppStore extends ChangeNotifier {
   }
 
   List<double> subjectWeekHours(String subjectId) {
-    final monday = dateOnly(focusedDate).subtract(Duration(days: mondayIndex(focusedDate)));
+    final monday = weekMonday(focusedDate);
     final hours = List<double>.filled(7, 0);
     for (final session in sessions) {
       if (session.subjectId != subjectId) continue;
@@ -882,10 +1010,13 @@ class AppStore extends ChangeNotifier {
   }
 
   void deleteSubject(String id) {
-    if (subjects.every((s) => s.id != id)) return;
-    subjects.removeWhere((s) => s.id == id);
+    final i = subjects.indexWhere((s) => s.id == id);
+    if (i < 0 || subjects[i].archived) return;
+    subjects[i] = subjects[i].copyWith(archived: true);
     if (timerSubjectId == id) timerSubjectId = null;
-    if (nextStudySubjectId == id) nextStudySubjectId = subjects.isEmpty ? '' : subjects.first.id;
+    if (nextStudySubjectId == id) {
+      nextStudySubjectId = visibleSubjects.isEmpty ? '' : visibleSubjects.first.id;
+    }
     _refreshWeekBars();
     lastToast = '教科を削除しました';
     notifyListeners();
@@ -955,6 +1086,37 @@ class AppStore extends ChangeNotifier {
       if (tag.isNotEmpty) tags.add(tag);
     }
     for (final box in boxes) {
+      for (final tag in box.tags) {
+        final text = tag.trim();
+        if (text.isNotEmpty) tags.add(text);
+      }
+    }
+    final list = tags.toList()..sort();
+    return list;
+  }
+
+  List<IncomeEntry> incomesInMonth(DateTime month) {
+    return [
+      for (final item in incomeHistory)
+        if (item.useYear == month.year && item.useMonth == month.month) item,
+    ];
+  }
+
+  List<MoneyCard> spendCardsInMonth(DateTime month) {
+    return [
+      for (final card in spendHistory)
+        if (sameMonth(card.at, month)) card,
+    ];
+  }
+
+  List<String> expenseTagsInMonth(DateTime month) {
+    final tags = <String>{};
+    for (final card in spendCardsInMonth(month)) {
+      final tag = card.tag.trim();
+      if (tag.isNotEmpty) tags.add(tag);
+    }
+    for (final box in boxes) {
+      if (!box.isSavings && !_boxInMonth(box, month)) continue;
       for (final tag in box.tags) {
         final text = tag.trim();
         if (text.isNotEmpty) tags.add(text);
@@ -1134,128 +1296,253 @@ class AppStore extends ChangeNotifier {
   }
 
   Future<void> hydrate() async {
-    final data = await NexusPrefs.load();
-    if (data != null) {
-      final savedSubjects = [
-        for (final item in (data['subjects'] as List? ?? const []))
-          StudySubject.fromJson(Map<String, dynamic>.from(item as Map)),
-      ];
-      if (savedSubjects.isNotEmpty) {
-        subjects
-          ..clear()
-          ..addAll(savedSubjects);
+    final data = await NexusPrefs.loadBundle(dataUid);
+    if (data != null) applyCloudMap(data);
+    _canSave = true;
+    notifyListeners();
+  }
+
+  Future<void> attachCloud(NexusCloud cloud) async {
+    _cloud = cloud;
+    dataUid = cloud.uid;
+    _canSave = false;
+    final local = await NexusPrefs.loadBundle(dataUid);
+    if (local != null) applyCloudMap(local);
+    try {
+      final remote = await cloud.pullLive();
+      if (remote != null && _isRemoteNewer(remote, local)) {
+        applyCloudMap(remote);
+      } else if (local != null) {
+        await cloud.pushLive(toCloudMap());
+      } else if (remote != null) {
+        applyCloudMap(remote);
       }
-      final savedSessions = [
-        for (final item in (data['sessions'] as List? ?? const []))
-          StudySession.fromJson(Map<String, dynamic>.from(item as Map)),
-      ];
-      if (data.containsKey('sessions')) {
-        sessions
-          ..clear()
-          ..addAll(savedSessions);
+    } catch (_) {}
+    if (cloud.session != null) {
+      if (userName == '蒼井 ユウ' && cloud.session!.displayName.isNotEmpty) {
+        userName = cloud.session!.displayName;
       }
-      _refreshWeekBars();
-      if (data.containsKey('exams')) {
-        exams
-          ..clear()
-          ..addAll([
-            for (final item in (data['exams'] as List? ?? const []))
-              Exam.fromJson(Map<String, dynamic>.from(item as Map)),
-          ]);
-      }
-      if (data.containsKey('goals')) {
-        goals
-          ..clear()
-          ..addAll([
-            for (final item in (data['goals'] as List? ?? const []))
-              StudyGoal.fromJson(Map<String, dynamic>.from(item as Map)),
-          ]);
-      }
-      final savedBoxes = [
-        for (final item in (data['boxes'] as List? ?? const []))
-          BudgetBox.fromJson(Map<String, dynamic>.from(item as Map)),
-      ];
-      final savedCards = [
-        for (final item in (data['cards'] as List? ?? const []))
-          MoneyCard.fromJson(Map<String, dynamic>.from(item as Map)),
-      ];
-      final savedIncomes = [
-        for (final item in (data['incomes'] as List? ?? const []))
-          IncomeEntry.fromJson(Map<String, dynamic>.from(item as Map)),
-      ];
-      final savedPayments = [
-        for (final item in (data['payments'] as List? ?? const []))
-          PaymentPlan.fromJson(Map<String, dynamic>.from(item as Map)),
-      ];
-      if (savedBoxes.isNotEmpty) {
-        boxes
-          ..clear()
-          ..addAll(savedBoxes);
-        _assignLegacyBoxMonths();
-      }
-      if (savedCards.isNotEmpty || savedBoxes.isNotEmpty) {
-        cards
-          ..clear()
-          ..addAll(savedCards);
-      }
-      if (savedIncomes.isNotEmpty) {
-        incomes
-          ..clear()
-          ..addAll(savedIncomes);
-      }
-      if (savedPayments.isNotEmpty) {
-        payments
-          ..clear()
-          ..addAll(savedPayments);
-      }
-      final savedHabits = [
-        for (final item in (data['habits'] as List? ?? const []))
-          Habit.fromJson(Map<String, dynamic>.from(item as Map)),
-      ];
-      if (savedHabits.isNotEmpty) {
-        habits
-          ..clear()
-          ..addAll(savedHabits);
-      }
-      final savedSleep = [
-        for (final item in (data['sleepLogs'] as List? ?? const []))
-          SleepLog.fromJson(Map<String, dynamic>.from(item as Map)),
-      ];
-      if (savedSleep.isNotEmpty) {
-        sleepLogs
-          ..clear()
-          ..addAll(savedSleep);
-      }
-      final started = data['sleepStartedAt'] as String?;
-      sleepStartedAt = started == null || started.isEmpty ? null : DateTime.tryParse(started);
-      final savedName = (data['userName'] as String?)?.trim();
-      if (savedName != null && savedName.isNotEmpty) {
-        userName = savedName;
-      }
-      diaries.clear();
-      final rawDiaries = data['diaries'];
-      if (rawDiaries is Map) {
-        for (final entry in rawDiaries.entries) {
-          final text = entry.value?.toString() ?? '';
-          if (text.isNotEmpty) diaries[entry.key.toString()] = text;
-        }
-      }
-      final legacyDiary = (data['diary'] as String?)?.trim();
-      if (legacyDiary != null && legacyDiary.isNotEmpty && diaries.isEmpty) {
-        diaries[dateKey(DateTime.now())] = legacyDiary;
-      }
-      final rawSettings = data['settings'];
-      if (rawSettings is Map) {
-        settings = UserSettings.fromJson(Map<String, dynamic>.from(rawSettings));
-      } else if (data['themeId'] is String) {
-        settings = settings.copyWith(
-          themeId: UserSettings.normalizeThemeId(data['themeId'] as String),
-        );
-      }
-      NexusColors.apply(NexusPalette.byId(settings.themeId));
-      notifyListeners();
+      if (occupation.isEmpty) occupation = cloud.session!.occupation;
     }
     _canSave = true;
+    _saveUserData();
+    try {
+      final vault = await cloud.listVault();
+      if (vault.isEmpty) {
+        await cloud.sealVault('初回保管', toCloudMap());
+      }
+    } catch (_) {}
+    notifyListeners();
+  }
+
+  void detachCloud() {
+    _cloudPush?.cancel();
+    _cloud = null;
+    dataUid = null;
+    subjects.clear();
+    sessions.clear();
+    exams.clear();
+    goals.clear();
+    boxes.clear();
+    cards.clear();
+    incomes.clear();
+    payments.clear();
+    habits.clear();
+    sleepLogs.clear();
+    schedules.clear();
+    assignments.clear();
+    problems.clear();
+    reviewCards.clear();
+    diaries.clear();
+    _seed();
+    notifyListeners();
+  }
+
+  bool _isRemoteNewer(Map<String, dynamic> remote, Map<String, dynamic>? local) {
+    final remoteAt = remote['updatedAt'] as int? ?? 0;
+    final localAt = local?['updatedAt'] as int? ?? 0;
+    return remoteAt >= localAt;
+  }
+
+  Map<String, dynamic> toCloudMap() {
+    return {
+      'updatedAt': DateTime.now().millisecondsSinceEpoch,
+      'userName': userName,
+      'occupation': occupation,
+      'dailyStudyGoalMinutes': dailyStudyGoalMinutes,
+      'todayStudyDate': todayStudyDate.toIso8601String(),
+      'todayStudyLoggedSeconds': todayStudyLoggedSeconds,
+      'totalStudyHours': totalStudyHours,
+      'settings': settings.toJson(),
+      'diaries': diaries,
+      'subjects': [for (final s in subjects) s.toJson()],
+      'sessions': [for (final s in sessions) s.toJson()],
+      'exams': [for (final e in exams) e.toJson()],
+      'goals': [for (final g in goals) g.toJson()],
+      'boxes': [for (final b in boxes) b.toJson()],
+      'cards': [for (final c in cards) c.toJson()],
+      'incomes': [for (final i in incomes) i.toJson()],
+      'payments': [for (final p in payments) p.toJson()],
+      'habits': [for (final h in habits) h.toJson()],
+      'sleepLogs': [for (final s in sleepLogs) s.toJson()],
+      'sleepStartedAt': sleepStartedAt?.toIso8601String(),
+      'schedules': [for (final s in schedules) s.toJson()],
+      'assignments': [for (final a in assignments) a.toJson()],
+      'problems': [for (final p in problems) p.toJson()],
+      'reviewCards': [for (final c in reviewCards) c.toJson()],
+    };
+  }
+
+  void applyCloudMap(Map<String, dynamic> data) {
+    final savedSubjects = [
+      for (final item in (data['subjects'] as List? ?? const []))
+        StudySubject.fromJson(Map<String, dynamic>.from(item as Map)),
+    ];
+    if (savedSubjects.isNotEmpty || data.containsKey('subjects')) {
+      subjects
+        ..clear()
+        ..addAll(savedSubjects);
+    }
+    if (data.containsKey('sessions')) {
+      sessions
+        ..clear()
+        ..addAll([
+          for (final item in (data['sessions'] as List? ?? const []))
+            StudySession.fromJson(Map<String, dynamic>.from(item as Map)),
+        ]);
+    }
+    _syncStudyTotals();
+    if (data.containsKey('exams')) {
+      exams
+        ..clear()
+        ..addAll([
+          for (final item in (data['exams'] as List? ?? const []))
+            Exam.fromJson(Map<String, dynamic>.from(item as Map)),
+        ]);
+    }
+    if (data.containsKey('goals')) {
+      goals
+        ..clear()
+        ..addAll([
+          for (final item in (data['goals'] as List? ?? const []))
+            StudyGoal.fromJson(Map<String, dynamic>.from(item as Map)),
+        ]);
+    }
+    if (data.containsKey('schedules')) {
+      schedules
+        ..clear()
+        ..addAll([
+          for (final item in (data['schedules'] as List? ?? const []))
+            ScheduleItem.fromJson(Map<String, dynamic>.from(item as Map)),
+        ]);
+    }
+    if (data.containsKey('assignments')) {
+      assignments
+        ..clear()
+        ..addAll([
+          for (final item in (data['assignments'] as List? ?? const []))
+            Assignment.fromJson(Map<String, dynamic>.from(item as Map)),
+        ]);
+    }
+    if (data.containsKey('problems')) {
+      problems
+        ..clear()
+        ..addAll([
+          for (final item in (data['problems'] as List? ?? const []))
+            ProblemRecord.fromJson(Map<String, dynamic>.from(item as Map)),
+        ]);
+    }
+    if (data.containsKey('reviewCards')) {
+      reviewCards
+        ..clear()
+        ..addAll([
+          for (final item in (data['reviewCards'] as List? ?? const []))
+            ReviewCard.fromJson(Map<String, dynamic>.from(item as Map)),
+        ]);
+    }
+    final savedBoxes = [
+      for (final item in (data['boxes'] as List? ?? const []))
+        BudgetBox.fromJson(Map<String, dynamic>.from(item as Map)),
+    ];
+    final savedCards = [
+      for (final item in (data['cards'] as List? ?? const []))
+        MoneyCard.fromJson(Map<String, dynamic>.from(item as Map)),
+    ];
+    final savedIncomes = [
+      for (final item in (data['incomes'] as List? ?? const []))
+        IncomeEntry.fromJson(Map<String, dynamic>.from(item as Map)),
+    ];
+    final savedPayments = [
+      for (final item in (data['payments'] as List? ?? const []))
+        PaymentPlan.fromJson(Map<String, dynamic>.from(item as Map)),
+    ];
+    if (savedBoxes.isNotEmpty || data.containsKey('boxes')) {
+      boxes
+        ..clear()
+        ..addAll(savedBoxes);
+      _assignLegacyBoxMonths();
+    }
+    if (savedCards.isNotEmpty || savedBoxes.isNotEmpty || data.containsKey('cards')) {
+      cards
+        ..clear()
+        ..addAll(savedCards);
+    }
+    if (savedIncomes.isNotEmpty || data.containsKey('incomes')) {
+      incomes
+        ..clear()
+        ..addAll(savedIncomes);
+    }
+    if (savedPayments.isNotEmpty || data.containsKey('payments')) {
+      payments
+        ..clear()
+        ..addAll(savedPayments);
+    }
+    if (data.containsKey('habits')) {
+      habits
+        ..clear()
+        ..addAll([
+          for (final item in (data['habits'] as List? ?? const []))
+            Habit.fromJson(Map<String, dynamic>.from(item as Map)),
+        ]);
+    }
+    if (data.containsKey('sleepLogs')) {
+      sleepLogs
+        ..clear()
+        ..addAll([
+          for (final item in (data['sleepLogs'] as List? ?? const []))
+            SleepLog.fromJson(Map<String, dynamic>.from(item as Map)),
+        ]);
+    }
+    final started = data['sleepStartedAt'] as String?;
+    sleepStartedAt = started == null || started.isEmpty ? null : DateTime.tryParse(started);
+    final savedName = (data['userName'] as String?)?.trim();
+    if (savedName != null && savedName.isNotEmpty) {
+      userName = savedName;
+    }
+    occupation = (data['occupation'] as String?)?.trim() ?? occupation;
+    final goal = data['dailyStudyGoalMinutes'] as int?;
+    if (goal != null) dailyStudyGoalMinutes = goal;
+    diaries.clear();
+    final rawDiaries = data['diaries'];
+    if (rawDiaries is Map) {
+      for (final entry in rawDiaries.entries) {
+        final text = entry.value?.toString() ?? '';
+        if (text.isNotEmpty) diaries[entry.key.toString()] = text;
+      }
+    }
+    final legacyDiary = (data['diary'] as String?)?.trim();
+    if (legacyDiary != null && legacyDiary.isNotEmpty && diaries.isEmpty) {
+      diaries[dateKey(DateTime.now())] = legacyDiary;
+    }
+    final rawSettings = data['settings'];
+    if (rawSettings is Map) {
+      settings = UserSettings.fromJson(Map<String, dynamic>.from(rawSettings));
+    } else if (data['themeId'] is String) {
+      settings = settings.copyWith(
+        themeId: UserSettings.normalizeThemeId(data['themeId'] as String),
+      );
+    }
+    NexusColors.apply(NexusPalette.byId(settings.themeId));
   }
 
   void _assignLegacyBoxMonths() {
@@ -1269,22 +1556,12 @@ class AppStore extends ChangeNotifier {
 
   void _saveUserData() {
     if (!_canSave) return;
-    NexusPrefs.save(
-      subjects: subjects,
-      sessions: sessions,
-      exams: exams,
-      goals: goals,
-      boxes: boxes,
-      cards: cards,
-      incomes: incomes,
-      payments: payments,
-      habits: habits,
-      sleepLogs: sleepLogs,
-      sleepStartedAt: sleepStartedAt,
-      userName: userName,
-      settings: settings,
-      diaries: diaries,
-    );
+    final bundle = toCloudMap();
+    NexusPrefs.saveBundle(dataUid, bundle);
+    _cloudPush?.cancel();
+    _cloudPush = Timer(const Duration(milliseconds: 400), () {
+      _cloud?.pushLive(bundle);
+    });
   }
 
   void sendUserMessage(String text) {
@@ -1357,6 +1634,12 @@ class AppStore extends ChangeNotifier {
     _saveUserData();
   }
 
+  void setOccupation(String value) {
+    occupation = value.trim();
+    notifyListeners();
+    _saveUserData();
+  }
+
   void updateSettings(UserSettings next) {
     settings = next;
     NexusColors.apply(NexusPalette.byId(next.themeId));
@@ -1369,6 +1652,7 @@ class AppStore extends ChangeNotifier {
     focusedDate = today;
     lifeDate = today;
     moneyMonth = today;
+    studyWeek = today;
     todayStudyDate = today;
     income = 0;
     weekStudyHours = 0;
@@ -1383,6 +1667,25 @@ class AppStore extends ChangeNotifier {
     steps = 0;
     diaries.clear();
     proposal = null;
+    occupation = '';
+    userName = '蒼井 ユウ';
+    dailyStudyGoalMinutes = 120;
+    todayStudyLoggedSeconds = 0;
+    settings = const UserSettings();
+    NexusColors.apply(NexusPalette.byId(settings.themeId));
+    tabIndex = NexusTab.home;
+    messages.clear();
+    timerRunning = false;
+    timerStartedAt = null;
+    timerSubjectId = null;
+    timerAccumulatedSeconds = 0;
+    timerTotalSeconds = 30 * 60;
+  }
+
+  @override
+  void dispose() {
+    _cloudPush?.cancel();
+    super.dispose();
   }
 }
 

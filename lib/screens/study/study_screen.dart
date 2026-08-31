@@ -12,6 +12,7 @@ import '../../data/nexus_icons.dart';
 import '../../domain/money_calc.dart';
 import '../../widgets/duration_picker.dart';
 import '../../widgets/glass_card.dart';
+import '../../widgets/period_slide.dart';
 import '../../widgets/progress_ring.dart';
 import '../../widgets/study_week_chart.dart';
 import '../../widgets/ui_bits.dart';
@@ -72,7 +73,7 @@ class _StudyScreenState extends State<StudyScreen> {
               const Expanded(child: GradientTitle('Study')),
               AddChip(
                 label: '学習を追加',
-                onTap: () => _addStudySession(context, store),
+                onTap: () => openStudySessionForm(context, store),
               ),
             ],
           ),
@@ -82,7 +83,7 @@ class _StudyScreenState extends State<StudyScreen> {
             style: TextStyle(color: NexusColors.textSecondary, fontSize: 13),
           ),
           const SizedBox(height: 14),
-          _TotalStudyCard(store: store),
+          const _TotalStudyCard(),
           const SizedBox(height: 12),
           SectionRow(
             title: '科目別・今週の勉強時間',
@@ -92,7 +93,7 @@ class _StudyScreenState extends State<StudyScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          if (store.subjects.isEmpty)
+          if (store.visibleSubjects.isEmpty)
             SizedBox(
               height: 124,
               child: Center(
@@ -106,7 +107,7 @@ class _StudyScreenState extends State<StudyScreen> {
                 scrollDirection: Axis.horizontal,
                 buildDefaultDragHandles: false,
                 padding: EdgeInsets.zero,
-                itemCount: store.subjects.length,
+                itemCount: store.visibleSubjects.length,
                 onReorder: store.reorderSubjects,
                 proxyDecorator: (child, index, animation) {
                   return AnimatedBuilder(
@@ -115,7 +116,7 @@ class _StudyScreenState extends State<StudyScreen> {
                   );
                 },
                 itemBuilder: (context, i) {
-                  final s = store.subjects[i];
+                  final s = store.visibleSubjects[i];
                   final hours = store.subjectWeekHours(s.id);
                   return Padding(
                     key: ValueKey(s.id),
@@ -127,7 +128,7 @@ class _StudyScreenState extends State<StudyScreen> {
                           Positioned.fill(
                             child: ReorderableTapDragListener(
                               index: i,
-                              enabled: store.subjects.length > 1,
+                              enabled: store.visibleSubjects.length > 1,
                               onTap: () => openSubjectWeek(context, store, s.id),
                               child: GlassCard(
                                 borderColor: s.color.withValues(alpha: 0.35),
@@ -178,7 +179,7 @@ class _StudyScreenState extends State<StudyScreen> {
                 },
               ),
             ),
-          if (store.subjects.length > 1)
+          if (store.visibleSubjects.length > 1)
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text(
@@ -362,19 +363,49 @@ class _PulsingPlay extends StatelessWidget {
 }
 
 class _TotalStudyCard extends StatelessWidget {
-  const _TotalStudyCard({required this.store});
-
-  final AppStore store;
+  const _TotalStudyCard();
 
   @override
   Widget build(BuildContext context) {
+    final store = AppScope.of(context);
     return GlassCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SectionRow(title: '総勉強時間'),
-          const SizedBox(height: 8),
-          Row(
+      child: PeriodSlide(
+        periodKey: dateKey(store.studyWeekMonday),
+        onPrevious: () => store.shiftStudyWeek(-1),
+        onNext: () => store.shiftStudyWeek(1),
+        child: _TotalStudyWeekBody(store: store, week: store.studyWeek),
+      ),
+    );
+  }
+}
+
+class _TotalStudyWeekBody extends StatelessWidget {
+  const _TotalStudyWeekBody({required this.store, required this.week});
+
+  final AppStore store;
+  final DateTime week;
+
+  @override
+  Widget build(BuildContext context) {
+    final series = store.weekChartSubjects(week);
+    final sessions = store.sessionsInWeek(week);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Expanded(child: IgnorePointer(child: SectionRow(title: '総勉強時間'))),
+            IgnorePointer(
+              child: Text(
+                weekDaySpan(week),
+                style: TextStyle(color: NexusColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        IgnorePointer(
+          child: Row(
             children: [
               Expanded(
                 child: Container(
@@ -384,7 +415,11 @@ class _TotalStudyCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: NexusColors.purple.withValues(alpha: 0.25)),
                   ),
-                  child: _Hours(label: '今週', value: formatStudyHours(store.weekStudyHours), color: NexusColors.purple),
+                  child: _Hours(
+                    label: 'この週',
+                    value: formatStudyHours(store.weekStudyHoursFor(week)),
+                    color: NexusColors.purple,
+                  ),
                 ),
               ),
               const SizedBox(width: 10),
@@ -396,42 +431,53 @@ class _TotalStudyCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: NexusColors.cyan.withValues(alpha: 0.25)),
                   ),
-                  child: _Hours(label: '累計', value: formatStudyHours(store.totalStudyHours), color: NexusColors.cyan),
+                  child: _Hours(
+                    label: '累計',
+                    value: formatStudyHours(store.totalStudyHours),
+                    color: NexusColors.cyan,
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 10,
-            runSpacing: 6,
-            children: [
-              for (final s in store.subjects)
-                Row(
-              mainAxisSize: MainAxisSize.min,
+        ),
+        const SizedBox(height: 10),
+        if (series.isNotEmpty)
+          IgnorePointer(
+            child: Wrap(
+              spacing: 10,
+              runSpacing: 6,
               children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(color: s.color, shape: BoxShape.circle),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(s.name, style: TextStyle(color: NexusColors.textMuted, fontSize: 11)),
-                  ],
-                ),
-            ],
-                ),
-                const SizedBox(height: 12),
-          SizedBox(
-            height: 126,
-            child: StudyWeekChart(
-              stacks: store.weekStackedHours(),
-              colors: [for (final s in store.subjects) s.color],
+                for (final s in series)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(color: s.color, shape: BoxShape.circle),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(s.name, style: TextStyle(color: NexusColors.textMuted, fontSize: 11)),
+                    ],
+                  ),
+              ],
             ),
           ),
-            const SizedBox(height: 6),
-          Row(
-              children: [
+        const SizedBox(height: 12),
+        IgnorePointer(
+          child: SizedBox(
+            height: 126,
+            child: StudyWeekChart(
+              stacks: store.weekStackedHours(week),
+              colors: [for (final s in series) s.color],
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        IgnorePointer(
+          child: Row(
+            children: [
               const SizedBox(width: 34),
               for (final label in weekLabels)
                 Expanded(
@@ -440,11 +486,56 @@ class _TotalStudyCard extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: TextStyle(color: NexusColors.textMuted, fontSize: 11),
                   ),
+                ),
+            ],
+          ),
+        ),
+        if (sessions.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          for (final session in sessions)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => openStudySessionForm(context, store, existing: session),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Ink(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: NexusColors.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: NexusColors.border),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                store.subjectById(session.subjectId)?.name ?? 'その他',
+                                style: const TextStyle(fontWeight: FontWeight.w700),
+                              ),
+                              Text(
+                                '${weekdayLabelOf(session.at)}・${session.focus.label}',
+                                style: TextStyle(color: NexusColors.textMuted, fontSize: 11),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          formatStudyHours(session.minutes / 60.0),
+                          style: TextStyle(color: NexusColors.cyan, fontWeight: FontWeight.w700),
+                        ),
+                      ],
+                    ),
                   ),
-              ],
+                ),
+              ),
             ),
-          ],
-      ),
+        ],
+      ],
     );
   }
 }
@@ -1028,54 +1119,88 @@ class _WeekDots extends StatelessWidget {
   }
 }
 
-Future<void> _addStudySession(BuildContext context, AppStore store) async {
-  String? subjectId = store.subjects.isEmpty ? null : store.subjects.first.id;
-  var minutes = 30;
-  var focus = StudyFocus.high;
+Future<void> openStudySessionForm(BuildContext context, AppStore store, {StudySession? existing}) async {
+  String? subjectId = existing?.subjectId ??
+      (store.visibleSubjects.isEmpty ? null : store.visibleSubjects.first.id);
+  var minutes = existing?.minutes ?? 30;
+  var focus = existing?.focus ?? StudyFocus.high;
+  var at = existing?.at ?? store.studyEntryDate;
   final saved = await showNexusSheet<bool>(
     context: context,
     builder: (context) {
       return StatefulBuilder(
         builder: (context, setSheet) {
+          final picker = [
+            ...store.visibleSubjects,
+            if (existing != null)
+              for (final s in store.subjects)
+                if (s.id == existing.subjectId && s.archived) s,
+          ];
           return SingleChildScrollView(
             child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('学習を追加', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+              Text(
+                existing == null ? '学習を追加' : '学習を編集',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              ),
               const SizedBox(height: 12),
-              SizedBox(
-                height: 40,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  children: [
-                    for (final s in store.subjects) ...[
-                      ChoiceChip(
-                        label: Text(s.name),
-                        selected: subjectId == s.id,
-                        selectedColor: s.color.withValues(alpha: 0.28),
-                        labelStyle: TextStyle(
-                          color: subjectId == s.id ? s.color : NexusColors.text,
-                          fontWeight: FontWeight.w700,
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final s in picker)
+                    GestureDetector(
+                      onTap: () => setSheet(() => subjectId = s.id),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 160),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: subjectId == s.id
+                              ? s.color.withValues(alpha: 0.22)
+                              : NexusColors.surface,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: subjectId == s.id ? s.color : NexusColors.border,
+                          ),
                         ),
-                        onSelected: (_) => setSheet(() => subjectId = s.id),
+                        child: Text(
+                          s.name,
+                          style: TextStyle(
+                            color: subjectId == s.id ? s.color : NexusColors.text,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ),
-                      const SizedBox(width: 8),
-                    ],
-                    ActionChip(
-                      avatar: Icon(Icons.add, size: 16, color: NexusColors.cyan),
-                      label: Text('＋ 教科を追加'),
-                      labelStyle: TextStyle(
-                        color: NexusColors.cyan,
-                        fontWeight: FontWeight.w700,
-                      ),
-                      onPressed: () async {
-                        final created = await promptNewSubject(context, store);
-                        if (created != null) setSheet(() => subjectId = created.id);
-                      },
                     ),
-                  ],
-                ),
+                  ActionChip(
+                    avatar: Icon(Icons.add, size: 16, color: NexusColors.cyan),
+                    label: const Text('＋ 教科を追加'),
+                    labelStyle: TextStyle(color: NexusColors.cyan, fontWeight: FontWeight.w700),
+                    onPressed: () async {
+                      final created = await promptNewSubject(context, store);
+                      if (created != null) setSheet(() => subjectId = created.id);
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton(
+                onPressed: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: dateOnly(at),
+                    firstDate: DateTime(at.year - 2),
+                    lastDate: DateTime(at.year + 1, 12, 31),
+                  );
+                  if (picked != null) {
+                    setSheet(() {
+                      at = DateTime(picked.year, picked.month, picked.day, at.hour, at.minute);
+                    });
+                  }
+                },
+                child: Text('日付  ${jpDate(at)}'),
               ),
               const SizedBox(height: 8),
               DurationMinutesPicker(
@@ -1104,8 +1229,15 @@ Future<void> _addStudySession(BuildContext context, AppStore store) async {
               const SizedBox(height: 14),
               FilledButton(
                 onPressed: subjectId == null ? null : () => Navigator.pop(context, true),
-                child: const Text('記録する'),
+                child: Text(existing == null ? '記録する' : '保存'),
               ),
+              if (existing != null) ...[
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: Text('削除', style: TextStyle(color: NexusColors.expense)),
+                ),
+              ],
             ],
           ),
           );
@@ -1114,21 +1246,34 @@ Future<void> _addStudySession(BuildContext context, AppStore store) async {
     },
   );
   if (saved == true && subjectId != null && minutes > 0) {
-    store.addStudySession(subjectId: subjectId!, minutes: minutes, focus: focus);
+    if (existing == null) {
+      store.addStudySession(subjectId: subjectId!, minutes: minutes, focus: focus, at: at);
+    } else {
+      store.updateStudySession(
+        existing.copyWith(subjectId: subjectId, minutes: minutes, focus: focus, at: at),
+      );
+    }
     if (context.mounted) {
       nexusHaptic();
       showNexusToast(context, store.lastToast);
     }
+    return;
+  }
+  if (saved == false && existing != null) {
+    final ok = await _confirmDelete(context, title: '学習を削除', body: 'この学習記録を削除します。');
+    if (!ok || !context.mounted) return;
+    store.deleteStudySession(existing.id);
+    showNexusToast(context, store.lastToast);
   }
 }
 
 Future<void> _addAssignment(BuildContext context, AppStore store) async {
-  if (store.subjects.isEmpty) {
+  if (store.visibleSubjects.isEmpty) {
     final created = await promptNewSubject(context, store);
     if (created == null || !context.mounted) return;
   }
   final title = TextEditingController();
-  var subjectId = store.subjects.first.id;
+  var subjectId = store.visibleSubjects.first.id;
   var due = store.focusedDate.add(const Duration(days: 3));
   final saved = await showNexusSheet<bool>(
     context: context,
@@ -1146,7 +1291,7 @@ Future<void> _addAssignment(BuildContext context, AppStore store) async {
                 dropdownColor: NexusColors.card,
                 isExpanded: true,
                 items: [
-                  for (final s in store.subjects)
+                  for (final s in store.visibleSubjects)
                     DropdownMenuItem(value: s.id, child: Text(s.name)),
                 ],
                 onChanged: (v) => setSheet(() => subjectId = v ?? subjectId),
@@ -1384,7 +1529,7 @@ Future<void> _recordProblem(BuildContext context, AppStore store) async {
 
   final title = TextEditingController();
   final answer = TextEditingController();
-  if (store.subjects.isEmpty) {
+  if (store.visibleSubjects.isEmpty) {
     final created = await promptNewSubject(context, store);
     if (created == null || !context.mounted) {
       title.dispose();
@@ -1392,7 +1537,7 @@ Future<void> _recordProblem(BuildContext context, AppStore store) async {
       return;
     }
   }
-  var subjectId = store.subjects.first.id;
+  var subjectId = store.visibleSubjects.first.id;
   final saved = await showNexusSheet<bool>(
     context: context,
     builder: (context) {
@@ -1414,7 +1559,7 @@ Future<void> _recordProblem(BuildContext context, AppStore store) async {
                 dropdownColor: NexusColors.card,
                 isExpanded: true,
                 items: [
-                  for (final s in store.subjects)
+                  for (final s in store.visibleSubjects)
                     DropdownMenuItem(value: s.id, child: Text(s.name)),
                 ],
                 onChanged: (v) => setSheet(() => subjectId = v ?? subjectId),
