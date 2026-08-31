@@ -106,13 +106,10 @@ void main() {
       ),
     );
     await tester.pump();
-    expect(find.textContaining('ネグモ'), findsWidgets);
+    expect(find.text('NEXUS'), findsOneWidget);
     expect(find.text('ログイン'), findsWidgets);
     expect(find.text('新規登録'), findsOneWidget);
     expect(find.text('パスワードを忘れた'), findsOneWidget);
-
-    await tester.tap(find.text('ログイン').last);
-    await tester.pump();
     expect(find.text('ゲストログイン'), findsOneWidget);
 
     await tester.tap(find.text('新規登録'));
