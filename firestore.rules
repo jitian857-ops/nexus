@@ -1,32 +1,188 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isOwner(uid) {
-      return request.auth != null && request.auth.uid == uid;
+    function signedIn() {
+      return request.auth != null;
+    }
+    function uid() {
+      return request.auth.uid;
+    }
+    function isOwner(userId) {
+      return signedIn() && uid() == userId;
+    }
+    function pairId(a, b) {
+      return a < b ? (a + '_' + b) : (b + '_' + a);
+    }
+    function areFriends(other) {
+      return exists(/databases/$(database)/documents/friendships/$(pairId(uid(), other)));
+    }
+    function blockedWith(other) {
+      return exists(/databases/$(database)/documents/blocks/$(uid() + '_' + other))
+        || exists(/databases/$(database)/documents/blocks/$(other + '_' + uid()));
+    }
+    function aclDocOk(itemId) {
+      return exists(/databases/$(database)/documents/share_acl/$(itemId + '_' + uid()))
+        && get(/databases/$(database)/documents/share_acl/$(itemId + '_' + uid())).data.item_id == itemId
+        && get(/databases/$(database)/documents/share_acl/$(itemId + '_' + uid())).data.viewer_id == uid();
+    }
+    function grantAfterFriendship(itemId, ownerId) {
+      return !('created_at' in get(/databases/$(database)/documents/friendships/$(pairId(uid(), ownerId))).data)
+        || (
+          'created_at' in get(/databases/$(database)/documents/share_acl/$(itemId + '_' + uid())).data
+          && get(/databases/$(database)/documents/share_acl/$(itemId + '_' + uid())).data.created_at
+            >= get(/databases/$(database)/documents/friendships/$(pairId(uid(), ownerId))).data.created_at
+        );
+    }
+    function viewerMayReadShare(itemId, ownerId) {
+      return ownerId != uid()
+        && resource.data.deleted_at == null
+        && aclDocOk(itemId)
+        && areFriends(ownerId)
+        && !blockedWith(ownerId)
+        && grantAfterFriendship(itemId, ownerId);
+    }
+    function viewerMayReadShareFromAcl(itemId, ownerId) {
+      return ownerId != uid()
+        && get(/databases/$(database)/documents/shared_items/$(itemId)).data.deleted_at == null
+        && aclDocOk(itemId)
+        && areFriends(ownerId)
+        && !blockedWith(ownerId)
+        && grantAfterFriendship(itemId, ownerId);
     }
 
-    match /users/{uid} {
-      allow read, write: if isOwner(uid);
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
 
       match /live/{doc} {
-        allow read, write: if isOwner(uid);
+        allow read, write: if isOwner(userId);
       }
 
       match /mail/{id} {
-        allow read, create, delete: if isOwner(uid);
-        allow update: if isOwner(uid)
+        allow read, create, delete: if isOwner(userId);
+        allow update: if isOwner(userId)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
       }
 
       match /vault/{id} {
-        allow read: if isOwner(uid);
-        allow create: if isOwner(uid)
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId)
           && request.resource.data.sealed == true
           && !request.resource.data.keys().hasAny(['edited']);
         allow update: if false;
-        allow delete: if isOwner(uid)
-          && get(/databases/$(database)/documents/users/$(uid)).data.purge == true;
+        allow delete: if isOwner(userId)
+          && get(/databases/$(database)/documents/users/$(userId)).data.purge == true;
       }
+    }
+
+    match /profiles/{userId} {
+      allow read: if signedIn();
+      allow create, update: if isOwner(userId);
+      allow delete: if isOwner(userId);
+    }
+
+    match /friend_codes/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn() && request.resource.data.uid == uid();
+      allow delete: if signedIn() && resource.data.uid == uid();
+      allow update: if false;
+    }
+
+    match /friend_requests/{id} {
+      allow read: if signedIn() && (
+        resource.data.sender_id == uid() || resource.data.receiver_id == uid()
+      );
+      allow create: if signedIn()
+        && request.resource.data.sender_id == uid()
+        && request.resource.data.status == 'pending'
+        && request.resource.data.sender_id != request.resource.data.receiver_id;
+      allow update: if signedIn() && (
+        (resource.data.receiver_id == uid()
+          && request.resource.data.status in ['accepted', 'rejected'])
+        || (resource.data.sender_id == uid()
+          && request.resource.data.status == 'cancelled')
+      );
+      allow delete: if signedIn() && (
+        resource.data.sender_id == uid() || resource.data.receiver_id == uid()
+      );
+    }
+
+    match /friendships/{id} {
+      allow read: if signedIn() && (
+        resource.data.user_a == uid() || resource.data.user_b == uid()
+      );
+      allow create: if signedIn() && (
+        request.resource.data.user_a == uid() || request.resource.data.user_b == uid()
+      );
+      allow delete: if signedIn() && (
+        resource.data.user_a == uid() || resource.data.user_b == uid()
+      );
+      allow update: if false;
+    }
+
+    match /blocks/{id} {
+      allow read: if signedIn() && (
+        resource.data.blocker_id == uid() || resource.data.blocked_id == uid()
+      );
+      allow create: if signedIn() && request.resource.data.blocker_id == uid();
+      allow delete: if signedIn() && resource.data.blocker_id == uid();
+      allow update: if false;
+    }
+
+    match /shared_items/{id} {
+      allow read: if signedIn() && (
+        resource.data.owner_id == uid()
+        || viewerMayReadShare(id, resource.data.owner_id)
+      );
+      allow create: if signedIn() && request.resource.data.owner_id == uid();
+      allow update: if signedIn()
+        && resource.data.owner_id == uid()
+        && request.resource.data.owner_id == resource.data.owner_id;
+      allow delete: if signedIn() && resource.data.owner_id == uid();
+    }
+
+    match /share_acl/{id} {
+      allow read: if signedIn() && (
+        (
+          exists(/databases/$(database)/documents/shared_items/$(resource.data.item_id))
+          && get(/databases/$(database)/documents/shared_items/$(resource.data.item_id)).data.owner_id == uid()
+        )
+        || (
+          resource.data.viewer_id == uid()
+          && id == resource.data.item_id + '_' + resource.data.viewer_id
+          && exists(/databases/$(database)/documents/shared_items/$(resource.data.item_id))
+          && viewerMayReadShareFromAcl(
+            resource.data.item_id,
+            get(/databases/$(database)/documents/shared_items/$(resource.data.item_id)).data.owner_id
+          )
+        )
+      );
+      allow create: if signedIn()
+        && request.resource.data.item_id is string
+        && request.resource.data.viewer_id is string
+        && request.resource.data.viewer_id != uid()
+        && id == request.resource.data.item_id + '_' + request.resource.data.viewer_id
+        && exists(/databases/$(database)/documents/shared_items/$(request.resource.data.item_id))
+        && get(/databases/$(database)/documents/shared_items/$(request.resource.data.item_id)).data.owner_id == uid()
+        && areFriends(request.resource.data.viewer_id)
+        && !blockedWith(request.resource.data.viewer_id);
+      allow delete: if signedIn()
+        && exists(/databases/$(database)/documents/shared_items/$(resource.data.item_id))
+        && get(/databases/$(database)/documents/shared_items/$(resource.data.item_id)).data.owner_id == uid();
+      allow update: if false;
+    }
+
+    match /notifications/{id} {
+      allow read: if signedIn() && resource.data.user_id == uid();
+      allow create: if signedIn();
+      allow update: if signedIn() && resource.data.user_id == uid()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read_at']);
+      allow delete: if signedIn() && resource.data.user_id == uid();
+    }
+
+    match /reports/{id} {
+      allow create: if signedIn() && request.resource.data.reporter_id == uid();
+      allow read, update, delete: if false;
     }
   }
 }

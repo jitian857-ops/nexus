@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../app/theme.dart';
+import '../cloud/cloud_models.dart';
 import '../cloud/nexus_cloud.dart';
 import '../data/app_store.dart';
 import '../screens/auth/auth_gate.dart';
@@ -16,7 +17,7 @@ class NexusApp extends StatefulWidget {
 class _NexusAppState extends State<NexusApp> {
   final AppStore _store = AppStore.seed();
   final NexusCloud _cloud = NexusCloud();
-  var _bound = false;
+  SessionIdentity? _bound;
 
   @override
   void initState() {
@@ -27,15 +28,14 @@ class _NexusAppState extends State<NexusApp> {
 
   void _onCloud() {
     if (_cloud.isSignedIn && _cloud.emailVerified) {
-      if (!_bound) {
-        _bound = true;
+      final identity = _cloud.identity;
+      if (_bound == null || !_bound!.sameAs(identity)) {
+        _bound = identity;
         _store.attachCloud(_cloud);
       }
-    } else {
-      if (_bound || !_cloud.isSignedIn) {
-        _bound = false;
-        if (!_cloud.isSignedIn) _store.detachCloud();
-      }
+    } else if (_bound != null) {
+      _bound = null;
+      _store.detachCloud();
     }
     if (mounted) setState(() {});
   }

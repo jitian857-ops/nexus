@@ -11,8 +11,10 @@ import 'package:nexus/data/models.dart';
 import 'package:nexus/domain/money_calc.dart';
 import 'package:nexus/domain/review_scheduler.dart';
 import 'package:nexus/screens/auth/login_page.dart';
+import 'package:nexus/screens/life/schedule_bulk_share_page.dart';
 import 'package:nexus/screens/study/focus_timer_page.dart';
 import 'package:nexus/widgets/nexus_nav_bar.dart';
+import 'package:nexus/widgets/schedule_sheet.dart';
 
 void main() {
   setUpAll(() {
@@ -53,6 +55,7 @@ void main() {
 
     await tapTab('Life');
     expect(find.text('カレンダー'), findsOneWidget);
+    expect(find.text('予定を一括共有'), findsOneWidget);
     expect(find.text('書く'), findsNothing);
 
     await tapTab('Money');
@@ -83,6 +86,17 @@ void main() {
     expect(find.text('クリムゾン'), findsOneWidget);
     expect(find.text('ログアウト'), findsOneWidget);
     expect(find.text('メールボックス'), findsOneWidget);
+    expect(find.text('フレンド'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('アプリをカスタマイズ'), 200);
+    expect(find.text('アプリをカスタマイズ'), findsOneWidget);
+    await tester.tap(find.text('アプリをカスタマイズ'));
+    await tester.pumpAndSettle();
+    expect(find.text('時間リールの刻み'), findsOneWidget);
+    expect(find.text('1分'), findsOneWidget);
+    expect(find.text('5分'), findsOneWidget);
+    expect(find.text('10分'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.close_rounded));
+    await tester.pumpAndSettle();
     expect(find.text('保管庫'), findsNothing);
     expect(find.text('動きを減らす'), findsNothing);
     expect(find.text('セキュリティ'), findsNothing);
@@ -96,6 +110,7 @@ void main() {
 
     final cloud = NexusCloud();
     cloud.ready = true;
+    cloud.localIssuedCode = '123456';
     await tester.pumpWidget(
       CloudScope(
         cloud: cloud,
@@ -111,6 +126,7 @@ void main() {
     expect(find.text('新規登録'), findsOneWidget);
     expect(find.text('パスワードを忘れた'), findsOneWidget);
     expect(find.text('ゲストログイン'), findsOneWidget);
+    expect(find.textContaining('この端末のコード'), findsNothing);
 
     await tester.tap(find.text('新規登録'));
     await tester.pump();
@@ -148,6 +164,86 @@ void main() {
     expect(store.selectedTimerSubjectId, english.id);
 
     await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('予定追加はコンパクトな日時と共有ボタン', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: NexusTheme.of(NexusPalette.byId('white-midnight')),
+        home: Scaffold(
+          body: ScheduleEditSheet(day: DateTime(2026, 9, 5)),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('開始'), findsOneWidget);
+    expect(find.text('終了'), findsOneWidget);
+    expect(find.text('2026年9月5日 (土)'), findsNWidgets(2));
+    expect(find.text('18:00'), findsOneWidget);
+    expect(find.text('19:00'), findsOneWidget);
+    expect(find.text('フレンドに共有'), findsOneWidget);
+    expect(find.text('この予定を共有'), findsNothing);
+    expect(find.widgetWithText(ActionChip, 'タグを追加'), findsOneWidget);
+    expect(tester.widget<FilterChip>(find.widgetWithText(FilterChip, 'その他')).selected, isFalse);
+
+    await tester.tap(find.text('2026年9月5日 (土)').first);
+    await tester.pumpAndSettle();
+    expect(find.text('日付'), findsOneWidget);
+    expect(find.text('年'), findsOneWidget);
+    expect(find.text('決定'), findsOneWidget);
+
+    await tester.tap(find.text('決定'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('18:00'));
+    await tester.pumpAndSettle();
+    expect(find.text('時間'), findsOneWidget);
+    await tester.tap(find.text('決定'));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('一括共有は予定をタグで絞れる', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final store = AppStore.seed();
+    store.addSchedule(
+      title: '数学の復習',
+      startAt: DateTime(2026, 9, 5, 18),
+      tags: const ['勉強'],
+    );
+    store.addSchedule(
+      title: '合宿',
+      startAt: DateTime(2026, 9, 10, 9),
+      tags: const ['イベント'],
+    );
+
+    await tester.pumpWidget(
+      AppScope(
+        store: store,
+        child: MaterialApp(
+          theme: NexusTheme.of(NexusPalette.byId(store.settings.themeId)),
+          home: const ScheduleBulkSharePage(),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.text('数学の復習'), findsOneWidget);
+    expect(find.text('合宿'), findsOneWidget);
+    expect(find.text('決定'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(FilterChip, '勉強'));
+    await tester.pump();
+    expect(find.text('数学の復習'), findsOneWidget);
+    expect(find.text('合宿'), findsNothing);
   });
 
   test('問題記録で1・5日の復習カードが作られる', () {

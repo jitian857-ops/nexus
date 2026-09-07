@@ -24,6 +24,48 @@ enum ReviewRating { again, hard, normal, easy }
 
 enum ProposalStatus { draft, pending, approved, rejected }
 
+const kScheduleTagPresets = ['勉強', '用事', 'イベント', 'その他'];
+
+class FriendGroup {
+  const FriendGroup({
+    required this.id,
+    required this.name,
+    this.memberIds = const [],
+  });
+
+  final String id;
+  final String name;
+  final List<String> memberIds;
+
+  FriendGroup copyWith({
+    String? name,
+    List<String>? memberIds,
+  }) {
+    return FriendGroup(
+      id: id,
+      name: name ?? this.name,
+      memberIds: memberIds ?? this.memberIds,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'memberIds': memberIds,
+      };
+
+  factory FriendGroup.fromJson(Map<String, dynamic> json) {
+    return FriendGroup(
+      id: json['id'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      memberIds: [
+        for (final id in (json['memberIds'] as List? ?? json['member_ids'] as List? ?? const []))
+          if (id is String && id.isNotEmpty) id,
+      ],
+    );
+  }
+}
+
 class ScheduleItem {
   const ScheduleItem({
     required this.id,
@@ -34,6 +76,7 @@ class ScheduleItem {
     this.location,
     this.category = 'life',
     this.source = 'user',
+    this.tags = const [],
   });
 
   final String id;
@@ -44,22 +87,68 @@ class ScheduleItem {
   final String? location;
   final String category;
   final String source;
+  final List<String> tags;
+
+  DateTime get spanStart => dateOnly(startAt);
+
+  DateTime get spanEnd => dateOnly(endAt ?? startAt);
+
+  bool occursOn(DateTime day) {
+    final d = dateOnly(day);
+    return !d.isBefore(spanStart) && !d.isAfter(spanEnd);
+  }
+
+  bool matchesFilters({
+    String query = '',
+    String? tag,
+    DateTime? from,
+    DateTime? to,
+  }) {
+    if (tag != null && tag.isNotEmpty && !tags.contains(tag)) return false;
+    if (!queryMatches(query, [title, ...tags])) return false;
+    final fromDay = from == null ? null : dateOnly(from);
+    final toDay = to == null ? null : dateOnly(to);
+    if (fromDay != null && spanEnd.isBefore(fromDay)) return false;
+    if (toDay != null && spanStart.isAfter(toDay)) return false;
+    return true;
+  }
+
+  String whenLabel({DateTime? onDay}) {
+    if (allDay) {
+      if (sameDay(spanStart, spanEnd)) return '終日';
+      return '${spanStart.month}/${spanStart.day}〜${spanEnd.month}/${spanEnd.day}';
+    }
+    final end = endAt;
+    if (end == null || sameDay(startAt, end)) {
+      if (end != null && (end.hour != startAt.hour || end.minute != startAt.minute)) {
+        return '${hm(startAt)}–${hm(end)}';
+      }
+      return hm(startAt);
+    }
+    return '${startAt.month}/${startAt.day} ${hm(startAt)} – ${end.month}/${end.day} ${hm(end)}';
+  }
 
   ScheduleItem copyWith({
     String? title,
     DateTime? startAt,
     DateTime? endAt,
+    bool clearEndAt = false,
+    bool? allDay,
     String? location,
+    String? category,
+    String? source,
+    List<String>? tags,
   }) {
     return ScheduleItem(
       id: id,
       title: title ?? this.title,
       startAt: startAt ?? this.startAt,
-      endAt: endAt ?? this.endAt,
-      allDay: allDay,
+      endAt: clearEndAt ? null : (endAt ?? this.endAt),
+      allDay: allDay ?? this.allDay,
       location: location ?? this.location,
-      category: category,
-      source: source,
+      category: category ?? this.category,
+      source: source ?? this.source,
+      tags: tags ?? this.tags,
     );
   }
 
@@ -72,6 +161,7 @@ class ScheduleItem {
         'location': location,
         'category': category,
         'source': source,
+        'tags': tags,
       };
 
   factory ScheduleItem.fromJson(Map<String, dynamic> json) {
@@ -84,6 +174,10 @@ class ScheduleItem {
       location: json['location'] as String?,
       category: json['category'] as String? ?? 'life',
       source: json['source'] as String? ?? 'user',
+      tags: [
+        for (final tag in (json['tags'] as List? ?? const []))
+          if (tag is String && tag.trim().isNotEmpty) tag,
+      ],
     );
   }
 }
@@ -952,6 +1046,7 @@ class UserSettings {
     this.proposalFrequency = 0.5,
     this.deductBudgetFromBalance = false,
     this.timerPresets = const [25, 50, 90],
+    this.reelMinuteStep = 1,
   });
 
   final String themeId;
@@ -969,6 +1064,7 @@ class UserSettings {
   final double proposalFrequency;
   final bool deductBudgetFromBalance;
   final List<int> timerPresets;
+  final int reelMinuteStep;
 
   String get themeBase => themeId.startsWith('black-') ? 'black' : 'white';
 
@@ -1033,6 +1129,7 @@ class UserSettings {
       proposalFrequency: (json['proposalFrequency'] as num?)?.toDouble() ?? 0.5,
       deductBudgetFromBalance: json['deductBudgetFromBalance'] as bool? ?? false,
       timerPresets: presets.isEmpty ? const [25, 50, 90] : presets,
+      reelMinuteStep: normalizeReelMinuteStep((json['reelMinuteStep'] as num?)?.toInt()),
     );
   }
 
@@ -1052,6 +1149,7 @@ class UserSettings {
         'proposalFrequency': proposalFrequency,
         'deductBudgetFromBalance': deductBudgetFromBalance,
         'timerPresets': timerPresets,
+        'reelMinuteStep': reelMinuteStep,
       };
 
   UserSettings copyWith({
@@ -1070,6 +1168,7 @@ class UserSettings {
     double? proposalFrequency,
     bool? deductBudgetFromBalance,
     List<int>? timerPresets,
+    int? reelMinuteStep,
   }) {
     return UserSettings(
       themeId: themeId ?? this.themeId,
@@ -1087,6 +1186,7 @@ class UserSettings {
       proposalFrequency: proposalFrequency ?? this.proposalFrequency,
       deductBudgetFromBalance: deductBudgetFromBalance ?? this.deductBudgetFromBalance,
       timerPresets: timerPresets ?? this.timerPresets,
+      reelMinuteStep: reelMinuteStep ?? this.reelMinuteStep,
     );
   }
 }

@@ -4,9 +4,13 @@ import '../../app/theme.dart';
 import '../../cloud/nexus_cloud.dart';
 import '../../data/app_store.dart';
 import '../../data/models.dart';
+import '../../tutorial/tutorial_gate.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/nexus_logo.dart';
 import '../../widgets/ui_bits.dart';
+import '../friends/friends_page.dart';
+import 'app_customize_page.dart';
+import 'billing_page.dart';
 import 'mailbox_page.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -129,6 +133,24 @@ class SettingsScreen extends StatelessWidget {
                   ),
                 ),
                 _Item(
+                  icon: Icons.group_outlined,
+                  color: NexusColors.green,
+                  title: 'フレンド',
+                  subtitle: 'コードで追加。予定の共有は閲覧のみ',
+                  onTap: () => Navigator.of(context, rootNavigator: true).push(
+                    MaterialPageRoute<void>(builder: (_) => const FriendsPage()),
+                  ),
+                ),
+                _Item(
+                  icon: Icons.workspace_premium_outlined,
+                  color: NexusColors.gold,
+                  title: 'NEXUS+',
+                  subtitle: 'Standard 月500円 / Pro 月800円',
+                  onTap: () => Navigator.of(context, rootNavigator: true).push(
+                    MaterialPageRoute<void>(builder: (_) => const BillingPage()),
+                  ),
+                ),
+                _Item(
                   icon: Icons.logout_rounded,
                   color: NexusColors.purple,
                   title: 'ログアウト',
@@ -150,11 +172,25 @@ class SettingsScreen extends StatelessWidget {
             child: Column(
               children: [
                 _Item(
-                  icon: Icons.grid_view_rounded,
+                  icon: Icons.menu_book_outlined,
+                  color: NexusColors.purple,
+                  title: '画面の案内',
+                  subtitle: 'Home / Study / Life / Money の初回説明',
+                  onTap: () async {
+                    await TutorialGate.resetAll(cloud.uid);
+                    if (!context.mounted) return;
+                    store.goTo(0);
+                    showNexusToast(context, '次に開いた画面で案内を出します');
+                  },
+                ),
+                _Item(
+                  icon: Icons.tune_rounded,
                   color: NexusColors.cyan,
-                  title: 'ホームをカスタマイズ',
-                  subtitle: 'ウィジェットの順とピン留め',
-                  onTap: () => _open(context, 'ホームをカスタマイズ', 'Homeのウィジェットは今日の目標・今月の残高・今週の学習時間です。'),
+                  title: 'アプリをカスタマイズ',
+                  subtitle: '時間リールの刻み、Homeのウィジェット',
+                  onTap: () => Navigator.of(context, rootNavigator: true).push(
+                    MaterialPageRoute<void>(builder: (_) => const AppCustomizePage()),
+                  ),
                 ),
                 _ToggleItem(
                   icon: Icons.notifications_rounded,

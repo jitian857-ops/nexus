@@ -45,22 +45,14 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (!cloud.usesFirebase) ...[
-                  TextField(
-                    controller: _code,
-                    style: TextStyle(color: NexusColors.text),
-                    decoration: const InputDecoration(labelText: '認証コード'),
-                  ),
-                  if (cloud.localIssuedCode != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text(
-                        'この端末のコード: ${cloud.localIssuedCode}',
-                        style: TextStyle(color: NexusColors.cyan, fontWeight: FontWeight.w700),
-                      ),
+                  if (!cloud.usesFirebase) ...[
+                    TextField(
+                      controller: _code,
+                      style: TextStyle(color: NexusColors.text),
+                      decoration: const InputDecoration(labelText: '認証コード'),
                     ),
-                  const SizedBox(height: 12),
-                ],
+                    const SizedBox(height: 12),
+                  ],
                 if (cloud.lastError.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),

@@ -190,13 +190,6 @@ class _LoginPageState extends State<LoginPage> {
                   const SizedBox(height: 8),
                   Text(cloud.lastNotice, style: TextStyle(color: NexusColors.green, fontSize: 12)),
                 ],
-                if (!cloud.usesFirebase && cloud.localIssuedCode != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    'この端末のコード: ${cloud.localIssuedCode}',
-                    style: TextStyle(color: NexusColors.cyan, fontWeight: FontWeight.w700),
-                  ),
-                ],
                 const SizedBox(height: 14),
                 FilledButton(
                   onPressed: cloud.busy ? null : _submit,

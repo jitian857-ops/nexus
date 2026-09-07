@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 
 import '../../app/theme.dart';
+import '../../cloud/friend_models.dart';
+import '../../cloud/nexus_cloud.dart';
 import '../../core/format.dart';
 import '../../data/app_store.dart';
 import '../../data/models.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/schedule_sheet.dart';
 import '../../widgets/ui_bits.dart';
+import '../friends/share_picker.dart';
+import 'schedule_bulk_share_page.dart';
 import 'sleep_sheet.dart';
 
 const _lifeCardHeight = 208.0;
@@ -76,7 +80,19 @@ class LifeScreen extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: () => openBulkScheduleShare(context),
+              icon: Icon(Icons.ios_share_rounded, size: 16, color: NexusColors.cyan),
+              label: Text(
+                '予定を一括共有',
+                style: TextStyle(color: NexusColors.cyan, fontWeight: FontWeight.w700, fontSize: 12),
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
           GlassCard(
             child: Column(
               children: [
@@ -110,14 +126,26 @@ class LifeScreen extends StatelessWidget {
                                 child: Row(
                                   children: [
                                     Text(
-                                      hm(item.startAt),
+                                      item.whenLabel(onDay: day),
                                       style: TextStyle(
                                         color: NexusColors.cyan,
                                         fontWeight: FontWeight.w700,
                                       ),
                                     ),
                                     const SizedBox(width: 12),
-                                    Text(item.title, style: const TextStyle(fontWeight: FontWeight.w600)),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(item.title, style: const TextStyle(fontWeight: FontWeight.w600)),
+                                          if (item.tags.isNotEmpty)
+                                            Text(
+                                              item.tags.join(' · '),
+                                              style: TextStyle(color: NexusColors.textMuted, fontSize: 11),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),
@@ -190,34 +218,76 @@ class LifeScreen extends StatelessWidget {
   }
 
   Future<void> _editDiary(BuildContext context, AppStore store) async {
+    final cloud = CloudScope.of(context);
     final controller = TextEditingController(text: store.diary);
+    var shareWith = <String>[];
+    try {
+      final existing = await cloud.findMyShare(SharedKind.diary, dateKey(store.lifeDate));
+      shareWith = [...(existing?.viewerIds ?? const [])];
+    } catch (_) {}
+    if (!context.mounted) return;
     final saved = await showNexusSheet<bool>(
       context: context,
       builder: (context) {
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              '${store.lifeDate.month}月${store.lifeDate.day}日の日記',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: controller,
-              maxLines: 5,
-              style: TextStyle(color: NexusColors.text),
-            ),
-            const SizedBox(height: 12),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('保存'),
-            ),
-          ],
+        return StatefulBuilder(
+          builder: (context, setSheet) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  '${store.lifeDate.month}月${store.lifeDate.day}日の日記',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: controller,
+                  maxLines: 5,
+                  style: TextStyle(color: NexusColors.text),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  shareWith.isEmpty ? '公開範囲  自分のみ' : '公開範囲  ${shareWith.length}人に共有',
+                  style: TextStyle(color: NexusColors.textMuted, fontSize: 12),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    final picked = await pickShareViewers(context, selected: shareWith);
+                    if (picked != null) setSheet(() => shareWith = picked);
+                  },
+                  child: const Text('共有する相手を選ぶ'),
+                ),
+                const SizedBox(height: 8),
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('保存'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
-    if (saved == true) store.setDiary(controller.text.trim());
+    if (saved == true) {
+      store.setDiary(controller.text.trim());
+      final key = dateKey(store.lifeDate);
+      try {
+        if (shareWith.isEmpty || controller.text.trim().isEmpty) {
+          await cloud.revokeShareBySource(SharedKind.diary, key);
+        } else {
+          await cloud.shareItem(
+            type: SharedKind.diary,
+            sourceLocalId: key,
+            payload: {
+              'title': '${store.lifeDate.month}月${store.lifeDate.day}日の日記',
+              'body': controller.text.trim(),
+              'occurred_at': store.lifeDate.toIso8601String(),
+            },
+            viewerIds: shareWith,
+          );
+        }
+      } catch (_) {}
+    }
     controller.dispose();
   }
 }
@@ -369,10 +439,17 @@ class _MonthGrid extends StatelessWidget {
     final leading = mondayIndex(first);
     final now = DateTime.now();
     final today = (now.year == focused.year && now.month == focused.month) ? now.day : -1;
-    final marked = {
-      for (final s in store.schedules)
-        if (s.startAt.year == focused.year && s.startAt.month == focused.month) s.startAt.day,
-    };
+    final marked = <int>{};
+    for (final s in store.schedules) {
+      var cursor = s.spanStart;
+      final end = s.spanEnd;
+      while (!cursor.isAfter(end)) {
+        if (cursor.year == focused.year && cursor.month == focused.month) {
+          marked.add(cursor.day);
+        }
+        cursor = cursor.add(const Duration(days: 1));
+      }
+    }
 
     return Column(
       children: [

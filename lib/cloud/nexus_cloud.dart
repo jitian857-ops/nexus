@@ -9,6 +9,7 @@ import '../config/firebase_options.dart';
 import 'cloud_backend.dart';
 import 'cloud_models.dart';
 import 'firebase_backend.dart';
+import 'friend_models.dart';
 import 'local_backend.dart';
 
 class NexusCloud extends ChangeNotifier {
@@ -20,6 +21,8 @@ class NexusCloud extends ChangeNotifier {
   CloudBackend? _hosted;
   var ready = false;
   var busy = false;
+  var firebaseBootFailed = false;
+  var _generation = 0;
   String lastError = '';
   String lastNotice = '';
   String? localIssuedCode;
@@ -38,27 +41,58 @@ class NexusCloud extends ChangeNotifier {
 
   String get uid => session?.uid ?? '';
 
+  int get generation => _generation;
+
+  SessionIdentity get identity => SessionIdentity.fromSession(session, _generation);
+
   int unreadMail = 0;
 
+  @visibleForTesting
+  Future<void> Function()? debugStallPull;
+
+  @visibleForTesting
+  Future<void> Function()? debugStallPush;
+
+  /// Firebase が設定されているときは初期化失敗でもローカル認証へ切り替えない。
+  static bool useLocalAccounts({
+    required bool firebaseConfigured,
+    required bool widgetTest,
+  }) {
+    if (widgetTest) return true;
+    return !firebaseConfigured;
+  }
+
+  void _bumpGeneration() {
+    _generation++;
+  }
+
   Future<void> boot() async {
-    if (DefaultFirebaseOptions.isConfigured && !NexusMotion.inWidgetTest) {
+    firebaseBootFailed = false;
+    final widgetTest = NexusMotion.inWidgetTest;
+    final configured = DefaultFirebaseOptions.isConfigured;
+    if (!useLocalAccounts(firebaseConfigured: configured, widgetTest: widgetTest)) {
       try {
         if (Firebase.apps.isEmpty) {
           await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
         }
         _backend = FirebaseBackend();
+        await _backend.init();
+        _hosted = _backend;
       } catch (error) {
         debugPrint('Firebase を起動できません: $error');
-        _backend = LocalBackend();
+        firebaseBootFailed = true;
+        lastError = '接続の準備ができませんでした';
+        _backend = FirebaseBackend();
+        _hosted = _backend;
       }
     } else {
       _backend = LocalBackend();
+      await _backend.init();
+      _hosted = _backend;
     }
-    await _backend.init();
-    _hosted = _backend;
-    if (NexusMotion.inWidgetTest) {
+    if (widgetTest) {
       await enterTestSession();
-    } else if (await _guestFlagOn()) {
+    } else if (!firebaseBootFailed && await _guestFlagOn()) {
       await _applyGuest();
     }
     await _refreshMailBadge();
@@ -67,6 +101,7 @@ class NexusCloud extends ChangeNotifier {
   }
 
   Future<void> enterTestSession() async {
+    _hosted ??= _backend;
     final local = LocalBackend();
     await local.init();
     local.enterMemorySession(
@@ -80,6 +115,7 @@ class NexusCloud extends ChangeNotifier {
       ),
     );
     _backend = local;
+    _bumpGeneration();
   }
 
   Future<bool> _guestFlagOn() async {
@@ -99,6 +135,7 @@ class NexusCloud extends ChangeNotifier {
   }
 
   Future<void> _applyGuest() async {
+    _hosted ??= _backend;
     final local = LocalBackend();
     await local.init();
     local.enterMemorySession(
@@ -113,6 +150,7 @@ class NexusCloud extends ChangeNotifier {
     );
     _backend = local;
     await _setGuestFlag(true);
+    _bumpGeneration();
   }
 
   Future<void> enterGuestSession() {
@@ -160,24 +198,30 @@ class NexusCloud extends ChangeNotifier {
           localIssuedCode = (_backend as LocalBackend).lastIssuedCode;
         }
       }
+      _bumpGeneration();
       lastNotice = '認証メールを送りました';
     });
   }
 
   Future<void> signIn({required String email, required String password}) {
-    return _run(() => _backend.signIn(email: email, password: password));
+    return _run(() async {
+      await _backend.signIn(email: email, password: password);
+      _bumpGeneration();
+    });
   }
 
   Future<void> signOut() {
     return _run(() async {
       await _backend.signOut();
       unreadMail = 0;
+      localIssuedCode = null;
       await _setGuestFlag(false);
       final hosted = _hosted;
       if (hosted != null && !identical(_backend, hosted)) {
         _backend = hosted;
         await _backend.init();
       }
+      _bumpGeneration();
     });
   }
 
@@ -224,15 +268,25 @@ class NexusCloud extends ChangeNotifier {
   }
 
   Future<Map<String, dynamic>?> pullLive() async {
-    final id = uid;
-    if (id.isEmpty) return null;
-    return _backend.pullLive(id);
+    final started = identity;
+    if (!started.isBound) return null;
+    final backend = _backend;
+    final stall = debugStallPull;
+    if (stall != null) await stall();
+    if (!identity.sameAs(started)) return null;
+    return backend.pullLive(started.uid);
   }
 
   Future<void> pushLive(Map<String, dynamic> bundle) async {
-    final id = uid;
-    if (id.isEmpty) return;
-    await _backend.pushLive(id, bundle);
+    final started = identity;
+    if (!started.isBound) return;
+    final bundleUid = bundle['uid'] as String?;
+    if (bundleUid != null && bundleUid.isNotEmpty && bundleUid != started.uid) return;
+    final destUid = started.uid;
+    final backend = _backend;
+    final stall = debugStallPush;
+    if (stall != null) await stall();
+    await backend.pushLive(destUid, bundle);
   }
 
   Future<void> sealVault(String reason, Map<String, dynamic> bundle) async {
@@ -275,6 +329,68 @@ class NexusCloud extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<FriendProfile> ensureFriendCode({bool regenerate = false}) {
+    return _run(() => _backend.ensureFriendCode(regenerate: regenerate));
+  }
+
+  Future<FriendProfile?> lookupFriend(String query) => _backend.lookupFriend(query);
+
+  Future<void> sendFriendRequest(String toUid) {
+    return _run(() => _backend.sendFriendRequest(toUid));
+  }
+
+  Future<void> respondFriendRequest(String requestId, {required bool accept}) {
+    return _run(() => _backend.respondFriendRequest(requestId, accept: accept));
+  }
+
+  Future<void> cancelFriendRequest(String requestId) {
+    return _run(() => _backend.cancelFriendRequest(requestId));
+  }
+
+  Future<List<FriendRequestItem>> incomingFriendRequests() => _backend.incomingFriendRequests();
+
+  Future<List<FriendRequestItem>> outgoingFriendRequests() => _backend.outgoingFriendRequests();
+
+  Future<List<FriendProfile>> listFriends() => _backend.listFriends();
+
+  Future<void> removeFriend(String uid) => _run(() => _backend.removeFriend(uid));
+
+  Future<void> blockUser(String uid) => _run(() => _backend.blockUser(uid));
+
+  Future<List<FriendProfile>> listBlocked() => _backend.listBlocked();
+
+  Future<void> reportUser({required String targetId, required String reason}) {
+    return _run(() => _backend.reportUser(targetId: targetId, reason: reason));
+  }
+
+  Future<void> shareItem({
+    required SharedKind type,
+    required String sourceLocalId,
+    required Map<String, dynamic> payload,
+    required List<String> viewerIds,
+  }) {
+    return _run(
+      () => _backend.shareItem(
+        type: type,
+        sourceLocalId: sourceLocalId,
+        payload: payload,
+        viewerIds: viewerIds,
+      ),
+    );
+  }
+
+  Future<void> revokeShareBySource(SharedKind type, String sourceLocalId) {
+    return _run(() => _backend.revokeShareBySource(type, sourceLocalId));
+  }
+
+  Future<SharedItem?> findMyShare(SharedKind type, String sourceLocalId) {
+    return _backend.findMyShare(type, sourceLocalId);
+  }
+
+  Future<List<SharedItem>> listSharedWithMe({SharedKind? type, int limit = 20}) {
+    return _backend.listSharedWithMe(type: type, limit: limit);
+  }
+
   Future<void> _refreshMailBadge() async {
     if (uid.isEmpty) {
       unreadMail = 0;
@@ -292,9 +408,13 @@ class CloudScope extends InheritedNotifier<NexusCloud> {
     required super.child,
   }) : super(notifier: cloud);
 
+  static NexusCloud? maybeOf(BuildContext context) {
+    return context.dependOnInheritedWidgetOfExactType<CloudScope>()?.notifier;
+  }
+
   static NexusCloud of(BuildContext context) {
-    final scope = context.dependOnInheritedWidgetOfExactType<CloudScope>();
-    assert(scope != null, 'CloudScope が見つかりません');
-    return scope!.notifier!;
+    final cloud = maybeOf(context);
+    assert(cloud != null, 'CloudScope が見つかりません');
+    return cloud!;
   }
 }

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 import '../app/theme.dart';
+import '../cloud/cloud_models.dart';
 import '../cloud/nexus_cloud.dart';
 import '../core/format.dart';
 import '../domain/daily_quotes.dart';
@@ -52,8 +53,11 @@ class AppStore extends ChangeNotifier {
   final List<IncomeEntry> incomes = [];
   final List<PaymentPlan> payments = [];
   final List<ChatMessage> messages = [];
+  final List<FriendGroup> friendGroups = [];
 
   bool _canSave = false;
+  var _attachToken = 0;
+  SessionIdentity _session = SessionIdentity.none;
   String? dataUid;
   NexusCloud? _cloud;
   Timer? _cloudPush;
@@ -84,6 +88,16 @@ class AppStore extends ChangeNotifier {
   DateTime? sleepStartedAt;
 
   bool get isSleeping => sleepStartedAt != null;
+  bool get hasMeaningfulRecords =>
+      sessions.isNotEmpty ||
+      schedules.isNotEmpty ||
+      incomes.isNotEmpty ||
+      cards.isNotEmpty ||
+      habits.isNotEmpty ||
+      diaryPosts.isNotEmpty ||
+      subjects.isNotEmpty ||
+      boxes.isNotEmpty ||
+      diaries.values.any((text) => text.trim().isNotEmpty);
   int mood = 0;
   int energy = 0;
   int steps = 0;
@@ -269,7 +283,7 @@ class AppStore extends ChangeNotifier {
   }
 
   List<ScheduleItem> schedulesOn(DateTime day) {
-    final items = schedules.where((s) => sameDay(s.startAt, day)).toList()
+    final items = schedules.where((s) => s.occursOn(day)).toList()
       ..sort((a, b) => a.startAt.compareTo(b.startAt));
     return items;
   }
@@ -309,11 +323,8 @@ class AppStore extends ChangeNotifier {
     }
     final list = [
       for (final s in subjects)
-        if (!s.archived) s,
+        if (used.contains(s.id)) s,
     ];
-    for (final s in subjects) {
-      if (s.archived && used.contains(s.id)) list.add(s);
-    }
     final known = {for (final s in list) s.id};
     if (used.any((id) => !known.contains(id))) {
       list.add(
@@ -417,7 +428,13 @@ class AppStore extends ChangeNotifier {
       (timerTotalSeconds - timerElapsedSeconds()).clamp(0, timerTotalSeconds);
 
   void goTo(int tab) {
-    tabIndex = tab.clamp(NexusTab.home, NexusTab.settings);
+    final next = tab.clamp(NexusTab.home, NexusTab.settings);
+    if (next != tabIndex) {
+      final today = dateOnly(DateTime.now());
+      studyWeek = today;
+      moneyMonth = today;
+    }
+    tabIndex = next;
     notifyListeners();
   }
 
@@ -451,16 +468,73 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  void addFriendGroup({required String name, List<String> memberIds = const []}) {
+    final text = name.trim();
+    if (text.isEmpty) return;
+    friendGroups.insert(
+      0,
+      FriendGroup(id: _id(), name: text, memberIds: [...memberIds]),
+    );
+    lastToast = 'グループを作りました';
+    notifyListeners();
+    _saveUserData();
+  }
+
+  void updateFriendGroup(FriendGroup group) {
+    final i = friendGroups.indexWhere((g) => g.id == group.id);
+    if (i < 0) return;
+    friendGroups[i] = group;
+    lastToast = 'グループを更新しました';
+    notifyListeners();
+    _saveUserData();
+  }
+
+  void deleteFriendGroup(String id) {
+    friendGroups.removeWhere((g) => g.id == id);
+    lastToast = 'グループを削除しました';
+    notifyListeners();
+    _saveUserData();
+  }
+
+  void pruneFriendFromGroups(String uid) {
+    var changed = false;
+    for (var i = 0; i < friendGroups.length; i++) {
+      final group = friendGroups[i];
+      if (!group.memberIds.contains(uid)) continue;
+      friendGroups[i] = group.copyWith(
+        memberIds: [for (final id in group.memberIds) if (id != uid) id],
+      );
+      changed = true;
+    }
+    if (!changed) return;
+    notifyListeners();
+    _saveUserData();
+  }
+
   void addSchedule({
     required String title,
     required DateTime startAt,
+    DateTime? endAt,
+    bool allDay = false,
+    List<String> tags = const [],
     String category = 'life',
+    String source = 'user',
   }) {
     schedules.add(
-      ScheduleItem(id: _id(), title: title, startAt: startAt, category: category),
+      ScheduleItem(
+        id: _id(),
+        title: title,
+        startAt: startAt,
+        endAt: endAt,
+        allDay: allDay,
+        tags: tags,
+        category: category,
+        source: source,
+      ),
     );
     lastToast = '予定を追加しました';
     notifyListeners();
+    _saveUserData();
   }
 
   void updateSchedule(ScheduleItem item) {
@@ -468,6 +542,7 @@ class AppStore extends ChangeNotifier {
     if (i < 0) return;
     schedules[i] = item;
     notifyListeners();
+    _saveUserData();
   }
 
   void deleteSchedule(String id) {
@@ -997,8 +1072,8 @@ class AppStore extends ChangeNotifier {
     _saveUserData();
   }
 
-  List<double> subjectWeekHours(String subjectId) {
-    final monday = weekMonday(focusedDate);
+  List<double> subjectWeekHours(String subjectId, [DateTime? week]) {
+    final monday = weekMonday(week ?? studyWeek);
     final hours = List<double>.filled(7, 0);
     for (final session in sessions) {
       if (session.subjectId != subjectId) continue;
@@ -1007,6 +1082,42 @@ class AppStore extends ChangeNotifier {
       hours[idx] += session.minutes / 60.0;
     }
     return hours;
+  }
+
+  void setSubjectDayMinutes({
+    required String subjectId,
+    required DateTime day,
+    required int minutes,
+  }) {
+    final target = dateOnly(day);
+    var focus = StudyFocus.high;
+    final kept = <StudySession>[];
+    for (final session in sessions) {
+      if (session.subjectId == subjectId && sameDay(session.at, target)) {
+        focus = session.focus;
+        _adjustTodayStudySeconds(session, null);
+      } else {
+        kept.add(session);
+      }
+    }
+    sessions
+      ..clear()
+      ..addAll(kept);
+    if (minutes > 0) {
+      final next = StudySession(
+        id: _id(),
+        subjectId: subjectId,
+        minutes: minutes,
+        focus: focus,
+        at: DateTime(target.year, target.month, target.day, 12),
+      );
+      sessions.insert(0, next);
+      _adjustTodayStudySeconds(null, next);
+    }
+    _syncStudyTotals();
+    lastToast = minutes <= 0 ? 'その日の学習を消しました' : '学習時間を更新しました';
+    notifyListeners();
+    _saveUserData();
   }
 
   void deleteSubject(String id) {
@@ -1296,28 +1407,52 @@ class AppStore extends ChangeNotifier {
   }
 
   Future<void> hydrate() async {
-    final data = await NexusPrefs.loadBundle(dataUid);
-    if (data != null) applyCloudMap(data);
+    final started = _session;
+    final loaded = await NexusPrefs.loadBundle(dataUid);
+    if (!_session.sameAs(started)) return;
+    if (loaded.failed) {
+      _canSave = false;
+      notifyListeners();
+      return;
+    }
+    if (loaded.hasData) _applyOwnedMap(loaded.data!, started.uid);
     _canSave = true;
     notifyListeners();
   }
 
   Future<void> attachCloud(NexusCloud cloud) async {
+    final token = ++_attachToken;
+    final started = cloud.identity;
+    _cloudPush?.cancel();
+    _cloudPush = null;
+    _resetUserState();
     _cloud = cloud;
-    dataUid = cloud.uid;
+    _session = started;
+    dataUid = started.uid;
     _canSave = false;
-    final local = await NexusPrefs.loadBundle(dataUid);
-    if (local != null) applyCloudMap(local);
+
+    final loaded = await NexusPrefs.loadBundle(started.uid);
+    if (token != _attachToken || !_session.sameAs(started)) return;
+    if (loaded.failed) {
+      notifyListeners();
+      return;
+    }
+    if (loaded.hasData) _applyOwnedMap(loaded.data!, started.uid);
+
     try {
       final remote = await cloud.pullLive();
-      if (remote != null && _isRemoteNewer(remote, local)) {
-        applyCloudMap(remote);
-      } else if (local != null) {
+      if (token != _attachToken || !_session.sameAs(started)) return;
+      if (remote != null && _isRemoteNewer(remote, loaded.data)) {
+        _applyOwnedMap(remote, started.uid);
+      } else if (loaded.hasData) {
         await cloud.pushLive(toCloudMap());
       } else if (remote != null) {
-        applyCloudMap(remote);
+        _applyOwnedMap(remote, started.uid);
       }
-    } catch (_) {}
+    } catch (_) {
+      if (token != _attachToken || !_session.sameAs(started)) return;
+    }
+    if (token != _attachToken || !_session.sameAs(started)) return;
     if (cloud.session != null) {
       if (userName == '蒼井 ユウ' && cloud.session!.displayName.isNotEmpty) {
         userName = cloud.session!.displayName;
@@ -1330,25 +1465,14 @@ class AppStore extends ChangeNotifier {
   }
 
   void detachCloud() {
+    _attachToken++;
     _cloudPush?.cancel();
+    _cloudPush = null;
     _cloud = null;
     dataUid = null;
-    subjects.clear();
-    sessions.clear();
-    exams.clear();
-    goals.clear();
-    boxes.clear();
-    cards.clear();
-    incomes.clear();
-    payments.clear();
-    habits.clear();
-    sleepLogs.clear();
-    schedules.clear();
-    assignments.clear();
-    problems.clear();
-    reviewCards.clear();
-    diaries.clear();
-    _seed();
+    _session = SessionIdentity.none;
+    _canSave = false;
+    _resetUserState();
     notifyListeners();
   }
 
@@ -1360,6 +1484,7 @@ class AppStore extends ChangeNotifier {
 
   Map<String, dynamic> toCloudMap() {
     return {
+      'uid': dataUid,
       'updatedAt': DateTime.now().millisecondsSinceEpoch,
       'userName': userName,
       'occupation': occupation,
@@ -1384,6 +1509,7 @@ class AppStore extends ChangeNotifier {
       'assignments': [for (final a in assignments) a.toJson()],
       'problems': [for (final p in problems) p.toJson()],
       'reviewCards': [for (final c in reviewCards) c.toJson()],
+      'friendGroups': [for (final g in friendGroups) g.toJson()],
     };
   }
 
@@ -1452,6 +1578,14 @@ class AppStore extends ChangeNotifier {
         ..addAll([
           for (final item in (data['reviewCards'] as List? ?? const []))
             ReviewCard.fromJson(Map<String, dynamic>.from(item as Map)),
+        ]);
+    }
+    if (data.containsKey('friendGroups')) {
+      friendGroups
+        ..clear()
+        ..addAll([
+          for (final item in (data['friendGroups'] as List? ?? const []))
+            FriendGroup.fromJson(Map<String, dynamic>.from(item as Map)),
         ]);
     }
     final savedBoxes = [
@@ -1539,6 +1673,14 @@ class AppStore extends ChangeNotifier {
     NexusColors.apply(NexusPalette.byId(settings.themeId));
   }
 
+  void _applyOwnedMap(Map<String, dynamic> data, String uid) {
+    final owner = data['uid'] as String?;
+    if (owner != null && owner.isNotEmpty && owner != uid) return;
+    applyCloudMap(data);
+  }
+
+  bool _isCurrent(SessionIdentity started) => _session.sameAs(started);
+
   void _assignLegacyBoxMonths() {
     final fallback = monthStart(moneyMonth);
     for (var i = 0; i < boxes.length; i++) {
@@ -1550,12 +1692,40 @@ class AppStore extends ChangeNotifier {
 
   void _saveUserData() {
     if (!_canSave) return;
+    final started = _session;
+    if (!started.isBound) return;
+    final destUid = started.uid;
     final bundle = toCloudMap();
-    NexusPrefs.saveBundle(dataUid, bundle);
+    NexusPrefs.saveBundle(destUid, bundle);
     _cloudPush?.cancel();
+    final cloud = _cloud;
     _cloudPush = Timer(const Duration(milliseconds: 400), () {
-      _cloud?.pushLive(bundle);
+      if (!_isCurrent(started)) return;
+      cloud?.pushLive(bundle);
     });
+  }
+
+  void _resetUserState() {
+    subjects.clear();
+    sessions.clear();
+    exams.clear();
+    goals.clear();
+    boxes.clear();
+    cards.clear();
+    incomes.clear();
+    payments.clear();
+    habits.clear();
+    sleepLogs.clear();
+    schedules.clear();
+    assignments.clear();
+    problems.clear();
+    reviewCards.clear();
+    diaries.clear();
+    friendGroups.clear();
+    diaryPosts.clear();
+    messages.clear();
+    sleepStartedAt = null;
+    _seed();
   }
 
   void sendUserMessage(String text) {
@@ -1674,6 +1844,9 @@ class AppStore extends ChangeNotifier {
     timerSubjectId = null;
     timerAccumulatedSeconds = 0;
     timerTotalSeconds = 30 * 60;
+    sleepStartedAt = null;
+    friendGroups.clear();
+    diaryPosts.clear();
   }
 
   @override

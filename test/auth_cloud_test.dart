@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:nexus/cloud/cloud_models.dart';
+import 'package:nexus/cloud/friend_models.dart';
 import 'package:nexus/cloud/local_backend.dart';
 import 'package:nexus/cloud/nexus_cloud.dart';
 import 'package:nexus/cloud/password.dart';
@@ -141,6 +142,60 @@ void main() {
     await cloud.signOut();
     expect(cloud.isSignedIn, isFalse);
     expect(cloud.isGuest, isFalse);
+  });
+
+  test('フレンド申請を承認すると双方の一覧に入る', () async {
+    SharedPreferences.setMockInitialValues({});
+    final cloud = LocalBackend();
+    await cloud.init();
+    await cloud.signUp(
+      email: 'alice@example.com',
+      password: 'secret123',
+      displayName: 'アリス',
+      occupation: '',
+    );
+    final alice = cloud.currentSession!;
+    final code = (await cloud.ensureFriendCode()).friendCode;
+    await cloud.signOut();
+
+    await cloud.signUp(
+      email: 'bob@example.com',
+      password: 'secret123',
+      displayName: 'ボブ',
+      occupation: '',
+    );
+    final bob = cloud.currentSession!;
+    final found = await cloud.lookupFriend(code);
+    expect(found?.displayName, 'アリス');
+    await cloud.sendFriendRequest(found!.uid);
+    await cloud.signOut();
+
+    await cloud.signIn(email: 'alice@example.com', password: 'secret123');
+    final incoming = await cloud.incomingFriendRequests();
+    expect(incoming, hasLength(1));
+    await cloud.respondFriendRequest(incoming.single.id, accept: true);
+    expect((await cloud.listFriends()).single.uid, bob.uid);
+
+    await cloud.shareItem(
+      type: SharedKind.schedule,
+      sourceLocalId: 's1',
+      payload: {'title': '勉強会', 'start_at': DateTime(2026, 9, 5, 18).toIso8601String()},
+      viewerIds: [bob.uid],
+    );
+    await cloud.signOut();
+
+    await cloud.signIn(email: 'bob@example.com', password: 'secret123');
+    expect((await cloud.listFriends()).single.uid, alice.uid);
+    final shared = await cloud.listSharedWithMe(type: SharedKind.schedule);
+    expect(shared.single.title, '勉強会');
+  });
+
+  test('フレンドQRはコードを読み取れる', () {
+    expect(friendCodeFromScan('NEXUS.FRIEND:AB2C3D4E'), 'AB2C3D4E');
+    expect(friendCodeFromScan('ab2c3d4e'), 'AB2C3D4E');
+    expect(friendCodeFromScan('https://example.com/?c=AB2C3D4E'), 'AB2C3D4E');
+    expect(friendCodeFromScan('random-text'), isNull);
+    expect(friendQrPayload('ab2c3d4e'), 'NEXUS.FRIEND:AB2C3D4E');
   });
 
   test('パスワードのハッシュは同じ塩で一致する', () {

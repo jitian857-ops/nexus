@@ -7,6 +7,7 @@ import 'package:nexus/data/app_store.dart';
 import 'package:nexus/data/models.dart';
 import 'package:nexus/domain/daily_quotes.dart';
 import 'package:nexus/domain/day_occasions.dart';
+import 'package:nexus/widgets/nexus_nav_bar.dart';
 
 void main() {
   test('8月18日は米の日で、漢字の由来が説明される', () {
@@ -120,6 +121,33 @@ void main() {
     expect(weekDaySpan(DateTime(2026, 8, 31)), '8月31日ー9月6日');
   });
 
+  test('StudyやMoneyの期間は別タブに行くと今日を含む週・月に戻る', () {
+    final store = AppStore.seed();
+    final today = dateOnly(DateTime.now());
+    store.goTo(NexusTab.study);
+    store.shiftStudyWeek(-1);
+    store.shiftMoneyMonth(-1);
+    expect(store.studyWeekMonday, weekMonday(today).subtract(const Duration(days: 7)));
+    expect(sameMonth(store.moneyMonth, today), isFalse);
+    store.goTo(NexusTab.home);
+    expect(store.studyWeekMonday, weekMonday(today));
+    expect(sameMonth(store.moneyMonth, today), isTrue);
+    expect(store.focusedDate, dateOnly(today));
+  });
+
+  test('フレンドグループは保存して共有相手に展開できる', () {
+    final store = AppStore.seed();
+    store.addFriendGroup(name: 'クラス', memberIds: const ['a', 'b']);
+    expect(store.friendGroups.single.name, 'クラス');
+    expect(store.friendGroups.single.memberIds, ['a', 'b']);
+    store.updateFriendGroup(store.friendGroups.single.copyWith(memberIds: const ['a']));
+    expect(store.friendGroups.single.memberIds, ['a']);
+    store.pruneFriendFromGroups('a');
+    expect(store.friendGroups.single.memberIds, isEmpty);
+    store.deleteFriendGroup(store.friendGroups.single.id);
+    expect(store.friendGroups, isEmpty);
+  });
+
   test('学習記録は更新と削除ができる', () {
     final store = AppStore.seed();
     final math = store.addSubject(name: '数学');
@@ -140,6 +168,69 @@ void main() {
     store.addStudySession(subjectId: math.id, minutes: 1, focus: StudyFocus.high);
     expect(store.weekStudyHours, closeTo(1 / 60, 0.0001));
     expect(formatStudyHours(store.weekStudyHours), '1分');
+  });
+
+  test('教科を追加しただけでは週グラフに出ない', () {
+    final store = AppStore.seed();
+    final math = store.addSubject(name: '数学');
+    expect(store.weekChartSubjects(store.studyWeek).any((s) => s.id == math.id), isFalse);
+    store.addStudySession(subjectId: math.id, minutes: 30, focus: StudyFocus.high);
+    expect(store.weekChartSubjects(store.studyWeek).any((s) => s.id == math.id), isTrue);
+  });
+
+  test('科目のその日の勉強時間を数字から書き換えられる', () {
+    final store = AppStore.seed();
+    final math = store.addSubject(name: '数学');
+    final monday = store.studyWeekMonday;
+    store.setSubjectDayMinutes(subjectId: math.id, day: monday, minutes: 90);
+    expect(store.subjectWeekHours(math.id)[0], closeTo(1.5, 0.0001));
+    store.setSubjectDayMinutes(subjectId: math.id, day: monday, minutes: 0);
+    expect(store.subjectWeekHours(math.id)[0], 0);
+    expect(store.sessions, isEmpty);
+  });
+
+  test('予定は日をまたいで、タグを付けられる', () {
+    final store = AppStore.seed();
+    store.addSchedule(
+      title: '合宿',
+      startAt: DateTime(2026, 9, 5, 18),
+      endAt: DateTime(2026, 9, 7, 10),
+      tags: const ['イベント'],
+    );
+    final item = store.schedules.single;
+    expect(item.occursOn(DateTime(2026, 9, 5)), isTrue);
+    expect(item.occursOn(DateTime(2026, 9, 6)), isTrue);
+    expect(item.occursOn(DateTime(2026, 9, 7)), isTrue);
+    expect(item.occursOn(DateTime(2026, 9, 8)), isFalse);
+    expect(item.tags, ['イベント']);
+    expect(store.schedulesOn(DateTime(2026, 9, 6)), hasLength(1));
+  });
+
+  test('日付は曜日つきのコンパクト表記になる', () {
+    expect(jpDateWeekday(DateTime(2026, 9, 5)), '2026年9月5日 (土)');
+    expect(jpDateWeekday(DateTime(2026, 9, 7)), '2026年9月7日 (月)');
+  });
+
+  test('予定はタグ・検索・期間で絞れる', () {
+    final study = ScheduleItem(
+      id: 'a',
+      title: '数学の復習',
+      startAt: DateTime(2026, 9, 5, 18),
+      tags: const ['勉強'],
+    );
+    final event = ScheduleItem(
+      id: 'b',
+      title: '合宿',
+      startAt: DateTime(2026, 9, 10, 9),
+      endAt: DateTime(2026, 9, 12, 18),
+      tags: const ['イベント'],
+    );
+    expect(study.matchesFilters(tag: '勉強'), isTrue);
+    expect(study.matchesFilters(tag: 'イベント'), isFalse);
+    expect(event.matchesFilters(query: '合宿'), isTrue);
+    expect(event.matchesFilters(query: '数学'), isFalse);
+    expect(event.matchesFilters(from: DateTime(2026, 9, 11), to: DateTime(2026, 9, 11)), isTrue);
+    expect(study.matchesFilters(from: DateTime(2026, 9, 10), to: DateTime(2026, 9, 12)), isFalse);
   });
 
   test('新しい教科は一覧にすぐ追加される', () {
@@ -557,6 +648,15 @@ void main() {
     final restored = UserSettings.fromJson(saved.toJson());
     expect(restored.themeId, 'white-rose');
     expect(restored.reduceMotion, isTrue);
+    expect(restored.reelMinuteStep, 1);
+
+    final stepped = UserSettings.fromJson({'reelMinuteStep': 5});
+    expect(stepped.reelMinuteStep, 5);
+    expect(normalizeReelMinuteStep(10), 10);
+    expect(normalizeReelMinuteStep(3), 1);
+    expect(snapMinute(3, 5), 5);
+    expect(snapMinute(58, 10), 50);
+    expect(minuteFromReelIndex(2, 5), 10);
   });
 
   test('勉強時間でレベルと経験値が進む', () {

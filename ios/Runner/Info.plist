@@ -50,7 +50,7 @@
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>問題を写真で記録するためにカメラを使います。</string>
+	<string>フレンドのQRコードや問題の写真のためにカメラを使います。</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>問題の写真を選ぶためにアルバムへアクセスします。</string>
 	<key>NSMicrophoneUsageDescription</key>

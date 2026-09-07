@@ -11,6 +11,33 @@ String yen(int amount) {
 
 String two(int n) => n.toString().padLeft(2, '0');
 
+const kReelMinuteSteps = [1, 5, 10];
+
+int normalizeReelMinuteStep(int? value) {
+  if (value == 5 || value == 10) return value!;
+  return 1;
+}
+
+int reelMinuteCount(int step) => 60 ~/ normalizeReelMinuteStep(step);
+
+int snapMinute(int minute, int step) {
+  final s = normalizeReelMinuteStep(step);
+  if (s <= 1) return minute.clamp(0, 59);
+  final rounded = ((minute / s).round() * s);
+  if (rounded >= 60) return 60 - s;
+  return rounded.clamp(0, 59);
+}
+
+int minuteIndexForReel(int minute, int step) {
+  final s = normalizeReelMinuteStep(step);
+  return snapMinute(minute, s) ~/ s;
+}
+
+int minuteFromReelIndex(int index, int step) {
+  final s = normalizeReelMinuteStep(step);
+  return (index % reelMinuteCount(s)) * s;
+}
+
 String jpDate(DateTime d) => '${d.year}年 ${d.month}月 ${d.day}日';
 
 String jpMonth(DateTime d) => '${d.year}年${d.month}月';
@@ -109,6 +136,8 @@ String weekDaySpan(DateTime day) {
 }
 
 String weekdayLabelOf(DateTime d) => weekLabels[mondayIndex(d)];
+
+String jpDateWeekday(DateTime d) => '${d.year}年${d.month}月${d.day}日 (${weekdayLabelOf(d)})';
 
 String daysLeftLabel(DateTime due, DateTime today) {
   final days = dateOnly(due).difference(dateOnly(today)).inDays;

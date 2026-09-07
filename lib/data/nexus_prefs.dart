@@ -2,38 +2,79 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// 端末読込の結果。失敗と未保存は区別する。
+class PrefsLoadResult {
+  const PrefsLoadResult._({this.data, this.failed = false});
+
+  const PrefsLoadResult.found(Map<String, dynamic> data) : this._(data: data);
+
+  const PrefsLoadResult.missing() : this._();
+
+  const PrefsLoadResult.failed() : this._(failed: true);
+
+  final Map<String, dynamic>? data;
+  final bool failed;
+
+  bool get hasData => data != null;
+}
+
 class NexusPrefs {
   NexusPrefs._();
 
   static const legacyKey = 'nexus_user_data_v2';
 
-  static String keyFor(String? uid) {
-    if (uid == null || uid.isEmpty || uid == 'test') return legacyKey;
+  /// テスト用。null なら SharedPreferences を使う。
+  static Future<PrefsLoadResult> Function(String uid)? debugLoad;
+
+  static Future<void> Function(String uid, Map<String, dynamic> bundle)? debugSave;
+
+  static String? keyFor(String? uid) {
+    if (uid == null || uid.isEmpty) return null;
     return '${legacyKey}_$uid';
   }
 
   static Future<void> saveBundle(String? uid, Map<String, dynamic> bundle) async {
+    if (uid == null || uid.isEmpty) return;
+    if (debugSave != null) {
+      await debugSave!(uid, bundle);
+      return;
+    }
+    final key = keyFor(uid);
+    if (key == null) return;
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(keyFor(uid), jsonEncode(bundle));
+      await prefs.setString(key, jsonEncode(bundle));
     } catch (_) {}
   }
 
-  static Future<Map<String, dynamic>?> loadBundle(String? uid) async {
+  static Future<PrefsLoadResult> loadBundle(String? uid) async {
+    if (uid == null || uid.isEmpty) return const PrefsLoadResult.missing();
+    if (debugLoad != null) return debugLoad!(uid);
+    final key = keyFor(uid);
+    if (key == null) return const PrefsLoadResult.missing();
     try {
       final prefs = await SharedPreferences.getInstance();
-      var raw = prefs.getString(keyFor(uid));
-      if ((raw == null || raw.isEmpty) && uid != null && uid.isNotEmpty && uid != 'test') {
-        raw = prefs.getString(legacyKey);
-      }
+      final raw = prefs.getString(key);
+      if (raw == null || raw.isEmpty) return const PrefsLoadResult.missing();
+      return PrefsLoadResult.found(Map<String, dynamic>.from(jsonDecode(raw) as Map));
+    } catch (_) {
+      return const PrefsLoadResult.failed();
+    }
+  }
+
+  /// 所有者不明の旧キー。新規ユーザーへは自動適用しない。削除もしない。
+  static Future<Map<String, dynamic>?> loadUnownedLegacy() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(legacyKey);
       if (raw == null || raw.isEmpty) return null;
-      return jsonDecode(raw) as Map<String, dynamic>;
+      return Map<String, dynamic>.from(jsonDecode(raw) as Map);
     } catch (_) {
       return null;
     }
   }
 
-  static Future<Map<String, dynamic>?> load() => loadBundle(null);
+  static Future<Map<String, dynamic>?> load() => loadUnownedLegacy();
 
   static Future<void> save({
     required List<dynamic> subjects,
@@ -51,21 +92,6 @@ class NexusPrefs {
     dynamic settings,
     Map<String, String>? diaries,
   }) async {
-    await saveBundle(null, {
-      'subjects': [for (final s in subjects) s.toJson()],
-      'sessions': [for (final s in sessions) s.toJson()],
-      'exams': [for (final e in exams) e.toJson()],
-      'goals': [for (final g in goals) g.toJson()],
-      'boxes': [for (final b in boxes) b.toJson()],
-      'cards': [for (final c in cards) c.toJson()],
-      'incomes': [for (final i in incomes) i.toJson()],
-      'payments': [for (final p in payments) p.toJson()],
-      'habits': [for (final h in habits) h.toJson()],
-      'sleepLogs': [for (final s in sleepLogs) s.toJson()],
-      'sleepStartedAt': sleepStartedAt?.toIso8601String(),
-      if (userName != null) 'userName': userName,
-      if (settings != null) 'settings': settings.toJson(),
-      if (diaries != null) 'diaries': diaries,
-    });
+    return;
   }
 }

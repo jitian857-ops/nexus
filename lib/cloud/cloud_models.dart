@@ -1,3 +1,42 @@
+enum AuthMode { firebase, local, guest, test }
+
+class SessionIdentity {
+  const SessionIdentity({
+    required this.mode,
+    required this.uid,
+    required this.generation,
+  });
+
+  final AuthMode mode;
+  final String uid;
+  final int generation;
+
+  static const none = SessionIdentity(mode: AuthMode.local, uid: '', generation: 0);
+
+  bool get isBound => uid.isNotEmpty;
+
+  bool sameAs(SessionIdentity other) =>
+      mode == other.mode && uid == other.uid && generation == other.generation;
+
+  static AuthMode modeOf(CloudSession session) {
+    if (session.uid == 'guest') return AuthMode.guest;
+    if (session.uid == 'test') return AuthMode.test;
+    if (session.usesFirebase) return AuthMode.firebase;
+    return AuthMode.local;
+  }
+
+  factory SessionIdentity.fromSession(CloudSession? session, int generation) {
+    if (session == null) {
+      return SessionIdentity(mode: AuthMode.local, uid: '', generation: generation);
+    }
+    return SessionIdentity(
+      mode: SessionIdentity.modeOf(session),
+      uid: session.uid,
+      generation: generation,
+    );
+  }
+}
+
 class CloudSession {
   const CloudSession({
     required this.uid,
@@ -124,7 +163,9 @@ String cloudErrorMessage(Object error) {
   if (text.contains('unauthorized-continue-uri') || text.contains('invalid-continue-uri')) {
     return '認証メールのリンク先が許可されていません。Firebase の Authorized domains を確認してください';
   }
-  if (text.contains('network')) return '通信できませんでした';
+  if (text.contains('permission-denied') || text.contains('PERMISSION_DENIED')) {
+    return 'この操作は許可されていません';
+  }
   if (text.contains('requires-recent-login')) return '安全のため、もう一度ログインしてから削除してください';
   return '処理できませんでした';
 }

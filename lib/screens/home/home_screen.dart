@@ -365,7 +365,7 @@ class _ScheduleCard extends StatelessWidget {
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Text(
-                                  hm(item.startAt),
+                                  item.whenLabel(),
                                   style: TextStyle(
                                     color: NexusColors.cyan,
                                     fontSize: 12,
@@ -375,13 +375,26 @@ class _ScheduleCard extends StatelessWidget {
                               ),
                               const SizedBox(width: 12),
                               Expanded(
-                                child: Text(
-                                  item.title,
-                                  style: TextStyle(
-                                    color: NexusColors.text,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      item.title,
+                                      style: TextStyle(
+                                        color: NexusColors.text,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    if (item.tags.isNotEmpty)
+                                      Text(
+                                        item.tags.join(' · '),
+                                        style: TextStyle(
+                                          color: NexusColors.textMuted,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                  ],
                                 ),
                               ),
                               Icon(

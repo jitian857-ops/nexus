@@ -388,7 +388,6 @@ class _TotalStudyWeekBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final series = store.weekChartSubjects(week);
-    final sessions = store.sessionsInWeek(week);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -490,51 +489,6 @@ class _TotalStudyWeekBody extends StatelessWidget {
             ],
           ),
         ),
-        if (sessions.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          for (final session in sessions)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: () => openStudySessionForm(context, store, existing: session),
-                  borderRadius: BorderRadius.circular(12),
-                  child: Ink(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: NexusColors.surface,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: NexusColors.border),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                store.subjectById(session.subjectId)?.name ?? 'その他',
-                                style: const TextStyle(fontWeight: FontWeight.w700),
-                              ),
-                              Text(
-                                '${weekdayLabelOf(session.at)}・${session.focus.label}',
-                                style: TextStyle(color: NexusColors.textMuted, fontSize: 11),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Text(
-                          formatStudyHours(session.minutes / 60.0),
-                          style: TextStyle(color: NexusColors.cyan, fontWeight: FontWeight.w700),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-        ],
       ],
     );
   }
@@ -1041,7 +995,7 @@ Future<void> openSubjectWeek(BuildContext context, AppStore store, String subjec
               ),
               const SizedBox(height: 4),
               Text(
-                'この週に勉強した曜日',
+                '数字を押すとその日の勉強時間を編集できます',
                 style: TextStyle(color: NexusColors.textMuted, fontSize: 12),
               ),
               const SizedBox(height: 10),
@@ -1070,15 +1024,31 @@ Future<void> openSubjectWeek(BuildContext context, AppStore store, String subjec
                       ),
                     ),
                     const SizedBox(width: 8),
-                    SizedBox(
-                      width: 52,
-                      child: Text(
-                        hours[i] <= 0 ? '—' : formatStudyHours(hours[i]),
-                        textAlign: TextAlign.right,
-                        style: TextStyle(
-                          color: hours[i] > 0 ? subject.color : NexusColors.textMuted,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 12,
+                    InkWell(
+                      onTap: () => _editSubjectDayHours(
+                        context,
+                        store,
+                        subject: subject,
+                        weekdayIndex: i,
+                        hours: hours[i],
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                        child: SizedBox(
+                          width: 56,
+                          child: Text(
+                            hours[i] <= 0 ? '—' : formatStudyHours(hours[i]),
+                            textAlign: TextAlign.right,
+                            style: TextStyle(
+                              color: hours[i] > 0 ? subject.color : NexusColors.cyan,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                              decoration: TextDecoration.underline,
+                              decorationColor: (hours[i] > 0 ? subject.color : NexusColors.cyan)
+                                  .withValues(alpha: 0.5),
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -1092,6 +1062,60 @@ Future<void> openSubjectWeek(BuildContext context, AppStore store, String subjec
       );
     },
   );
+}
+
+Future<void> _editSubjectDayHours(
+  BuildContext context,
+  AppStore store, {
+  required StudySubject subject,
+  required int weekdayIndex,
+  required double hours,
+}) async {
+  var minutes = (hours * 60).round();
+  final saved = await showNexusSheet<int>(
+    context: context,
+    useRootNavigator: true,
+    builder: (sheet) {
+      return StatefulBuilder(
+        builder: (sheet, setSheet) {
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                '${subject.name}  ${weekLabels[weekdayIndex]}',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              Text('勉強時間', style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
+              const SizedBox(height: 8),
+              DurationMinutesPicker(
+                minutes: minutes,
+                onChanged: (value) => setSheet(() => minutes = value),
+              ),
+              const SizedBox(height: 12),
+              FilledButton(
+                onPressed: () => Navigator.pop(sheet, minutes),
+                child: const Text('保存'),
+              ),
+              const SizedBox(height: 4),
+              TextButton(
+                onPressed: () => Navigator.pop(sheet, 0),
+                child: Text('削除', style: TextStyle(color: NexusColors.expense)),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+  if (saved == null) return;
+  store.setSubjectDayMinutes(
+    subjectId: subject.id,
+    day: store.studyWeekMonday.add(Duration(days: weekdayIndex)),
+    minutes: saved,
+  );
+  if (context.mounted) showNexusToast(context, store.lastToast);
 }
 
 class _WeekDots extends StatelessWidget {
