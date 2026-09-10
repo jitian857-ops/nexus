@@ -8,7 +8,7 @@ import 'tutorial_catalog.dart';
 class TutorialGate {
   TutorialGate._();
 
-  static const _prefix = 'nexus_tutorial_v1_';
+  static const _prefix = 'nexus_tutorial_v2_';
 
   /// 既存のウィジェットテストを覆わない。チュートリアル試験だけ true。
   @visibleForTesting

@@ -122,21 +122,80 @@ void main() {
     );
     await tester.pump();
     expect(find.text('NEXUS'), findsOneWidget);
+    expect(find.text('おかえりなさい'), findsOneWidget);
     expect(find.text('ログイン'), findsWidgets);
     expect(find.text('新規登録'), findsOneWidget);
-    expect(find.text('パスワードを忘れた'), findsOneWidget);
-    expect(find.text('ゲストログイン'), findsOneWidget);
+    expect(find.text('パスワードをお忘れですか？'), findsOneWidget);
+    expect(find.text('ゲストとして試す'), findsOneWidget);
     expect(find.textContaining('この端末のコード'), findsNothing);
 
     await tester.tap(find.text('新規登録'));
     await tester.pump();
+    expect(find.text('NEXUSをはじめよう'), findsOneWidget);
     expect(find.text('職業'), findsOneWidget);
     expect(find.text('登録する'), findsOneWidget);
 
-    await tester.tap(find.text('パスワードを忘れた'));
+    await tester.tap(find.text('ログイン').first);
+    await tester.pump();
+    await tester.tap(find.text('パスワードをお忘れですか？'));
     await tester.pump();
     expect(find.text('コードを送る'), findsOneWidget);
   });
+
+  testWidgets('ゲストとして試すと認証済みになる', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final cloud = NexusCloud();
+    cloud.ready = true;
+    await tester.pumpWidget(
+      CloudScope(
+        cloud: cloud,
+        child: MaterialApp(
+          theme: NexusTheme.of(NexusPalette.byId('white-midnight')),
+          home: const LoginPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('ゲストとして試す'));
+    await tester.pumpAndSettle();
+    expect(cloud.isSignedIn, isTrue);
+    expect(cloud.session?.uid, 'guest');
+  });
+
+  testWidgets('新規登録はパスワード不一致を止める', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final cloud = NexusCloud();
+    cloud.ready = true;
+    await tester.pumpWidget(
+      CloudScope(
+        cloud: cloud,
+        child: MaterialApp(
+          theme: NexusTheme.of(NexusPalette.byId('white-midnight')),
+          home: const LoginPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('新規登録'));
+    await tester.pump();
+    await tester.enterText(find.byType(TextField).at(0), 'you@example.com');
+    await tester.enterText(find.byType(TextField).at(1), 'password1');
+    await tester.enterText(find.byType(TextField).at(2), 'password2');
+    await tester.enterText(find.byType(TextField).at(3), '蒼井 ユウ');
+    await tester.tap(find.text('登録する'));
+    await tester.pump();
+    expect(find.text('パスワードが一致しません'), findsOneWidget);
+    expect(cloud.isSignedIn, isFalse);
+  });
+
 
   testWidgets('集中タイマーで教科を選べる', (tester) async {
     tester.view.physicalSize = const Size(390, 844);

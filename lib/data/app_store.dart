@@ -725,7 +725,7 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  void finishTimer({StudyFocus focus = StudyFocus.high}) {
+  void finishTimer({StudyFocus focus = StudyFocus.three}) {
     final elapsed = timerElapsedSeconds();
     final sid = selectedTimerSubjectId ?? '';
     timerRunning = false;
@@ -1090,7 +1090,7 @@ class AppStore extends ChangeNotifier {
     required int minutes,
   }) {
     final target = dateOnly(day);
-    var focus = StudyFocus.high;
+    var focus = StudyFocus.three;
     final kept = <StudySession>[];
     for (final session in sessions) {
       if (session.subjectId == subjectId && sameDay(session.at, target)) {

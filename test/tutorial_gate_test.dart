@@ -40,6 +40,15 @@ void main() {
     TutorialGate.debugSet = null;
   });
 
+  test('案内スライドはタブごとの画像枚数', () {
+    expect(TutorialDeck.home.slides, hasLength(3));
+    expect(TutorialDeck.study.slides, hasLength(5));
+    expect(TutorialDeck.life.slides, hasLength(5));
+    expect(TutorialDeck.money.slides, hasLength(5));
+    expect(TutorialDeck.settings.slides, hasLength(1));
+    expect(TutorialDeck.forIndex(NexusTab.settings), TutorialTab.settings);
+  });
+
   test('案内の再表示は記録があってもpendingなら出す', () async {
     expect(
       await TutorialGate.shouldShow(uid: 'u1', tab: TutorialTab.home, hasRecords: true),
@@ -96,15 +105,52 @@ void main() {
     await tester.pump();
     await tester.pumpAndSettle();
 
-    expect(find.text('Homeは今日の窓口'), findsOneWidget);
+    expect(find.byKey(const Key('tutorial-overlay')), findsOneWidget);
     expect(find.text('スキップ'), findsOneWidget);
     await tester.tap(find.text('スキップ'));
     await tester.pumpAndSettle();
-    expect(find.text('Homeは今日の窓口'), findsNothing);
+    expect(find.byKey(const Key('tutorial-overlay')), findsNothing);
     expect(find.text('今日の予定'), findsOneWidget);
 
     await tester.tap(find.descendant(of: find.byType(NexusNavBar), matching: find.text('Study')));
     await tester.pumpAndSettle();
-    expect(find.text('学習の記録'), findsOneWidget);
+    expect(find.byKey(const Key('tutorial-overlay')), findsOneWidget);
+  });
+
+  testWidgets('案内は次へと横スワイプでスライドする', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final store = AppStore.seed();
+    final cloud = NexusCloud();
+    await cloud.enterGuestSession();
+
+    await tester.pumpWidget(
+      CloudScope(
+        cloud: cloud,
+        child: AppScope(
+          store: store,
+          child: MaterialApp(
+            theme: NexusTheme.of(NexusPalette.byId(store.settings.themeId)),
+            home: const AppShell(),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    final controller = tester.widget<PageView>(find.byKey(const Key('tutorial-pager'))).controller!;
+    expect(controller.page ?? 0, 0);
+
+    await tester.tap(find.byKey(const Key('tutorial-next')));
+    await tester.pumpAndSettle();
+    expect(controller.page, closeTo(1, 0.01));
+
+    await tester.fling(find.byKey(const Key('tutorial-pager')), const Offset(-350, 0), 1200);
+    await tester.pumpAndSettle();
+    expect(controller.page, closeTo(2, 0.01));
   });
 }

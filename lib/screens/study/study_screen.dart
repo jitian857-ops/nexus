@@ -1147,7 +1147,7 @@ Future<void> openStudySessionForm(BuildContext context, AppStore store, {StudySe
   String? subjectId = existing?.subjectId ??
       (store.visibleSubjects.isEmpty ? null : store.visibleSubjects.first.id);
   var minutes = existing?.minutes ?? 30;
-  var focus = existing?.focus ?? StudyFocus.high;
+  var focus = existing?.focus ?? StudyFocus.three;
   var at = existing?.at ?? store.studyEntryDate;
   final saved = await showNexusSheet<bool>(
     context: context,
@@ -1232,22 +1232,26 @@ Future<void> openStudySessionForm(BuildContext context, AppStore store, {StudySe
                 onChanged: (value) => setSheet(() => minutes = value),
               ),
               const SizedBox(height: 8),
-              Text('集中度', style: TextStyle(color: NexusColors.textSecondary, fontSize: 12)),
+              Text('集中度（1〜5）', style: TextStyle(color: NexusColors.textSecondary, fontSize: 12)),
               const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
+              Row(
                 children: [
-                  for (final value in StudyFocus.values)
-                    ChoiceChip(
-                      label: Text(value.label),
-                      selected: focus == value,
-                      selectedColor: NexusColors.cyan.withValues(alpha: 0.25),
-                      labelStyle: TextStyle(
-                        color: focus == value ? NexusColors.cyan : NexusColors.text,
-                        fontWeight: FontWeight.w700,
+                  for (final value in StudyFocus.values) ...[
+                    if (value.index > 0) const SizedBox(width: 8),
+                    Expanded(
+                      child: ChoiceChip(
+                        showCheckmark: false,
+                        label: Center(child: Text(value.label)),
+                        selected: focus == value,
+                        selectedColor: NexusColors.cyan.withValues(alpha: 0.25),
+                        labelStyle: TextStyle(
+                          color: focus == value ? NexusColors.cyan : NexusColors.text,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        onSelected: (_) => setSheet(() => focus = value),
                       ),
-                      onSelected: (_) => setSheet(() => focus = value),
                     ),
+                  ],
                 ],
               ),
               const SizedBox(height: 14),

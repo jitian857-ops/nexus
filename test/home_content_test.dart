@@ -89,15 +89,25 @@ void main() {
     final store = AppStore.seed();
     final math = store.addSubject(name: '数学');
     final before = store.weekStudyHours;
-    store.addStudySession(subjectId: math.id, minutes: 60, focus: StudyFocus.peak);
+    store.addStudySession(subjectId: math.id, minutes: 60, focus: StudyFocus.five);
     expect(store.weekStudyHours, greaterThan(before));
-    expect(store.sessions.first.focus, StudyFocus.peak);
+    expect(store.sessions.first.focus, StudyFocus.five);
+  });
+
+  test('集中度の旧4段階は1〜5に読み替える', () {
+    expect(StudyFocus.parse('low'), StudyFocus.one);
+    expect(StudyFocus.parse('mid'), StudyFocus.three);
+    expect(StudyFocus.parse('high'), StudyFocus.four);
+    expect(StudyFocus.parse('peak'), StudyFocus.five);
+    expect(StudyFocus.parse(5), StudyFocus.five);
+    expect(StudyFocus.values, hasLength(5));
+    expect(StudyFocus.three.label, '3');
   });
 
   test('教科を消してもグラフに勉強時間は残る', () {
     final store = AppStore.seed();
     final math = store.addSubject(name: '数学');
-    store.addStudySession(subjectId: math.id, minutes: 60, focus: StudyFocus.high);
+    store.addStudySession(subjectId: math.id, minutes: 60, focus: StudyFocus.four);
     final hours = store.weekStudyHoursFor(store.studyWeek);
     store.deleteSubject(math.id);
     expect(store.visibleSubjects, isEmpty);
@@ -151,11 +161,11 @@ void main() {
   test('学習記録は更新と削除ができる', () {
     final store = AppStore.seed();
     final math = store.addSubject(name: '数学');
-    store.addStudySession(subjectId: math.id, minutes: 30, focus: StudyFocus.high);
+    store.addStudySession(subjectId: math.id, minutes: 30, focus: StudyFocus.four);
     final session = store.sessions.single;
-    store.updateStudySession(session.copyWith(minutes: 90, focus: StudyFocus.peak));
+    store.updateStudySession(session.copyWith(minutes: 90, focus: StudyFocus.five));
     expect(store.sessions.single.minutes, 90);
-    expect(store.sessions.single.focus, StudyFocus.peak);
+    expect(store.sessions.single.focus, StudyFocus.five);
     expect(store.totalStudyHours, closeTo(1.5, 0.0001));
     store.deleteStudySession(session.id);
     expect(store.sessions, isEmpty);
@@ -165,7 +175,7 @@ void main() {
   test('1分の学習は1分と表示される', () {
     final store = AppStore.seed();
     final math = store.addSubject(name: '数学');
-    store.addStudySession(subjectId: math.id, minutes: 1, focus: StudyFocus.high);
+    store.addStudySession(subjectId: math.id, minutes: 1, focus: StudyFocus.four);
     expect(store.weekStudyHours, closeTo(1 / 60, 0.0001));
     expect(formatStudyHours(store.weekStudyHours), '1分');
   });
@@ -174,7 +184,7 @@ void main() {
     final store = AppStore.seed();
     final math = store.addSubject(name: '数学');
     expect(store.weekChartSubjects(store.studyWeek).any((s) => s.id == math.id), isFalse);
-    store.addStudySession(subjectId: math.id, minutes: 30, focus: StudyFocus.high);
+    store.addStudySession(subjectId: math.id, minutes: 30, focus: StudyFocus.four);
     expect(store.weekChartSubjects(store.studyWeek).any((s) => s.id == math.id), isTrue);
   });
 
@@ -581,13 +591,13 @@ void main() {
     store.addStudySession(
       subjectId: math.id,
       minutes: 60,
-      focus: StudyFocus.high,
+      focus: StudyFocus.four,
       at: monday,
     );
     store.addStudySession(
       subjectId: math.id,
       minutes: 30,
-      focus: StudyFocus.high,
+      focus: StudyFocus.four,
       at: monday.add(const Duration(days: 2)),
     );
     final hours = store.subjectWeekHours(math.id);
@@ -631,7 +641,7 @@ void main() {
     store.setTimerSubject(english.id);
     store.setTimerMinutes(5);
     store.timerAccumulatedSeconds = 60;
-    store.finishTimer(focus: StudyFocus.high);
+    store.finishTimer(focus: StudyFocus.four);
     expect(store.sessions.first.subjectId, english.id);
     expect(store.selectedTimerSubjectId, english.id);
   });
@@ -664,10 +674,10 @@ void main() {
     final math = store.addSubject(name: '数学');
     expect(store.level, 1);
     expect(store.levelProgress, 0);
-    store.addStudySession(subjectId: math.id, minutes: 30, focus: StudyFocus.high);
+    store.addStudySession(subjectId: math.id, minutes: 30, focus: StudyFocus.four);
     expect(store.level, 1);
     expect(store.levelProgress, closeTo(0.5, 0.001));
-    store.addStudySession(subjectId: math.id, minutes: 30, focus: StudyFocus.high);
+    store.addStudySession(subjectId: math.id, minutes: 30, focus: StudyFocus.four);
     expect(store.level, 2);
     expect(store.levelProgress, 0);
   });

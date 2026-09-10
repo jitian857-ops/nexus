@@ -148,7 +148,7 @@ AppStore _seededStore() {
   store.addStudySession(
     subjectId: math.id,
     minutes: 50,
-    focus: StudyFocus.high,
+    focus: StudyFocus.four,
     at: today.add(const Duration(hours: 10)),
   );
   store.setDailyStudyGoalMinutes(120);

@@ -175,7 +175,7 @@ class SettingsScreen extends StatelessWidget {
                   icon: Icons.menu_book_outlined,
                   color: NexusColors.purple,
                   title: '画面の案内',
-                  subtitle: 'Home / Study / Life / Money の初回説明',
+                  subtitle: 'Home / Study / Life / Money / 設定 の初回説明',
                   onTap: () async {
                     await TutorialGate.resetAll(cloud.uid);
                     if (!context.mounted) return;

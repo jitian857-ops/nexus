@@ -233,7 +233,7 @@ class _FocusTimerPageState extends State<FocusTimerPage> {
     _tick?.cancel();
     unawaited(nexusTimerDoneFeedback());
 
-    StudyFocus focus = StudyFocus.high;
+    StudyFocus focus = StudyFocus.three;
     if (context.mounted) {
       final picked = await showGeneralDialog<StudyFocus>(
         context: context,
@@ -294,27 +294,39 @@ class _FocusTimerPageState extends State<FocusTimerPage> {
                           Align(
                             alignment: Alignment.centerLeft,
                             child: Text(
-                              '集中度は？',
+                              '集中度は？（1〜5）',
                               style: TextStyle(color: NexusColors.textMuted, fontSize: 12),
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          for (final value in StudyFocus.values)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: SizedBox(
-                                width: double.infinity,
-                                child: value == StudyFocus.high || value == StudyFocus.peak
-                                    ? FilledButton(
-                                        onPressed: () => Navigator.pop(context, value),
-                                        child: Text(value.label),
-                                      )
-                                    : OutlinedButton(
-                                        onPressed: () => Navigator.pop(context, value),
-                                        child: Text(value.label),
-                                      ),
-                              ),
-                            ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              for (final value in StudyFocus.values) ...[
+                                if (value.index > 0) const SizedBox(width: 6),
+                                Expanded(
+                                  child: value.level >= 4
+                                      ? FilledButton(
+                                          style: FilledButton.styleFrom(
+                                            padding: EdgeInsets.zero,
+                                            minimumSize: const Size(0, 44),
+                                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                          ),
+                                          onPressed: () => Navigator.pop(context, value),
+                                          child: Text(value.label),
+                                        )
+                                      : OutlinedButton(
+                                          style: OutlinedButton.styleFrom(
+                                            padding: EdgeInsets.zero,
+                                            minimumSize: const Size(0, 44),
+                                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                          ),
+                                          onPressed: () => Navigator.pop(context, value),
+                                          child: Text(value.label),
+                                        ),
+                                ),
+                              ],
+                            ],
+                          ),
                         ],
                       ),
                     ),

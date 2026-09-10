@@ -7,17 +7,35 @@ import '../core/format.dart';
 import 'nexus_icons.dart';
 
 enum StudyFocus {
-  low,
-  mid,
-  high,
-  peak;
+  one,
+  two,
+  three,
+  four,
+  five;
 
-  String get label => switch (this) {
-        low => 'いまいち',
-        mid => 'ふつう',
-        high => '集中',
-        peak => '最高',
-      };
+  int get level => index + 1;
+
+  String get label => '$level';
+
+  static const lowest = one;
+  static const highest = five;
+
+  static StudyFocus parse(Object? raw) {
+    if (raw is int) {
+      return StudyFocus.values[raw.clamp(1, 5) - 1];
+    }
+    if (raw is num) {
+      return parse(raw.round());
+    }
+    return switch (raw?.toString()) {
+      'low' || 'one' || '1' => one,
+      'two' || '2' => two,
+      'mid' || 'three' || '3' => three,
+      'high' || 'four' || '4' => four,
+      'peak' || 'five' || '5' => five,
+      _ => three,
+    };
+  }
 }
 
 enum ReviewRating { again, hard, normal, easy }
@@ -280,10 +298,7 @@ class StudySession {
       id: json['id'] as String,
       subjectId: json['subjectId'] as String? ?? '',
       minutes: json['minutes'] as int? ?? 0,
-      focus: StudyFocus.values.firstWhere(
-        (value) => value.name == json['focus'],
-        orElse: () => StudyFocus.high,
-      ),
+      focus: StudyFocus.parse(json['focus']),
       at: DateTime.parse(json['at'] as String),
     );
   }

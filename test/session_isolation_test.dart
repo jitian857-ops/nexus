@@ -179,7 +179,7 @@ void main() {
 
     final store = AppStore.seed();
     await store.attachCloud(cloud);
-    store.addStudySession(subjectId: 'sub', minutes: 10, focus: StudyFocus.high);
+    store.addStudySession(subjectId: 'sub', minutes: 10, focus: StudyFocus.four);
 
     await cloud.signOut();
     store.detachCloud();
@@ -216,7 +216,7 @@ void main() {
     final store = AppStore.seed();
     NexusPrefs.debugLoad = (_) async => const PrefsLoadResult.missing();
     await store.attachCloud(cloud);
-    store.addStudySession(subjectId: 'sub', minutes: 15, focus: StudyFocus.high);
+    store.addStudySession(subjectId: 'sub', minutes: 15, focus: StudyFocus.four);
     await Future<void>.delayed(const Duration(milliseconds: 450));
 
     await cloud.signOut();
@@ -253,7 +253,7 @@ void main() {
 
     final store = AppStore.seed();
     await store.attachCloud(cloud);
-    store.addStudySession(subjectId: 'x', minutes: 5, focus: StudyFocus.high);
+    store.addStudySession(subjectId: 'x', minutes: 5, focus: StudyFocus.four);
     expect(saved, isEmpty);
 
     NexusPrefs.debugLoad = null;

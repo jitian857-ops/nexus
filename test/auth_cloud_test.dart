@@ -122,7 +122,7 @@ void main() {
   test('学習データはJSONにして戻せる', () {
     final store = AppStore.seed();
     final math = store.addSubject(name: '数学');
-    store.addStudySession(subjectId: math.id, minutes: 30, focus: StudyFocus.high);
+    store.addStudySession(subjectId: math.id, minutes: 30, focus: StudyFocus.four);
     store.setOccupation('学生');
     final map = store.toCloudMap();
     final other = AppStore.seed();
