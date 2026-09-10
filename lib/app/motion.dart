@@ -46,11 +46,11 @@ class _PressScaleState extends State<PressScale> {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      behavior: HitTestBehavior.deferToChild,
+      behavior: HitTestBehavior.opaque,
       onTapDown: widget.enabled ? (_) => setState(() => _down = true) : null,
-      onTapUp: (_) => setState(() => _down = false),
-      onTapCancel: () => setState(() => _down = false),
-      onTap: widget.onTap,
+      onTapUp: widget.enabled ? (_) => setState(() => _down = false) : null,
+      onTapCancel: widget.enabled ? () => setState(() => _down = false) : null,
+      onTap: widget.enabled ? widget.onTap : null,
       child: AnimatedScale(
         scale: _down ? 0.97 : 1,
         duration: NexusMotion.fast,

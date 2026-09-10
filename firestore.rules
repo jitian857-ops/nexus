@@ -84,12 +84,19 @@ service cloud.firestore {
       allow get: if signedIn();
       allow list: if false;
       allow create: if signedIn() && request.resource.data.uid == uid();
-      allow delete: if signedIn() && resource.data.uid == uid();
+      allow delete: if signedIn() && (
+        resource == null || resource.data.uid == uid()
+      );
       allow update: if false;
     }
 
     match /friend_requests/{id} {
-      allow read: if signedIn() && (
+      allow get: if signedIn() && (
+        resource == null
+        || resource.data.sender_id == uid()
+        || resource.data.receiver_id == uid()
+      );
+      allow list: if signedIn() && (
         resource.data.sender_id == uid() || resource.data.receiver_id == uid()
       );
       allow create: if signedIn()
@@ -108,32 +115,48 @@ service cloud.firestore {
     }
 
     match /friendships/{id} {
-      allow read: if signedIn() && (
+      allow get: if signedIn() && (
+        resource == null
+        || resource.data.user_a == uid()
+        || resource.data.user_b == uid()
+      );
+      allow list: if signedIn() && (
         resource.data.user_a == uid() || resource.data.user_b == uid()
       );
       allow create: if signedIn() && (
         request.resource.data.user_a == uid() || request.resource.data.user_b == uid()
       );
       allow delete: if signedIn() && (
-        resource.data.user_a == uid() || resource.data.user_b == uid()
+        resource == null
+        || resource.data.user_a == uid()
+        || resource.data.user_b == uid()
       );
       allow update: if false;
     }
 
     match /blocks/{id} {
-      allow read: if signedIn() && (
+      allow get: if signedIn() && (
+        resource == null
+        || resource.data.blocker_id == uid()
+        || resource.data.blocked_id == uid()
+      );
+      allow list: if signedIn() && (
         resource.data.blocker_id == uid() || resource.data.blocked_id == uid()
       );
       allow create: if signedIn() && request.resource.data.blocker_id == uid();
-      allow delete: if signedIn() && resource.data.blocker_id == uid();
+      allow delete: if signedIn() && (
+        resource == null || resource.data.blocker_id == uid()
+      );
       allow update: if false;
     }
 
     match /shared_items/{id} {
-      allow read: if signedIn() && (
-        resource.data.owner_id == uid()
+      allow get: if signedIn() && (
+        resource == null
+        || resource.data.owner_id == uid()
         || viewerMayReadShare(id, resource.data.owner_id)
       );
+      allow list: if signedIn() && resource.data.owner_id == uid();
       allow create: if signedIn() && request.resource.data.owner_id == uid();
       allow update: if signedIn()
         && resource.data.owner_id == uid()
@@ -142,38 +165,40 @@ service cloud.firestore {
     }
 
     match /share_acl/{id} {
-      allow read: if signedIn() && (
-        (
-          exists(/databases/$(database)/documents/shared_items/$(resource.data.item_id))
-          && get(/databases/$(database)/documents/shared_items/$(resource.data.item_id)).data.owner_id == uid()
-        )
-        || (
-          resource.data.viewer_id == uid()
-          && id == resource.data.item_id + '_' + resource.data.viewer_id
-          && exists(/databases/$(database)/documents/shared_items/$(resource.data.item_id))
-          && viewerMayReadShareFromAcl(
-            resource.data.item_id,
-            get(/databases/$(database)/documents/shared_items/$(resource.data.item_id)).data.owner_id
-          )
-        )
+      allow get: if signedIn() && (
+        resource == null
+        || resource.data.viewer_id == uid()
+        || resource.data.owner_id == uid()
+      );
+      allow list: if signedIn() && (
+        resource.data.viewer_id == uid() || resource.data.owner_id == uid()
       );
       allow create: if signedIn()
         && request.resource.data.item_id is string
         && request.resource.data.viewer_id is string
+        && request.resource.data.owner_id == uid()
         && request.resource.data.viewer_id != uid()
         && id == request.resource.data.item_id + '_' + request.resource.data.viewer_id
         && exists(/databases/$(database)/documents/shared_items/$(request.resource.data.item_id))
         && get(/databases/$(database)/documents/shared_items/$(request.resource.data.item_id)).data.owner_id == uid()
         && areFriends(request.resource.data.viewer_id)
         && !blockedWith(request.resource.data.viewer_id);
-      allow delete: if signedIn()
-        && exists(/databases/$(database)/documents/shared_items/$(resource.data.item_id))
-        && get(/databases/$(database)/documents/shared_items/$(resource.data.item_id)).data.owner_id == uid();
+      allow delete: if signedIn() && (
+        resource == null
+        || resource.data.owner_id == uid()
+        || (
+          exists(/databases/$(database)/documents/shared_items/$(resource.data.item_id))
+          && get(/databases/$(database)/documents/shared_items/$(resource.data.item_id)).data.owner_id == uid()
+        )
+      );
       allow update: if false;
     }
 
     match /notifications/{id} {
-      allow read: if signedIn() && resource.data.user_id == uid();
+      allow get: if signedIn() && (
+        resource == null || resource.data.user_id == uid()
+      );
+      allow list: if signedIn() && resource.data.user_id == uid();
       allow create: if signedIn();
       allow update: if signedIn() && resource.data.user_id == uid()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read_at']);

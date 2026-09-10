@@ -160,10 +160,13 @@ String cloudErrorMessage(Object error) {
     return 'メールアドレスまたはパスワードが違います';
   }
   if (text.contains('too-many-requests')) return '少し待ってからやり直してください';
+  if (text.contains('operation-not-allowed')) {
+    return 'この認証方法はまだ有効になっていません。Firebase の Email/Password を確認してください';
+  }
   if (text.contains('unauthorized-continue-uri') || text.contains('invalid-continue-uri')) {
     return '認証メールのリンク先が許可されていません。Firebase の Authorized domains を確認してください';
   }
-  if (text.contains('permission-denied') || text.contains('PERMISSION_DENIED')) {
+  if (text.contains('permission-denied') || text.contains('PERMISSION_DENIED') || text.contains('許可されていません')) {
     return 'この操作は許可されていません';
   }
   if (text.contains('requires-recent-login')) return '安全のため、もう一度ログインしてから削除してください';

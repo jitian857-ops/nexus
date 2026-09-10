@@ -50,10 +50,10 @@ class _FriendsPageState extends State<FriendsPage> {
     });
     try {
       final me = await cloud.ensureFriendCode();
-      final incoming = await cloud.incomingFriendRequests();
-      final outgoing = await cloud.outgoingFriendRequests();
-      final friends = await cloud.listFriends();
-      final shared = await cloud.listSharedWithMe();
+      final incoming = await _loadList(cloud.incomingFriendRequests);
+      final outgoing = await _loadList(cloud.outgoingFriendRequests);
+      final friends = await _loadList(cloud.listFriends);
+      final shared = await _loadList(cloud.listSharedWithMe);
       if (!mounted) return;
       setState(() {
         _me = me;
@@ -69,6 +69,14 @@ class _FriendsPageState extends State<FriendsPage> {
         _error = cloudErrorMessage(error);
         _loading = false;
       });
+    }
+  }
+
+  Future<List<T>> _loadList<T>(Future<List<T>> Function() load) async {
+    try {
+      return await load();
+    } catch (_) {
+      return <T>[];
     }
   }
 

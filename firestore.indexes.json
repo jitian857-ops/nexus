@@ -9,6 +9,22 @@
       ]
     },
     {
+      "collectionGroup": "share_acl",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "item_id", "order": "ASCENDING" },
+        { "fieldPath": "owner_id", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "share_acl",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "owner_id", "order": "ASCENDING" },
+        { "fieldPath": "viewer_id", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "friend_requests",
       "queryScope": "COLLECTION",
       "fields": [

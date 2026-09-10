@@ -203,4 +203,19 @@ void main() {
     expect(PasswordHash.matches('secret123', salt, PasswordHash.hash('secret123', salt)), isTrue);
     expect(PasswordHash.matches('other', salt, PasswordHash.hash('secret123', salt)), isFalse);
   });
+
+  test('クラウドエラーは日本語で分かる', () {
+    expect(cloudErrorMessage(CloudException('この操作は許可されていません')), 'この操作は許可されていません');
+    expect(cloudErrorMessage(Exception('permission-denied')), 'この操作は許可されていません');
+    expect(cloudErrorMessage(Exception('[cloud_firestore/permission-denied] PERMISSION_DENIED')), 'この操作は許可されていません');
+    expect(cloudErrorMessage(Exception('email-already-in-use')), 'このメールアドレスはすでに登録されています');
+    expect(
+      cloudErrorMessage(Exception('operation-not-allowed')),
+      'この認証方法はまだ有効になっていません。Firebase の Email/Password を確認してください',
+    );
+    expect(
+      cloudErrorMessage(Exception('unauthorized-continue-uri')),
+      '認証メールのリンク先が許可されていません。Firebase の Authorized domains を確認してください',
+    );
+  });
 }

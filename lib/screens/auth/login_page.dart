@@ -762,45 +762,49 @@ class _AuthPrimaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PressScale(
-      enabled: onTap != null,
-      onTap: onTap,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          gradient: LinearGradient(colors: [palette.ctaStart, palette.ctaEnd]),
-          boxShadow: [
-            BoxShadow(
-              color: palette.ctaShadow.withValues(alpha: 0.32),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: SizedBox(
-          height: 52,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                if (busy)
-                  const SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white),
-                  )
-                else
-                  Text(
-                    label,
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16),
-                  ),
-                if (!busy)
-                  const Align(
-                    alignment: Alignment.centerRight,
-                    child: Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 22),
-                  ),
-              ],
+    return SizedBox(
+      width: double.infinity,
+      child: PressScale(
+        enabled: onTap != null,
+        onTap: onTap,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            gradient: LinearGradient(colors: [palette.ctaStart, palette.ctaEnd]),
+            boxShadow: [
+              BoxShadow(
+                color: palette.ctaShadow.withValues(alpha: 0.32),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  if (busy)
+                    const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white),
+                    )
+                  else
+                    Text(
+                      label,
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16),
+                    ),
+                  if (!busy)
+                    const Align(
+                      alignment: Alignment.centerRight,
+                      child: Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 22),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
@@ -822,21 +826,25 @@ class _AuthGuestButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PressScale(
-      enabled: enabled,
-      onTap: onTap,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: palette.fieldFill,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: palette.link, width: 1.2),
-        ),
-        child: SizedBox(
-          height: 52,
-          child: Center(
-            child: Text(
-              'ゲストとして試す',
-              style: TextStyle(color: palette.link, fontWeight: FontWeight.w800, fontSize: 15),
+    return SizedBox(
+      width: double.infinity,
+      child: PressScale(
+        enabled: enabled,
+        onTap: onTap,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: palette.fieldFill,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: palette.link, width: 1.2),
+          ),
+          child: SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: Center(
+              child: Text(
+                'ゲストとして試す',
+                style: TextStyle(color: palette.link, fontWeight: FontWeight.w800, fontSize: 15),
+              ),
             ),
           ),
         ),

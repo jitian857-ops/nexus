@@ -58,9 +58,12 @@ class _ScheduleEditSheetState extends State<ScheduleEditSheet> {
     final item = widget.initial;
     final cloud = CloudScope.maybeOf(context);
     if (item == null || cloud == null) return;
-    cloud.findMyShare(SharedKind.schedule, item.id).then((existing) {
-      if (!mounted || existing == null) return;
-      setState(() => _shareWith = [...existing.viewerIds]);
+    Future<void>(() async {
+      try {
+        final existing = await cloud.findMyShare(SharedKind.schedule, item.id);
+        if (!mounted || existing == null) return;
+        setState(() => _shareWith = [...existing.viewerIds]);
+      } catch (_) {}
     });
   }
 

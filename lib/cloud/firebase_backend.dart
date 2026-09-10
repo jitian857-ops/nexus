@@ -36,19 +36,154 @@ class FirebaseBackend implements CloudBackend {
     await _auth.setLanguageCode('ja');
     try {
       await user.sendEmailVerification(_continueSettings());
-    } catch (error) {
-      final text = error.toString();
-      final continueUriBad = error is FirebaseAuthException &&
-              (error.code == 'unauthorized-continue-uri' ||
-                  error.code == 'invalid-continue-uri' ||
-                  error.code == 'missing-continue-uri') ||
-          text.contains('continue-uri') ||
-          text.contains('continue_uri');
-      if (continueUriBad) {
-        await user.sendEmailVerification();
-        return;
+    } on FirebaseAuthException {
+      await user.sendEmailVerification();
+    }
+  }
+
+  Future<void> _bindUser(User user) async {
+    await user.getIdToken();
+    _session = await _sessionFrom(user);
+  }
+
+  Future<void> _writeProfileReady(User user, {required String displayName, required String occupation}) async {
+    await user.getIdToken(true);
+    try {
+      await _writeProfile(user, displayName: displayName, occupation: occupation);
+    } catch (_) {
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      await user.getIdToken(true);
+      await _writeProfile(user, displayName: displayName, occupation: occupation);
+    }
+  }
+
+  Future<CloudSession> _completeSignUp(
+    User user, {
+    required String displayName,
+    required String occupation,
+  }) async {
+    final name = displayName.trim();
+    final job = occupation.trim();
+    try {
+      await user.updateDisplayName(name);
+    } catch (_) {}
+    try {
+      await _writeProfileReady(user, displayName: name, occupation: job);
+    } catch (_) {}
+    try {
+      await _bindUser(user);
+    } catch (_) {
+      _session = CloudSession(
+        uid: user.uid,
+        email: user.email ?? '',
+        displayName: name.isEmpty ? (user.displayName ?? '') : name,
+        occupation: job,
+        emailVerified: user.emailVerified,
+        usesFirebase: true,
+      );
+    }
+    try {
+      await _sendVerificationEmail(user);
+    } catch (_) {}
+    try {
+      await ensureFriendCode();
+    } catch (_) {}
+    await _safeAddMail(
+      user.uid,
+      MailItem(
+        id: _db.collection('_').doc().id,
+        title: 'NEXUS へようこそ',
+        body: '${user.email} の受信箱（Gmail など）を見てください。送信元は noreply@nexus-50e0e.firebaseapp.com です。この画面は控えです。',
+        at: DateTime.now(),
+        kind: 'verify',
+      ),
+    );
+    return _session!;
+  }
+
+  Future<CloudSession> _recoverExistingAuthUser({
+    required String email,
+    required String password,
+    required String displayName,
+    required String occupation,
+  }) async {
+    final current = _auth.currentUser;
+    if (current != null && _sameEmail(current.email, email)) {
+      return _completeSignUp(current, displayName: displayName, occupation: occupation);
+    }
+    try {
+      final cred = await _auth.signInWithEmailAndPassword(email: email, password: password);
+      final user = cred.user;
+      if (user == null) throw CloudException('このメールアドレスはすでに登録されています');
+      return _completeSignUp(user, displayName: displayName, occupation: occupation);
+    } on FirebaseAuthException {
+      throw CloudException('このメールアドレスはすでに登録されています');
+    }
+  }
+
+  bool _sameEmail(String? left, String right) =>
+      (left ?? '').trim().toLowerCase() == right.trim().toLowerCase();
+
+  @override
+  Future<CloudSession> signUp({
+    required String email,
+    required String password,
+    required String displayName,
+    required String occupation,
+  }) async {
+    if (!isValidEmail(email)) throw CloudException('メールアドレスの形が正しくありません');
+    if (!isValidPassword(password)) throw CloudException('パスワードは8文字以上にしてください');
+    if (displayName.trim().isEmpty) throw CloudException('名前を入力してください');
+    final trimmed = email.trim();
+    try {
+      final cred = await _auth.createUserWithEmailAndPassword(
+        email: trimmed,
+        password: password,
+      );
+      final user = cred.user;
+      if (user == null) throw CloudException('登録できませんでした');
+      return _completeSignUp(user, displayName: displayName, occupation: occupation);
+    } on FirebaseAuthException catch (error) {
+      if (error.code == 'email-already-in-use') {
+        return _recoverExistingAuthUser(
+          email: trimmed,
+          password: password,
+          displayName: displayName,
+          occupation: occupation,
+        );
       }
-      rethrow;
+      throw CloudException(cloudErrorMessage(error));
+    } catch (error) {
+      if (error is CloudException) rethrow;
+      final current = _auth.currentUser;
+      if (current != null && _sameEmail(current.email, trimmed)) {
+        try {
+          return _completeSignUp(current, displayName: displayName, occupation: occupation);
+        } catch (_) {}
+      }
+      throw CloudException(cloudErrorMessage(error));
+    }
+  }
+
+  @override
+  Future<CloudSession> signIn({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      final cred = await _auth.signInWithEmailAndPassword(
+        email: email.trim(),
+        password: password,
+      );
+      final user = cred.user;
+      if (user == null) throw CloudException('ログインできませんでした');
+      await _bindUser(user);
+      try {
+        await ensureFriendCode();
+      } catch (_) {}
+      return _session!;
+    } catch (error) {
+      throw CloudException(cloudErrorMessage(error));
     }
   }
 
@@ -70,8 +205,13 @@ class FirebaseBackend implements CloudBackend {
   }
 
   Future<CloudSession> _sessionFrom(User user) async {
-    final snap = await _user(user.uid).get();
-    final data = snap.data() ?? {};
+    Map<String, dynamic> data = {};
+    try {
+      final snap = await _user(user.uid).get();
+      data = snap.data() ?? {};
+    } catch (error) {
+      if (!_denied(error)) rethrow;
+    }
     return CloudSession(
       uid: user.uid,
       email: user.email ?? '',
@@ -101,63 +241,6 @@ class FirebaseBackend implements CloudBackend {
       },
       SetOptions(merge: true),
     );
-  }
-
-  @override
-  Future<CloudSession> signUp({
-    required String email,
-    required String password,
-    required String displayName,
-    required String occupation,
-  }) async {
-    if (!isValidEmail(email)) throw CloudException('メールアドレスの形が正しくありません');
-    if (!isValidPassword(password)) throw CloudException('パスワードは8文字以上にしてください');
-    if (displayName.trim().isEmpty) throw CloudException('名前を入力してください');
-    try {
-      final cred = await _auth.createUserWithEmailAndPassword(
-        email: email.trim(),
-        password: password,
-      );
-      final user = cred.user;
-      if (user == null) throw CloudException('登録できませんでした');
-      await user.updateDisplayName(displayName.trim());
-      await _writeProfile(user, displayName: displayName.trim(), occupation: occupation.trim());
-      await _sendVerificationEmail(user);
-      _session = await _sessionFrom(user);
-      await ensureFriendCode();
-      await _safeAddMail(
-        user.uid,
-        MailItem(
-          id: _db.collection('_').doc().id,
-          title: 'NEXUS へようこそ',
-          body: '${user.email} の受信箱（Gmail など）を見てください。送信元は noreply@nexus-50e0e.firebaseapp.com です。この画面は控えです。',
-          at: DateTime.now(),
-          kind: 'verify',
-        ),
-      );
-      return _session!;
-    } catch (error) {
-      throw CloudException(cloudErrorMessage(error));
-    }
-  }
-
-  @override
-  Future<CloudSession> signIn({
-    required String email,
-    required String password,
-  }) async {
-    try {
-      final cred = await _auth.signInWithEmailAndPassword(
-        email: email.trim(),
-        password: password,
-      );
-      final user = cred.user;
-      if (user == null) throw CloudException('ログインできませんでした');
-      _session = await _sessionFrom(user);
-      return _session!;
-    } catch (error) {
-      throw CloudException(cloudErrorMessage(error));
-    }
   }
 
   @override
@@ -306,13 +389,23 @@ class FirebaseBackend implements CloudBackend {
 
   @override
   Future<Map<String, dynamic>?> pullLive(String uid) async {
-    final snap = await _user(uid).collection('live').doc('current').get();
-    return snap.data();
+    try {
+      final snap = await _user(uid).collection('live').doc('current').get();
+      return snap.data();
+    } catch (error) {
+      if (_denied(error)) return null;
+      rethrow;
+    }
   }
 
   @override
   Future<void> pushLive(String uid, Map<String, dynamic> bundle) async {
-    await _user(uid).collection('live').doc('current').set(bundle);
+    try {
+      await _user(uid).collection('live').doc('current').set(bundle);
+    } catch (error) {
+      if (_denied(error)) return;
+      rethrow;
+    }
   }
 
   @override
@@ -329,7 +422,13 @@ class FirebaseBackend implements CloudBackend {
 
   @override
   Future<List<VaultRecord>> listVault(String uid) async {
-    final snap = await _user(uid).collection('vault').orderBy('at', descending: true).get();
+    QuerySnapshot<Map<String, dynamic>> snap;
+    try {
+      snap = await _user(uid).collection('vault').orderBy('at', descending: true).get();
+    } catch (error) {
+      if (_querySkipped(error)) return const [];
+      rethrow;
+    }
     return [
       for (final doc in snap.docs)
         VaultRecord(
@@ -343,12 +442,12 @@ class FirebaseBackend implements CloudBackend {
 
   @override
   Future<VaultRecord?> readVault(String uid, String id) async {
-    final snap = await _user(uid).collection('vault').doc(id).get();
-    final data = snap.data();
+    final snap = await _safeGet(_user(uid).collection('vault').doc(id));
+    final data = snap?.data();
     if (data == null) return null;
     final payload = data['data'];
     return VaultRecord(
-      id: snap.id,
+      id: snap?.id ?? id,
       at: DateTime.tryParse(data['at'] as String? ?? '') ?? DateTime.now(),
       reason: data['reason'] as String? ?? '',
       bytes: data['bytes'] as int? ?? 0,
@@ -358,7 +457,13 @@ class FirebaseBackend implements CloudBackend {
 
   @override
   Future<List<MailItem>> listMail(String uid) async {
-    final snap = await _user(uid).collection('mail').orderBy('at', descending: true).get();
+    QuerySnapshot<Map<String, dynamic>> snap;
+    try {
+      snap = await _user(uid).collection('mail').orderBy('at', descending: true).get();
+    } catch (error) {
+      if (_querySkipped(error)) return const [];
+      rethrow;
+    }
     return [
       for (final doc in snap.docs)
         MailItem.fromJson({
@@ -375,7 +480,11 @@ class FirebaseBackend implements CloudBackend {
 
   @override
   Future<void> markMailRead(String uid, String id) async {
-    await _user(uid).collection('mail').doc(id).set({'read': true}, SetOptions(merge: true));
+    try {
+      await _user(uid).collection('mail').doc(id).set({'read': true}, SetOptions(merge: true));
+    } catch (error) {
+      if (!_denied(error)) rethrow;
+    }
   }
 
   String _uid() {
@@ -387,31 +496,88 @@ class FirebaseBackend implements CloudBackend {
   DocumentReference<Map<String, dynamic>> _profile(String uid) => _db.collection('profiles').doc(uid);
 
   Future<FriendProfile> _readProfile(String uid) async {
-    final snap = await _profile(uid).get();
-    final data = snap.data() ?? {};
-    return FriendProfile(
-      uid: uid,
-      displayName: data['displayName'] as String? ?? 'ユーザー',
-      friendCode: data['friendCode'] as String? ?? '',
-      occupation: data['occupation'] as String? ?? '',
-    );
+    try {
+      final snap = await _profile(uid).get();
+      final data = snap.data() ?? {};
+      return FriendProfile(
+        uid: uid,
+        displayName: data['displayName'] as String? ?? 'ユーザー',
+        friendCode: data['friendCode'] as String? ?? '',
+        occupation: data['occupation'] as String? ?? '',
+      );
+    } catch (error) {
+      if (_denied(error)) {
+        return FriendProfile(uid: uid, displayName: 'ユーザー', friendCode: '', occupation: '');
+      }
+      rethrow;
+    }
+  }
+
+  bool _denied(Object error) {
+    if (error is FirebaseException && error.code == 'permission-denied') return true;
+    final text = error.toString();
+    return text.contains('permission-denied') || text.contains('PERMISSION_DENIED');
+  }
+
+  bool _querySkipped(Object error) {
+    if (_denied(error)) return true;
+    if (error is FirebaseException &&
+        (error.code == 'failed-precondition' || error.code == 'unimplemented')) {
+      return true;
+    }
+    final text = error.toString();
+    return text.contains('FAILED_PRECONDITION') || text.contains('requires an index');
+  }
+
+  Future<DocumentSnapshot<Map<String, dynamic>>?> _safeGet(
+    DocumentReference<Map<String, dynamic>> ref,
+  ) async {
+    try {
+      return await ref.get();
+    } catch (error) {
+      if (_denied(error)) return null;
+      rethrow;
+    }
+  }
+
+  Future<void> _safeDelete(DocumentReference<Map<String, dynamic>> ref) async {
+    try {
+      await ref.delete();
+    } catch (error) {
+      if (!_denied(error)) rethrow;
+    }
   }
 
   Future<bool> _blockedPair(String a, String b) async {
-    final one = await _db.collection('blocks').doc('${a}_$b').get();
-    if (one.exists) return true;
-    final two = await _db.collection('blocks').doc('${b}_$a').get();
-    return two.exists;
+    try {
+      final one = await _db.collection('blocks').doc('${a}_$b').get();
+      if (one.exists) return true;
+      final two = await _db.collection('blocks').doc('${b}_$a').get();
+      return two.exists;
+    } catch (error) {
+      if (_denied(error)) return false;
+      rethrow;
+    }
   }
 
   Future<bool> _areFriends(String a, String b) async {
-    final snap = await _db.collection('friendships').doc(_pairKey(a, b)).get();
-    return snap.exists;
+    try {
+      final snap = await _db.collection('friendships').doc(_pairKey(a, b)).get();
+      return snap.exists;
+    } catch (error) {
+      if (_denied(error)) return false;
+      rethrow;
+    }
   }
 
   Future<DateTime?> _friendshipStartedAt(String a, String b) async {
-    final snap = await _db.collection('friendships').doc(_pairKey(a, b)).get();
-    return DateTime.tryParse(snap.data()?['created_at'] as String? ?? '');
+    try {
+      final snap = await _db.collection('friendships').doc(_pairKey(a, b)).get();
+      return DateTime.tryParse(snap.data()?['created_at'] as String? ?? '');
+    } catch (error) {
+      if (_denied(error)) return null;
+      rethrow;
+    }
   }
 
   String _pairKey(String a, String b) {
@@ -421,42 +587,74 @@ class FirebaseBackend implements CloudBackend {
   }
 
   Future<void> _notify(String userId, String type, String actorId, {String? targetId, String? title, String? body}) async {
-    await _db.collection('notifications').add({
-      'user_id': userId,
-      'type': type,
-      'actor_id': actorId,
-      'target_id': targetId,
-      'title': title,
-      'body': body,
-      'created_at': DateTime.now().toIso8601String(),
-    });
+    try {
+      await _db.collection('notifications').add({
+        'user_id': userId,
+        'type': type,
+        'actor_id': actorId,
+        'target_id': targetId,
+        'title': title,
+        'body': body,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+    } catch (_) {}
   }
 
   @override
   Future<FriendProfile> ensureFriendCode({bool regenerate = false}) async {
     final uid = _uid();
-    final snap = await _profile(uid).get();
-    final current = snap.data()?['friendCode'] as String? ?? '';
-    if (!regenerate && current.isNotEmpty) return _readProfile(uid);
+    Map<String, dynamic>? data;
+    try {
+      data = (await _profile(uid).get()).data();
+    } catch (error) {
+      if (!_denied(error)) rethrow;
+    }
+    final current = data?['friendCode'] as String? ?? '';
+    if (!regenerate && current.isNotEmpty) {
+      return FriendProfile(
+        uid: uid,
+        displayName: data?['displayName'] as String? ?? _session?.displayName ?? 'ユーザー',
+        friendCode: current,
+        occupation: data?['occupation'] as String? ?? _session?.occupation ?? '',
+      );
+    }
     if (current.isNotEmpty) {
-      await _db.collection('friend_codes').doc(current).delete();
+      try {
+        await _db.collection('friend_codes').doc(current).delete();
+      } catch (_) {}
     }
     String code = generateFriendCode();
     for (var i = 0; i < 8; i++) {
-      final exists = await _db.collection('friend_codes').doc(code).get();
-      if (!exists.exists) break;
+      try {
+        final exists = await _db.collection('friend_codes').doc(code).get();
+        if (!exists.exists) break;
+      } catch (error) {
+        if (_denied(error)) break;
+        rethrow;
+      }
       code = generateFriendCode();
     }
-    await _db.collection('friend_codes').doc(code).set({'uid': uid});
-    await _profile(uid).set(
-      {
-        'uid': uid,
-        'friendCode': code,
-        'displayName': _session?.displayName ?? _auth.currentUser?.displayName ?? 'ユーザー',
-        'occupation': _session?.occupation ?? '',
-      },
-      SetOptions(merge: true),
-    );
+    Future<void> write() async {
+      await _db.collection('friend_codes').doc(code).set({'uid': uid});
+      await _profile(uid).set(
+        {
+          'uid': uid,
+          'friendCode': code,
+          'displayName': _session?.displayName ?? _auth.currentUser?.displayName ?? 'ユーザー',
+          'occupation': _session?.occupation ?? '',
+        },
+        SetOptions(merge: true),
+      );
+    }
+
+    try {
+      await write();
+    } catch (error) {
+      if (!_denied(error)) rethrow;
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      await _auth.currentUser?.getIdToken(true);
+      await write();
+    }
     return _readProfile(uid);
   }
 
@@ -467,15 +665,15 @@ class FirebaseBackend implements CloudBackend {
     if (q.isEmpty) return null;
     String? uid;
     if (q.length == 8) {
-      final code = await _db.collection('friend_codes').doc(q).get();
-      uid = code.data()?['uid'] as String?;
+      final code = await _safeGet(_db.collection('friend_codes').doc(q));
+      uid = code?.data()?['uid'] as String?;
     }
     uid ??= query.trim();
     if (uid.isEmpty) return null;
     if (uid == me) throw CloudException('自分は追加できません');
     if (await _blockedPair(me, uid)) return null;
-    final snap = await _profile(uid).get();
-    if (!snap.exists) return null;
+    final snap = await _safeGet(_profile(uid));
+    if (snap == null || !snap.exists) return null;
     return _readProfile(uid);
   }
 
@@ -484,11 +682,10 @@ class FirebaseBackend implements CloudBackend {
     final me = _uid();
     if (me == toUid) throw CloudException('自分は追加できません');
     if (await _blockedPair(me, toUid)) throw CloudException('申請できません');
-    final friend = await _db.collection('friendships').doc(_pairKey(me, toUid)).get();
-    if (friend.exists) throw CloudException('すでにフレンドです');
-    final mine = await _db.collection('friend_requests').where('sender_id', isEqualTo: me).get();
-    final theirs = await _db.collection('friend_requests').where('receiver_id', isEqualTo: me).get();
-    for (final doc in [...mine.docs, ...theirs.docs]) {
+    if (await _areFriends(me, toUid)) throw CloudException('すでにフレンドです');
+    final mine = await _safeQuery(_db.collection('friend_requests').where('sender_id', isEqualTo: me));
+    final theirs = await _safeQuery(_db.collection('friend_requests').where('receiver_id', isEqualTo: me));
+    for (final doc in [...mine, ...theirs]) {
       final row = doc.data();
       if (row['status'] != 'pending') continue;
       final sender = row['sender_id'] as String? ?? '';
@@ -583,12 +780,23 @@ class FirebaseBackend implements CloudBackend {
     ];
   }
 
+  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> _safeQuery(
+    Query<Map<String, dynamic>> query,
+  ) async {
+    try {
+      return (await query.get()).docs;
+    } catch (error) {
+      if (_querySkipped(error)) return const [];
+      rethrow;
+    }
+  }
+
   @override
   Future<List<FriendRequestItem>> incomingFriendRequests() async {
     final me = _uid();
-    final snap = await _db.collection('friend_requests').where('receiver_id', isEqualTo: me).get();
+    final docs = await _safeQuery(_db.collection('friend_requests').where('receiver_id', isEqualTo: me));
     final items = [
-      for (final doc in snap.docs)
+      for (final doc in docs)
         if (doc.data()['status'] == 'pending') _requestFrom(doc),
     ];
     return _fillRequestProfiles(items);
@@ -597,9 +805,9 @@ class FirebaseBackend implements CloudBackend {
   @override
   Future<List<FriendRequestItem>> outgoingFriendRequests() async {
     final me = _uid();
-    final snap = await _db.collection('friend_requests').where('sender_id', isEqualTo: me).get();
+    final docs = await _safeQuery(_db.collection('friend_requests').where('sender_id', isEqualTo: me));
     final items = [
-      for (final doc in snap.docs)
+      for (final doc in docs)
         if (doc.data()['status'] == 'pending') _requestFrom(doc),
     ];
     return _fillRequestProfiles(items);
@@ -608,10 +816,10 @@ class FirebaseBackend implements CloudBackend {
   @override
   Future<List<FriendProfile>> listFriends() async {
     final me = _uid();
-    final a = await _db.collection('friendships').where('user_a', isEqualTo: me).get();
-    final b = await _db.collection('friendships').where('user_b', isEqualTo: me).get();
+    final a = await _safeQuery(_db.collection('friendships').where('user_a', isEqualTo: me));
+    final b = await _safeQuery(_db.collection('friendships').where('user_b', isEqualTo: me));
     final others = <String>{};
-    for (final doc in [...a.docs, ...b.docs]) {
+    for (final doc in [...a, ...b]) {
       final ua = doc.data()['user_a'] as String? ?? '';
       final ub = doc.data()['user_b'] as String? ?? '';
       others.add(ua == me ? ub : ua);
@@ -627,22 +835,20 @@ class FirebaseBackend implements CloudBackend {
   @override
   Future<void> removeFriend(String uid) async {
     final me = _uid();
-    await _db.collection('friendships').doc(_pairKey(me, uid)).delete();
+    await _safeDelete(_db.collection('friendships').doc(_pairKey(me, uid)));
     await _revokeAclsBetween(me, uid);
   }
 
   Future<void> _revokeAclsBetween(String a, String b) async {
-    final mine = await _db.collection('share_acl').where('viewer_id', isEqualTo: b).get();
-    for (final doc in mine.docs) {
-      final itemId = doc.data()['item_id'] as String? ?? '';
-      final item = await _db.collection('shared_items').doc(itemId).get();
-      if (item.data()?['owner_id'] == a) await doc.reference.delete();
+    final mine = await _safeQuery(_db.collection('share_acl').where('owner_id', isEqualTo: a));
+    for (final doc in mine) {
+      if (doc.data()['viewer_id'] != b) continue;
+      await _safeDelete(doc.reference);
     }
-    final theirs = await _db.collection('share_acl').where('viewer_id', isEqualTo: a).get();
-    for (final doc in theirs.docs) {
-      final itemId = doc.data()['item_id'] as String? ?? '';
-      final item = await _db.collection('shared_items').doc(itemId).get();
-      if (item.data()?['owner_id'] == b) await doc.reference.delete();
+    final theirs = await _safeQuery(_db.collection('share_acl').where('viewer_id', isEqualTo: a));
+    for (final doc in theirs) {
+      if (doc.data()['owner_id'] != b) continue;
+      await _safeDelete(doc.reference);
     }
   }
 
@@ -654,16 +860,16 @@ class FirebaseBackend implements CloudBackend {
       'blocked_id': uid,
       'created_at': DateTime.now().toIso8601String(),
     });
-    await _db.collection('friendships').doc(_pairKey(me, uid)).delete();
+    await _safeDelete(_db.collection('friendships').doc(_pairKey(me, uid)));
     await _revokeAclsBetween(me, uid);
   }
 
   @override
   Future<List<FriendProfile>> listBlocked() async {
     final me = _uid();
-    final snap = await _db.collection('blocks').where('blocker_id', isEqualTo: me).get();
+    final docs = await _safeQuery(_db.collection('blocks').where('blocker_id', isEqualTo: me));
     return [
-      for (final doc in snap.docs) await _readProfile(doc.data()['blocked_id'] as String? ?? ''),
+      for (final doc in docs) await _readProfile(doc.data()['blocked_id'] as String? ?? ''),
     ];
   }
 
@@ -694,9 +900,9 @@ class FirebaseBackend implements CloudBackend {
         if (id != me && friends.contains(id) && !(await _blockedPair(me, id))) id,
     ];
     if (viewers.isEmpty) throw CloudException('共有先を選んでください');
-    final existing = await _db.collection('shared_items').where('owner_id', isEqualTo: me).get();
+    final existing = await _safeQuery(_db.collection('shared_items').where('owner_id', isEqualTo: me));
     DocumentReference<Map<String, dynamic>> ref;
-    final match = existing.docs.where(
+    final match = existing.where(
       (d) =>
           d.data()['source_local_id'] == sourceLocalId &&
           d.data()['type'] == type.name &&
@@ -716,9 +922,10 @@ class FirebaseBackend implements CloudBackend {
         'updated_at': DateTime.now().toIso8601String(),
         'deleted_at': null,
       }, SetOptions(merge: true));
-      final oldAcl = await _db.collection('share_acl').where('item_id', isEqualTo: ref.id).get();
-      for (final doc in oldAcl.docs) {
-        await doc.reference.delete();
+      final oldAcl = await _safeQuery(_db.collection('share_acl').where('owner_id', isEqualTo: me));
+      for (final doc in oldAcl) {
+        if (doc.data()['item_id'] != ref.id) continue;
+        await _safeDelete(doc.reference);
       }
     } else {
       ref = _db.collection('shared_items').doc();
@@ -736,6 +943,7 @@ class FirebaseBackend implements CloudBackend {
       await _db.collection('share_acl').doc(ShareAccess.aclId(ref.id, viewer)).set({
         'item_id': ref.id,
         'viewer_id': viewer,
+        'owner_id': me,
         'created_at': DateTime.now().toIso8601String(),
       });
       await _notify(
@@ -752,13 +960,19 @@ class FirebaseBackend implements CloudBackend {
   @override
   Future<void> revokeShareBySource(SharedKind type, String sourceLocalId) async {
     final me = _uid();
-    final snap = await _db.collection('shared_items').where('owner_id', isEqualTo: me).get();
-    for (final doc in snap.docs) {
+    final snap = await _safeQuery(_db.collection('shared_items').where('owner_id', isEqualTo: me));
+    final acls = await _safeQuery(_db.collection('share_acl').where('owner_id', isEqualTo: me));
+    for (final doc in snap) {
       if (doc.data()['type'] != type.name || doc.data()['source_local_id'] != sourceLocalId) continue;
-      await doc.reference.update({'deleted_at': DateTime.now().toIso8601String()});
-      final acls = await _db.collection('share_acl').where('item_id', isEqualTo: doc.id).get();
-      for (final acl in acls.docs) {
-        await acl.reference.delete();
+      try {
+        await doc.reference.update({'deleted_at': DateTime.now().toIso8601String()});
+      } catch (error) {
+        if (!_denied(error)) rethrow;
+        continue;
+      }
+      for (final acl in acls) {
+        if (acl.data()['item_id'] != doc.id) continue;
+        await _safeDelete(acl.reference);
       }
     }
   }
@@ -766,13 +980,13 @@ class FirebaseBackend implements CloudBackend {
   @override
   Future<SharedItem?> findMyShare(SharedKind type, String sourceLocalId) async {
     final me = _uid();
-    final snap = await _db.collection('shared_items').where('owner_id', isEqualTo: me).get();
-    for (final doc in snap.docs) {
+    final snap = await _safeQuery(_db.collection('shared_items').where('owner_id', isEqualTo: me));
+    final acls = await _safeQuery(_db.collection('share_acl').where('owner_id', isEqualTo: me));
+    for (final doc in snap) {
       final data = doc.data();
       if (data['type'] != type.name || data['source_local_id'] != sourceLocalId || data['deleted_at'] != null) {
         continue;
       }
-      final acls = await _db.collection('share_acl').where('item_id', isEqualTo: doc.id).get();
       return SharedItem(
         id: doc.id,
         ownerId: me,
@@ -781,7 +995,10 @@ class FirebaseBackend implements CloudBackend {
         payload: Map<String, dynamic>.from(data['payload'] as Map? ?? {}),
         updatedAt: DateTime.tryParse(data['updated_at'] as String? ?? '') ?? DateTime.now(),
         owner: await _readProfile(me),
-        viewerIds: [for (final acl in acls.docs) acl.data()['viewer_id'] as String? ?? ''],
+        viewerIds: [
+          for (final acl in acls)
+            if (acl.data()['item_id'] == doc.id) acl.data()['viewer_id'] as String? ?? '',
+        ],
       );
     }
     return null;
@@ -790,12 +1007,12 @@ class FirebaseBackend implements CloudBackend {
   @override
   Future<List<SharedItem>> listSharedWithMe({SharedKind? type, int limit = 20}) async {
     final me = _uid();
-    final acls = await _db.collection('share_acl').where('viewer_id', isEqualTo: me).get();
+    final acls = await _safeQuery(_db.collection('share_acl').where('viewer_id', isEqualTo: me));
     final items = <SharedItem>[];
-    for (final acl in acls.docs) {
+    for (final acl in acls) {
       final itemId = acl.data()['item_id'] as String? ?? '';
-      final snap = await _db.collection('shared_items').doc(itemId).get();
-      final data = snap.data();
+      final snap = await _safeGet(_db.collection('shared_items').doc(itemId));
+      final data = snap?.data();
       if (data == null) continue;
       final kind = sharedKindFrom(data['type'] as String? ?? 'diary');
       if (type != null && kind != type) continue;
@@ -816,7 +1033,7 @@ class FirebaseBackend implements CloudBackend {
       }
       items.add(
         SharedItem(
-          id: snap.id,
+          id: snap?.id ?? itemId,
           ownerId: ownerId,
           type: kind,
           sourceLocalId: data['source_local_id'] as String? ?? '',
@@ -832,9 +1049,11 @@ class FirebaseBackend implements CloudBackend {
 
   @override
   Future<void> markFriendNoticeRead(String id) async {
-    await _db.collection('notifications').doc(id).set(
-      {'read_at': DateTime.now().toIso8601String()},
-      SetOptions(merge: true),
-    );
+    try {
+      await _db.collection('notifications').doc(id).set(
+        {'read_at': DateTime.now().toIso8601String()},
+        SetOptions(merge: true),
+      );
+    } catch (_) {}
   }
 }

@@ -56,10 +56,15 @@ class _VaultPageState extends State<VaultPage> {
                 const SizedBox(height: 12),
                 FilledButton(
                   onPressed: () async {
-                    await cloud.sealVault('手動保管', store.toCloudMap());
-                    if (!context.mounted) return;
-                    setState(() => _future = cloud.listVault());
-                    showNexusToast(context, '保管庫へ収めました');
+                    try {
+                      await cloud.sealVault('手動保管', store.toCloudMap());
+                      if (!context.mounted) return;
+                      setState(() => _future = cloud.listVault());
+                      showNexusToast(context, '保管庫へ収めました');
+                    } catch (error) {
+                      if (!context.mounted) return;
+                      showNexusToast(context, cloudErrorMessage(error));
+                    }
                   },
                   child: const Text('今のデータを保管する'),
                 ),
@@ -74,12 +79,17 @@ class _VaultPageState extends State<VaultPage> {
                       padding: const EdgeInsets.only(bottom: 8),
                       child: InkWell(
                         onTap: () async {
-                          final full = await cloud.readVault(item.id);
-                          if (!context.mounted || full == null) return;
-                          await showNexusSheet<void>(
-                            context: context,
-                            builder: (_) => _VaultDetail(record: full),
-                          );
+                          try {
+                            final full = await cloud.readVault(item.id);
+                            if (!context.mounted || full == null) return;
+                            await showNexusSheet<void>(
+                              context: context,
+                              builder: (_) => _VaultDetail(record: full),
+                            );
+                          } catch (error) {
+                            if (!context.mounted) return;
+                            showNexusToast(context, cloudErrorMessage(error));
+                          }
                         },
                         borderRadius: BorderRadius.circular(16),
                         child: GlassCard(

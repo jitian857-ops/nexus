@@ -286,7 +286,9 @@ class NexusCloud extends ChangeNotifier {
     final backend = _backend;
     final stall = debugStallPush;
     if (stall != null) await stall();
-    await backend.pushLive(destUid, bundle);
+    try {
+      await backend.pushLive(destUid, bundle);
+    } catch (_) {}
   }
 
   Future<void> sealVault(String reason, Map<String, dynamic> bundle) async {
@@ -396,8 +398,12 @@ class NexusCloud extends ChangeNotifier {
       unreadMail = 0;
       return;
     }
-    final mail = await _backend.listMail(uid);
-    unreadMail = mail.where((m) => !m.read).length;
+    try {
+      final mail = await _backend.listMail(uid);
+      unreadMail = mail.where((m) => !m.read).length;
+    } catch (_) {
+      unreadMail = 0;
+    }
   }
 }
 
