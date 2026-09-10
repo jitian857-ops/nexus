@@ -4,6 +4,8 @@ enum SharedKind { diary, schedule }
 
 enum FriendRequestStatus { pending, accepted, rejected, cancelled }
 
+enum ShareStatus { pending, accepted, declined }
+
 class FriendProfile {
   const FriendProfile({
     required this.uid,
@@ -67,6 +69,8 @@ class SharedItem {
     this.deletedAt,
     this.owner,
     this.viewerIds = const [],
+    this.aclId = '',
+    this.shareStatus = ShareStatus.accepted,
   });
 
   final String id;
@@ -78,6 +82,8 @@ class SharedItem {
   final DateTime? deletedAt;
   final FriendProfile? owner;
   final List<String> viewerIds;
+  final String aclId;
+  final ShareStatus shareStatus;
 
   String get title => payload['title'] as String? ?? '';
 
@@ -108,6 +114,132 @@ class FriendNotice {
   bool get read => readAt != null;
 }
 
+class ShareReaction {
+  const ShareReaction({required this.itemId, required this.uid, required this.emoji});
+  final String itemId;
+  final String uid;
+  final String emoji;
+}
+
+class ShareReply {
+  const ShareReply({
+    required this.id,
+    required this.itemId,
+    required this.authorId,
+    required this.body,
+    required this.createdAt,
+    this.author,
+  });
+  final String id;
+  final String itemId;
+  final String authorId;
+  final String body;
+  final DateTime createdAt;
+  final FriendProfile? author;
+}
+
+class FriendCircle {
+  const FriendCircle({
+    required this.id,
+    required this.name,
+    required this.ownerId,
+    required this.memberIds,
+    required this.createdAt,
+  });
+  final String id;
+  final String name;
+  final String ownerId;
+  final List<String> memberIds;
+  final DateTime createdAt;
+
+  FriendCircle copyWith({
+    String? name,
+    List<String>? memberIds,
+  }) {
+    return FriendCircle(
+      id: id,
+      name: name ?? this.name,
+      ownerId: ownerId,
+      memberIds: memberIds ?? this.memberIds,
+      createdAt: createdAt,
+    );
+  }
+}
+
+class CirclePoll {
+  const CirclePoll({
+    required this.id,
+    required this.circleId,
+    required this.title,
+    required this.options,
+    required this.votes,
+    required this.createdAt,
+  });
+  final String id;
+  final String circleId;
+  final String title;
+  final List<String> options;
+  final Map<String, int> votes;
+  final DateTime createdAt;
+
+  List<int> get counts {
+    final list = List<int>.filled(options.length, 0);
+    for (final index in votes.values) {
+      if (index >= 0 && index < list.length) list[index]++;
+    }
+    return list;
+  }
+}
+
+class CircleWant {
+  const CircleWant({
+    required this.id,
+    required this.circleId,
+    required this.title,
+    required this.done,
+    required this.creatorId,
+  });
+  final String id;
+  final String circleId;
+  final String title;
+  final bool done;
+  final String creatorId;
+}
+
+class MemoryAlbum {
+  const MemoryAlbum({
+    required this.id,
+    required this.title,
+    required this.ownerId,
+    required this.participantIds,
+    this.circleId,
+    required this.createdAt,
+  });
+  final String id;
+  final String title;
+  final String ownerId;
+  final List<String> participantIds;
+  final String? circleId;
+  final DateTime createdAt;
+}
+
+class MemoryPhoto {
+  const MemoryPhoto({
+    required this.id,
+    required this.albumId,
+    required this.day,
+    required this.authorId,
+    required this.dataB64,
+    this.mime = 'image/jpeg',
+  });
+  final String id;
+  final String albumId;
+  final DateTime day;
+  final String authorId;
+  final String dataB64;
+  final String mime;
+}
+
 String generateFriendCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   final random = Random.secure();
@@ -117,7 +249,21 @@ String generateFriendCode() {
 }
 
 String normalizeFriendQuery(String raw) {
-  return raw.trim().replaceAll(' ', '').toUpperCase();
+  final out = StringBuffer();
+  for (final rune in raw.trim().runes) {
+    var code = rune;
+    if (code >= 0xFF21 && code <= 0xFF3A) {
+      code = 0x41 + (code - 0xFF21);
+    } else if (code >= 0xFF41 && code <= 0xFF5A) {
+      code = 0x41 + (code - 0xFF41);
+    } else if (code >= 0xFF10 && code <= 0xFF19) {
+      code = 0x30 + (code - 0xFF10);
+    }
+    if (code >= 0x61 && code <= 0x7A) code -= 0x20;
+    final ok = (code >= 0x41 && code <= 0x5A) || (code >= 0x30 && code <= 0x39);
+    if (ok) out.writeCharCode(code);
+  }
+  return out.toString();
 }
 
 const kFriendQrPrefix = 'NEXUS.FRIEND:';
@@ -141,8 +287,20 @@ String? friendCodeFromScan(String raw) {
     if (c != null && c.trim().isNotEmpty) return normalizeFriendQuery(c);
   }
   final compact = normalizeFriendQuery(text);
-  if (RegExp(r'^[A-Z0-9]{8}$').hasMatch(compact)) return compact;
+  if (compact.length == 8) return compact;
   return null;
+}
+
+ShareStatus shareStatusFrom(String? raw) {
+  return switch (raw) {
+    'pending' => ShareStatus.pending,
+    'declined' => ShareStatus.declined,
+    _ => ShareStatus.accepted,
+  };
+}
+
+String shareStatusForNew(SharedKind type) {
+  return type == SharedKind.schedule ? 'pending' : 'accepted';
 }
 
 SharedKind sharedKindFrom(String raw) {

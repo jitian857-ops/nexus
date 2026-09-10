@@ -76,6 +76,10 @@ void main() {
     await cloud.signOut();
 
     await cloud.signIn(email: 'bob@example.com', password: 'secret123');
+    expect(await cloud.listSharedWithMe(), isEmpty);
+    final pending = await cloud.listSharedWithMe(pendingOnly: true);
+    expect(pending.single.title, '勉強会');
+    await cloud.respondShare(pending.single.aclId, accept: true);
     expect((await cloud.listSharedWithMe()).single.title, '勉強会');
     await cloud.signOut();
 
@@ -144,6 +148,9 @@ void main() {
     await cloud.signOut();
 
     await cloud.signIn(email: 'bob@example.com', password: 'secret123');
+    final reshared = await cloud.listSharedWithMe(pendingOnly: true);
+    expect(reshared.single.title, '勉強会');
+    await cloud.respondShare(reshared.single.aclId, accept: true);
     expect((await cloud.listSharedWithMe()).single.title, '勉強会');
 
     await cloud.signIn(email: 'alice@example.com', password: 'secret123');

@@ -9,24 +9,22 @@ import '../../cloud/nexus_cloud.dart';
 import '../../data/app_store.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/ui_bits.dart';
-import 'friend_group_page.dart';
 import 'friend_qr_scan_page.dart';
 
-class FriendsPage extends StatefulWidget {
-  const FriendsPage({super.key});
+class FriendAddPage extends StatefulWidget {
+  const FriendAddPage({super.key});
 
   @override
-  State<FriendsPage> createState() => _FriendsPageState();
+  State<FriendAddPage> createState() => _FriendAddPageState();
 }
 
-class _FriendsPageState extends State<FriendsPage> {
+class _FriendAddPageState extends State<FriendAddPage> {
   var _loading = true;
   var _error = '';
   FriendProfile? _me;
   var _incoming = <FriendRequestItem>[];
   var _outgoing = <FriendRequestItem>[];
   var _friends = <FriendProfile>[];
-  var _shared = <SharedItem>[];
   final _search = TextEditingController();
   FriendProfile? _found;
 
@@ -53,14 +51,12 @@ class _FriendsPageState extends State<FriendsPage> {
       final incoming = await _loadList(cloud.incomingFriendRequests);
       final outgoing = await _loadList(cloud.outgoingFriendRequests);
       final friends = await _loadList(cloud.listFriends);
-      final shared = await _loadList(cloud.listSharedWithMe);
       if (!mounted) return;
       setState(() {
         _me = me;
         _incoming = incoming;
         _outgoing = outgoing;
         _friends = friends;
-        _shared = shared;
         _loading = false;
       });
     } catch (error) {
@@ -106,7 +102,7 @@ class _FriendsPageState extends State<FriendsPage> {
                   icon: Icon(Icons.close_rounded, color: NexusColors.text),
                 ),
                 const Expanded(
-                  child: Text('フレンド', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600)),
+                  child: Text('フレンドを追加', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600)),
                 ),
                 IconButton(
                   onPressed: _loading ? null : _reload,
@@ -232,7 +228,13 @@ class _FriendsPageState extends State<FriendsPage> {
                     TextField(
                       controller: _search,
                       style: TextStyle(color: NexusColors.text),
-                      decoration: const InputDecoration(labelText: 'フレンドコードまたはユーザーID'),
+                      textCapitalization: TextCapitalization.characters,
+                      autocorrect: false,
+                      enableSuggestions: false,
+                      decoration: const InputDecoration(
+                        labelText: 'フレンドコード',
+                        hintText: '8桁（ハイフンや空白は自動で除きます）',
+                      ),
                     ),
                     const SizedBox(height: 8),
                     FilledButton(
@@ -241,13 +243,13 @@ class _FriendsPageState extends State<FriendsPage> {
                           : () async {
                               try {
                                 final found = await cloud.lookupFriend(_search.text);
-                                if (!mounted) return;
+                                if (!context.mounted) return;
                                 setState(() => _found = found);
                                 if (found == null) {
                                   showNexusToast(context, '見つかりませんでした');
                                 }
                               } catch (error) {
-                                if (!mounted) return;
+                                if (!context.mounted) return;
                                 showNexusToast(context, cloudErrorMessage(error));
                               }
                             },
@@ -264,7 +266,7 @@ class _FriendsPageState extends State<FriendsPage> {
                       OutlinedButton(
                         onPressed: () => _run(() async {
                           await cloud.sendFriendRequest(_found!.uid);
-                          if (!mounted) return;
+                          if (!context.mounted) return;
                           setState(() => _found = null);
                           _search.clear();
                           showNexusToast(context, '申請しました');
@@ -333,159 +335,6 @@ class _FriendsPageState extends State<FriendsPage> {
                     ),
                   ),
               ],
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text('グループ', style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
-                  ),
-                  TextButton(
-                    onPressed: () async {
-                      await Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const FriendGroupEditPage(),
-                        ),
-                      );
-                      if (mounted) setState(() {});
-                    },
-                    child: const Text('グループを作る'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              if (AppScope.of(context).friendGroups.isEmpty)
-                Text('まだグループはありません', style: TextStyle(color: NexusColors.textMuted))
-              else
-                for (final group in AppScope.of(context).friendGroups)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: InkWell(
-                      onTap: () async {
-                        await Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => FriendGroupEditPage(existing: group),
-                          ),
-                        );
-                        if (mounted) setState(() {});
-                      },
-                      borderRadius: BorderRadius.circular(16),
-                      child: GlassCard(
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(group.name, style: const TextStyle(fontWeight: FontWeight.w700)),
-                                  Text(
-                                    '${group.memberIds.length}人',
-                                    style: TextStyle(color: NexusColors.textMuted, fontSize: 12),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Icon(Icons.chevron_right_rounded, color: NexusColors.textMuted),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-              const SizedBox(height: 16),
-              Text('フレンド', style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
-              const SizedBox(height: 8),
-              if (_friends.isEmpty)
-                Text('まだフレンドはいません', style: TextStyle(color: NexusColors.textMuted))
-              else
-                for (final friend in _friends)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: InkWell(
-                      onTap: () async {
-                        await Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => FriendDetailPage(friend: friend),
-                          ),
-                        );
-                        await _reload();
-                      },
-                      borderRadius: BorderRadius.circular(16),
-                      child: GlassCard(
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(friend.displayName, style: const TextStyle(fontWeight: FontWeight.w700)),
-                                  Text(friend.friendCode, style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
-                                ],
-                              ),
-                            ),
-                            Icon(Icons.chevron_right_rounded, color: NexusColors.textMuted),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-              const SizedBox(height: 16),
-              Text('共有された日記・予定', style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
-              const SizedBox(height: 4),
-              Text(
-                '閲覧のみです。解除やブロックのあと、再フレンドしても自動では戻りません。',
-                style: TextStyle(color: NexusColors.textMuted, fontSize: 12, height: 1.4),
-              ),
-              const SizedBox(height: 8),
-              if (_shared.isEmpty)
-                Text('共有された項目はまだありません', style: TextStyle(color: NexusColors.textMuted))
-              else
-                for (final item in _shared)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: GlassCard(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            item.type == SharedKind.diary ? '日記' : '予定',
-                            style: TextStyle(color: NexusColors.cyan, fontSize: 11, fontWeight: FontWeight.w700),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(item.title, style: const TextStyle(fontWeight: FontWeight.w700)),
-                          if (item.body.isNotEmpty)
-                            Text(item.body, style: TextStyle(color: NexusColors.textSecondary, height: 1.4)),
-                          const SizedBox(height: 4),
-                          Text(
-                            '共有元  ${item.owner?.displayName ?? ''}',
-                            style: TextStyle(color: NexusColors.textMuted, fontSize: 11),
-                          ),
-                          if (item.type == SharedKind.schedule)
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: TextButton(
-                                onPressed: () {
-                                  final start = DateTime.tryParse(item.payload['start_at'] as String? ?? '');
-                                  if (start == null) return;
-                                  final end = DateTime.tryParse(item.payload['end_at'] as String? ?? '');
-                                  AppScope.of(context).addSchedule(
-                                    title: item.title,
-                                    startAt: start,
-                                    endAt: end,
-                                    allDay: item.payload['all_day'] as bool? ?? false,
-                                    tags: [
-                                      for (final tag in (item.payload['tags'] as List? ?? const []))
-                                        if (tag is String) tag,
-                                    ],
-                                    source: 'shared',
-                                  );
-                                  showNexusToast(context, '自分の予定に複製しました');
-                                },
-                                child: const Text('自分用に複製'),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
             ],
           ],
         ),

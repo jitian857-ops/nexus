@@ -11,7 +11,7 @@ class NexusTab {
   static const study = 1;
   static const life = 2;
   static const money = 3;
-  static const settings = 4;
+  static const friends = 4;
 }
 
 class NexusNavBar extends StatelessWidget {
@@ -29,7 +29,7 @@ class NexusNavBar extends StatelessWidget {
     (Icons.menu_book_rounded, 'Study'),
     (Icons.favorite_rounded, 'Life'),
     (Icons.account_balance_wallet_rounded, 'Money'),
-    (Icons.settings_rounded, '設定'),
+    (Icons.people_alt_rounded, 'Friend'),
   ];
 
   @override

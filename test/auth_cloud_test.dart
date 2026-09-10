@@ -165,8 +165,10 @@ void main() {
       occupation: '',
     );
     final bob = cloud.currentSession!;
-    final found = await cloud.lookupFriend(code);
+    final hyphenated = '${code.substring(0, 4)}-${code.substring(4)}';
+    final found = await cloud.lookupFriend(hyphenated);
     expect(found?.displayName, 'アリス');
+    expect((await cloud.lookupFriend(friendQrPayload(code)))?.uid, found?.uid);
     await cloud.sendFriendRequest(found!.uid);
     await cloud.signOut();
 
@@ -186,8 +188,18 @@ void main() {
 
     await cloud.signIn(email: 'bob@example.com', password: 'secret123');
     expect((await cloud.listFriends()).single.uid, alice.uid);
+    final pending = await cloud.listSharedWithMe(type: SharedKind.schedule, pendingOnly: true);
+    expect(pending.single.title, '勉強会');
+    await cloud.respondShare(pending.single.aclId, accept: true);
     final shared = await cloud.listSharedWithMe(type: SharedKind.schedule);
     expect(shared.single.title, '勉強会');
+  });
+
+  test('フレンドコードはハイフンや全角でも同じ8桁に揃える', () {
+    expect(normalizeFriendQuery('ab2c-3d4e'), 'AB2C3D4E');
+    expect(normalizeFriendQuery('  AB2C 3D4E '), 'AB2C3D4E');
+    expect(normalizeFriendQuery('ＡＢ２Ｃ３Ｄ４Ｅ'), 'AB2C3D4E');
+    expect(friendCodeFromScan('NEXUS.FRIEND:AB2C-3D4E'), 'AB2C3D4E');
   });
 
   test('フレンドQRはコードを読み取れる', () {

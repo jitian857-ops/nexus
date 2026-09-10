@@ -45,8 +45,10 @@ void main() {
     expect(TutorialDeck.study.slides, hasLength(5));
     expect(TutorialDeck.life.slides, hasLength(5));
     expect(TutorialDeck.money.slides, hasLength(5));
+    expect(TutorialDeck.friends.slides, hasLength(1));
     expect(TutorialDeck.settings.slides, hasLength(1));
-    expect(TutorialDeck.forIndex(NexusTab.settings), TutorialTab.settings);
+    expect(TutorialDeck.forIndex(NexusTab.friends), TutorialTab.friends);
+    expect(TutorialDeck.forIndex(4), TutorialTab.friends);
   });
 
   test('案内の再表示は記録があってもpendingなら出す', () async {

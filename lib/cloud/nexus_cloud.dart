@@ -389,9 +389,88 @@ class NexusCloud extends ChangeNotifier {
     return _backend.findMyShare(type, sourceLocalId);
   }
 
-  Future<List<SharedItem>> listSharedWithMe({SharedKind? type, int limit = 20}) {
-    return _backend.listSharedWithMe(type: type, limit: limit);
+  Future<List<SharedItem>> listSharedWithMe({
+    SharedKind? type,
+    int limit = 20,
+    bool pendingOnly = false,
+  }) {
+    return _backend.listSharedWithMe(type: type, limit: limit, pendingOnly: pendingOnly);
   }
+
+  Future<void> respondShare(String aclId, {required bool accept}) {
+    return _run(() => _backend.respondShare(aclId, accept: accept));
+  }
+
+  Future<void> reactToShare(String itemId, String emoji) {
+    return _run(() => _backend.reactToShare(itemId, emoji));
+  }
+
+  Future<List<ShareReaction>> listReactions(String itemId) => _backend.listReactions(itemId);
+
+  Future<void> replyToShare(String itemId, String body) {
+    return _run(() => _backend.replyToShare(itemId, body));
+  }
+
+  Future<List<ShareReply>> listReplies(String itemId) => _backend.listReplies(itemId);
+
+  Future<FriendCircle> createCircle({required String name, required List<String> memberIds}) {
+    return _run(() => _backend.createCircle(name: name, memberIds: memberIds));
+  }
+
+  Future<void> updateCircle(FriendCircle circle) {
+    return _run(() => _backend.updateCircle(circle));
+  }
+
+  Future<void> deleteCircle(String id) => _run(() => _backend.deleteCircle(id));
+
+  Future<List<FriendCircle>> listCircles() => _backend.listCircles();
+
+  Future<CirclePoll> createPoll({
+    required String circleId,
+    required String title,
+    required List<String> options,
+  }) {
+    return _run(() => _backend.createPoll(circleId: circleId, title: title, options: options));
+  }
+
+  Future<void> votePoll(String pollId, int optionIndex) {
+    return _run(() => _backend.votePoll(pollId, optionIndex));
+  }
+
+  Future<List<CirclePoll>> listPolls(String circleId) => _backend.listPolls(circleId);
+
+  Future<CircleWant> addWant({required String circleId, required String title}) {
+    return _run(() => _backend.addWant(circleId: circleId, title: title));
+  }
+
+  Future<void> toggleWant(String wantId) => _run(() => _backend.toggleWant(wantId));
+
+  Future<List<CircleWant>> listWants(String circleId) => _backend.listWants(circleId);
+
+  Future<MemoryAlbum> createAlbum({
+    required String title,
+    required List<String> participantIds,
+    String? circleId,
+  }) {
+    return _run(
+      () => _backend.createAlbum(title: title, participantIds: participantIds, circleId: circleId),
+    );
+  }
+
+  Future<List<MemoryAlbum>> listAlbums() => _backend.listAlbums();
+
+  Future<void> addMemoryPhoto({
+    required String albumId,
+    required DateTime day,
+    required String dataB64,
+    String mime = 'image/jpeg',
+  }) {
+    return _run(
+      () => _backend.addMemoryPhoto(albumId: albumId, day: day, dataB64: dataB64, mime: mime),
+    );
+  }
+
+  Future<List<MemoryPhoto>> listMemoryPhotos(String albumId) => _backend.listMemoryPhotos(albumId);
 
   Future<void> _refreshMailBadge() async {
     if (uid.isEmpty) {

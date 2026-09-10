@@ -38,6 +38,7 @@ class PageScaffold extends StatelessWidget {
         ),
       ),
       child: Stack(
+        fit: StackFit.expand,
         children: [
           const Positioned.fill(child: AuroraBackdrop()),
           SafeArea(bottom: false, child: child),

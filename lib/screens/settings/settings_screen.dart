@@ -8,10 +8,23 @@ import '../../tutorial/tutorial_gate.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/nexus_logo.dart';
 import '../../widgets/ui_bits.dart';
-import '../friends/friends_page.dart';
+import '../../widgets/nexus_nav_bar.dart';
 import 'app_customize_page.dart';
 import 'billing_page.dart';
 import 'mailbox_page.dart';
+
+Future<void> openSettings(BuildContext context) {
+  return Navigator.of(
+    context,
+    rootNavigator: true,
+  ).push(MaterialPageRoute<void>(builder: (_) => const SettingsScreen()));
+}
+
+void closeSettings(BuildContext context) {
+  AppScope.of(context).goTo(NexusTab.home);
+  final nav = Navigator.of(context);
+  if (nav.canPop()) nav.pop();
+}
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -22,220 +35,317 @@ class SettingsScreen extends StatelessWidget {
     final cloud = CloudScope.of(context);
     final s = store.settings;
 
-    return PageScaffold(
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-        children: [
-          const GradientTitle('設定'),
-          const SizedBox(height: 14),
-          GlassCard(
-            glowColor: NexusColors.cyan,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('テーマ', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-                const SizedBox(height: 2),
-                Text(
-                  '${s.themeBase == 'white' ? 'ホワイト' : 'ブラック'} / ${NexusPalette.byId(s.themeId).label}',
-                  style: TextStyle(color: NexusColors.textMuted, fontSize: 12),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _BaseToneChip(
-                        label: 'ホワイト',
-                        selected: s.themeBase == 'white',
-                        onTap: () => store.updateSettings(
-                          s.copyWith(
-                            themeId: UserSettings.composeThemeId('white', s.themeAccent),
+    return Scaffold(
+      backgroundColor: NexusColors.background,
+      body: PageScaffold(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Row(
+                children: [
+                  const Expanded(child: GradientTitle('設定')),
+                  IconButton(
+                    key: const Key('settings-close'),
+                    tooltip: '閉じる',
+                    onPressed: () => closeSettings(context),
+                    icon: Icon(Icons.close_rounded, color: NexusColors.text),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ListView(
+                key: const Key('settings-list'),
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+                children: [
+                  GlassCard(
+                    glowColor: NexusColors.cyan,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'テーマ',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16,
                           ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _BaseToneChip(
-                        label: 'ブラック',
-                        selected: s.themeBase == 'black',
-                        onTap: () => store.updateSettings(
-                          s.copyWith(
-                            themeId: UserSettings.composeThemeId('black', s.themeAccent),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${s.themeBase == 'white' ? 'ホワイト' : 'ブラック'} / ${NexusPalette.byId(s.themeId).label}',
+                          style: TextStyle(
+                            color: NexusColors.textMuted,
+                            fontSize: 12,
                           ),
                         ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 12,
-                  children: [
-                    for (final accent in UserSettings.themeAccents)
-                      _ThemeSwatch(
-                        palette: NexusPalette.byId(
-                          UserSettings.composeThemeId(s.themeBase, accent.$1),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _BaseToneChip(
+                                label: 'ホワイト',
+                                selected: s.themeBase == 'white',
+                                onTap: () => store.updateSettings(
+                                  s.copyWith(
+                                    themeId: UserSettings.composeThemeId(
+                                      'white',
+                                      s.themeAccent,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _BaseToneChip(
+                                label: 'ブラック',
+                                selected: s.themeBase == 'black',
+                                onTap: () => store.updateSettings(
+                                  s.copyWith(
+                                    themeId: UserSettings.composeThemeId(
+                                      'black',
+                                      s.themeAccent,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                        selected: s.themeAccent == accent.$1,
-                        onTap: () => store.updateSettings(
-                          s.copyWith(
-                            themeId: UserSettings.composeThemeId(s.themeBase, accent.$1),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 12,
+                          children: [
+                            for (final accent in UserSettings.themeAccents)
+                              _ThemeSwatch(
+                                palette: NexusPalette.byId(
+                                  UserSettings.composeThemeId(
+                                    s.themeBase,
+                                    accent.$1,
+                                  ),
+                                ),
+                                selected: s.themeAccent == accent.$1,
+                                onTap: () => store.updateSettings(
+                                  s.copyWith(
+                                    themeId: UserSettings.composeThemeId(
+                                      s.themeBase,
+                                      accent.$1,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  GlassCard(
+                    child: Row(
+                      children: [
+                        const NexusLogo(size: 52),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                store.userName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              Text(
+                                store.occupation.isEmpty
+                                    ? 'Lv.${store.level}'
+                                    : '${store.occupation}  ·  Lv.${store.level}',
+                                style: TextStyle(
+                                  color: NexusColors.gold,
+                                  fontSize: 12,
+                                  letterSpacing: 0.4,
+                                ),
+                              ),
+                              if (cloud.session != null)
+                                Text(
+                                  cloud.session!.email,
+                                  style: TextStyle(
+                                    color: NexusColors.textMuted,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          GlassCard(
-            child: Row(
-              children: [
-                const NexusLogo(size: 52),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(store.userName, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
-                      Text(
-                        store.occupation.isEmpty ? 'Lv.${store.level}' : '${store.occupation}  ·  Lv.${store.level}',
-                        style: TextStyle(color: NexusColors.gold, fontSize: 12, letterSpacing: 0.4),
-                      ),
-                      if (cloud.session != null)
-                        Text(cloud.session!.email, style: TextStyle(color: NexusColors.textMuted, fontSize: 11)),
-                    ],
-                  ),
-                ),
-                OutlinedButton(
-                  onPressed: () => _editProfile(context, store),
-                  child: Text('プロフィールを編集'),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text('アカウント', style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
-          const SizedBox(height: 8),
-          GlassCard(
-            padding: EdgeInsets.zero,
-            child: Column(
-              children: [
-                _Item(
-                  icon: Icons.mail_outline_rounded,
-                  color: NexusColors.cyan,
-                  title: 'メールボックス',
-                  subtitle: cloud.unreadMail == 0 ? '認証などの案内' : '未読 ${cloud.unreadMail} 通',
-                  onTap: () => Navigator.of(context, rootNavigator: true).push(
-                    MaterialPageRoute<void>(builder: (_) => const MailboxPage()),
-                  ),
-                ),
-                _Item(
-                  icon: Icons.group_outlined,
-                  color: NexusColors.green,
-                  title: 'フレンド',
-                  subtitle: 'コードで追加。予定の共有は閲覧のみ',
-                  onTap: () => Navigator.of(context, rootNavigator: true).push(
-                    MaterialPageRoute<void>(builder: (_) => const FriendsPage()),
-                  ),
-                ),
-                _Item(
-                  icon: Icons.workspace_premium_outlined,
-                  color: NexusColors.gold,
-                  title: 'NEXUS+',
-                  subtitle: 'Standard 月500円 / Pro 月800円',
-                  onTap: () => Navigator.of(context, rootNavigator: true).push(
-                    MaterialPageRoute<void>(builder: (_) => const BillingPage()),
-                  ),
-                ),
-                _Item(
-                  icon: Icons.logout_rounded,
-                  color: NexusColors.purple,
-                  title: 'ログアウト',
-                  subtitle: cloud.session?.email ?? '',
-                  onTap: () async {
-                    if (!await confirmLogout(context)) return;
-                    await cloud.signOut();
-                    store.detachCloud();
-                  },
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text('設定項目', style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
-          const SizedBox(height: 8),
-          GlassCard(
-            padding: EdgeInsets.zero,
-            child: Column(
-              children: [
-                _Item(
-                  icon: Icons.menu_book_outlined,
-                  color: NexusColors.purple,
-                  title: '画面の案内',
-                  subtitle: 'Home / Study / Life / Money / 設定 の初回説明',
-                  onTap: () async {
-                    await TutorialGate.resetAll(cloud.uid);
-                    if (!context.mounted) return;
-                    store.goTo(0);
-                    showNexusToast(context, '次に開いた画面で案内を出します');
-                  },
-                ),
-                _Item(
-                  icon: Icons.tune_rounded,
-                  color: NexusColors.cyan,
-                  title: 'アプリをカスタマイズ',
-                  subtitle: '時間リールの刻み、Homeのウィジェット',
-                  onTap: () => Navigator.of(context, rootNavigator: true).push(
-                    MaterialPageRoute<void>(builder: (_) => const AppCustomizePage()),
-                  ),
-                ),
-                _ToggleItem(
-                  icon: Icons.notifications_rounded,
-                  color: NexusColors.gold,
-                  title: '通知',
-                  subtitle: '課題・予定・復習のリマインド',
-                  value: s.notifyTasks && s.notifySchedule && s.notifyReview && s.notifyNegumo,
-                  onChanged: (v) => store.updateSettings(
-                    s.copyWith(
-                      notifyTasks: v,
-                      notifySchedule: v,
-                      notifyReview: v,
-                      notifyNegumo: v,
+                        OutlinedButton(
+                          onPressed: () => _editProfile(context, store),
+                          child: Text('プロフィールを編集'),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-                _Item(
-                  icon: Icons.calendar_month,
-                  color: NexusColors.green,
-                  title: '連携',
-                  subtitle: 'カレンダー・時間割・ヘルスは明示許可',
-                  onTap: () => _open(context, '連携', '端末カレンダー、学校時間割、ヘルスデータはまだ接続していません。許可するまで読み取りません。'),
-                ),
-                _Item(
-                  icon: Icons.help_outline,
-                  color: NexusColors.periwinkle,
-                  title: 'ヘルプ',
-                  subtitle: 'FAQ と問い合わせ',
-                  onTap: () => _open(context, 'ヘルプ', 'Nexus OS 0.1 のFAQです。投資・借入・購入の誘導はありません。'),
-                ),
-              ],
+                  const SizedBox(height: 16),
+                  Text(
+                    'アカウント',
+                    style: TextStyle(
+                      color: NexusColors.textMuted,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  GlassCard(
+                    padding: EdgeInsets.zero,
+                    child: Column(
+                      children: [
+                        _Item(
+                          icon: Icons.mail_outline_rounded,
+                          color: NexusColors.cyan,
+                          title: 'メールボックス',
+                          subtitle: cloud.unreadMail == 0
+                              ? '認証などの案内'
+                              : '未読 ${cloud.unreadMail} 通',
+                          onTap: () =>
+                              Navigator.of(context, rootNavigator: true).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => const MailboxPage(),
+                                ),
+                              ),
+                        ),
+                        _Item(
+                          icon: Icons.workspace_premium_outlined,
+                          color: NexusColors.gold,
+                          title: 'NEXUS+',
+                          subtitle: 'Standard 月500円 / Pro 月800円',
+                          onTap: () =>
+                              Navigator.of(context, rootNavigator: true).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => const BillingPage(),
+                                ),
+                              ),
+                        ),
+                        _Item(
+                          icon: Icons.logout_rounded,
+                          color: NexusColors.purple,
+                          title: 'ログアウト',
+                          subtitle: cloud.session?.email ?? '',
+                          onTap: () async {
+                            if (!await confirmLogout(context)) return;
+                            await cloud.signOut();
+                            store.detachCloud();
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    '設定項目',
+                    style: TextStyle(
+                      color: NexusColors.textMuted,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  GlassCard(
+                    padding: EdgeInsets.zero,
+                    child: Column(
+                      children: [
+                        _Item(
+                          icon: Icons.menu_book_outlined,
+                          color: NexusColors.purple,
+                          title: '画面の案内',
+                          subtitle:
+                              'Home / Study / Life / Money / Friend の初回説明',
+                          onTap: () async {
+                            await TutorialGate.resetAll(cloud.uid);
+                            if (!context.mounted) return;
+                            store.goTo(0);
+                            showNexusToast(context, '次に開いた画面で案内を出します');
+                          },
+                        ),
+                        _Item(
+                          icon: Icons.tune_rounded,
+                          color: NexusColors.cyan,
+                          title: 'アプリをカスタマイズ',
+                          subtitle: '時間リールの刻み、Homeのウィジェット',
+                          onTap: () =>
+                              Navigator.of(context, rootNavigator: true).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => const AppCustomizePage(),
+                                ),
+                              ),
+                        ),
+                        _ToggleItem(
+                          icon: Icons.notifications_rounded,
+                          color: NexusColors.gold,
+                          title: '通知',
+                          subtitle: '課題・予定・復習のリマインド',
+                          value:
+                              s.notifyTasks &&
+                              s.notifySchedule &&
+                              s.notifyReview &&
+                              s.notifyNegumo,
+                          onChanged: (v) => store.updateSettings(
+                            s.copyWith(
+                              notifyTasks: v,
+                              notifySchedule: v,
+                              notifyReview: v,
+                              notifyNegumo: v,
+                            ),
+                          ),
+                        ),
+                        _Item(
+                          icon: Icons.calendar_month,
+                          color: NexusColors.green,
+                          title: '連携',
+                          subtitle: 'カレンダー・時間割・ヘルスは明示許可',
+                          onTap: () => _open(
+                            context,
+                            '連携',
+                            '端末カレンダー、学校時間割、ヘルスデータはまだ接続していません。許可するまで読み取りません。',
+                          ),
+                        ),
+                        _Item(
+                          icon: Icons.help_outline,
+                          color: NexusColors.periwinkle,
+                          title: 'ヘルプ',
+                          subtitle: 'FAQ と問い合わせ',
+                          onTap: () => _open(
+                            context,
+                            'ヘルプ',
+                            'Nexus OS 0.1 のFAQです。投資・借入・購入の誘導はありません。',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Center(
+                    child: TextButton(
+                      onPressed: () => _deleteAccount(context, store, cloud),
+                      child: Text(
+                        'アカウントを削除',
+                        style: TextStyle(color: NexusColors.expense),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Center(
+                    child: Text(
+                      'Nexus OS 0.1',
+                      style: TextStyle(
+                        color: NexusColors.textMuted,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          Center(
-            child: TextButton(
-              onPressed: () => _deleteAccount(context, store, cloud),
-              child: Text('アカウントを削除', style: TextStyle(color: NexusColors.expense)),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Center(
-            child: Text('Nexus OS 0.1', style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -251,7 +361,10 @@ class SettingsScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('プロフィール', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+            Text(
+              'プロフィール',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+            ),
             TextField(
               controller: name,
               style: TextStyle(color: NexusColors.text),
@@ -263,7 +376,10 @@ class SettingsScreen extends StatelessWidget {
               decoration: const InputDecoration(labelText: '職業'),
             ),
             const SizedBox(height: 12),
-            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('保存')),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('保存'),
+            ),
           ],
         );
       },
@@ -272,14 +388,21 @@ class SettingsScreen extends StatelessWidget {
       store.setUserName(name.text.trim());
       store.setOccupation(job.text);
       try {
-        await cloud.updateProfile(displayName: name.text.trim(), occupation: job.text.trim());
+        await cloud.updateProfile(
+          displayName: name.text.trim(),
+          occupation: job.text.trim(),
+        );
       } catch (_) {}
     }
     name.dispose();
     job.dispose();
   }
 
-  Future<void> _deleteAccount(BuildContext context, AppStore store, NexusCloud cloud) async {
+  Future<void> _deleteAccount(
+    BuildContext context,
+    AppStore store,
+    NexusCloud cloud,
+  ) async {
     final password = TextEditingController();
     final ok = await showNexusSheet<bool>(
       context: context,
@@ -288,7 +411,14 @@ class SettingsScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('アカウントを削除', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: NexusColors.expense)),
+            Text(
+              'アカウントを削除',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: NexusColors.expense,
+              ),
+            ),
             const SizedBox(height: 8),
             Text(
               '学習・Money・日記などの同期データも消えます。この操作は取り消せません。',
@@ -327,9 +457,15 @@ class SettingsScreen extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+          Text(
+            title,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+          ),
           const SizedBox(height: 8),
-          Text(body, style: TextStyle(color: NexusColors.textSecondary, height: 1.4)),
+          Text(
+            body,
+            style: TextStyle(color: NexusColors.textSecondary, height: 1.4),
+          ),
         ],
       ),
     );
@@ -350,7 +486,9 @@ class _BaseToneChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? NexusColors.cyan.withValues(alpha: 0.16) : NexusColors.surface,
+      color: selected
+          ? NexusColors.cyan.withValues(alpha: 0.16)
+          : NexusColors.surface,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
@@ -413,7 +551,12 @@ class _ThemeSwatch extends StatelessWidget {
                   width: selected ? 2.5 : 1,
                 ),
                 boxShadow: selected && !NexusColors.isLight
-                    ? [BoxShadow(color: palette.cyan.withValues(alpha: 0.35), blurRadius: 10)]
+                    ? [
+                        BoxShadow(
+                          color: palette.cyan.withValues(alpha: 0.35),
+                          blurRadius: 10,
+                        ),
+                      ]
                     : null,
               ),
             ),
@@ -476,7 +619,10 @@ class _Item extends StatelessWidget {
     return ListTile(
       leading: _SettingsIcon(icon: icon, color: color),
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-      subtitle: Text(subtitle, style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
+      subtitle: Text(
+        subtitle,
+        style: TextStyle(color: NexusColors.textMuted, fontSize: 12),
+      ),
       trailing: Icon(Icons.chevron_right, color: NexusColors.textMuted),
       onTap: onTap,
     );
@@ -505,7 +651,10 @@ class _ToggleItem extends StatelessWidget {
     return SwitchListTile(
       secondary: _SettingsIcon(icon: icon, color: color),
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-      subtitle: Text(subtitle, style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
+      subtitle: Text(
+        subtitle,
+        style: TextStyle(color: NexusColors.textMuted, fontSize: 12),
+      ),
       value: value,
       onChanged: onChanged,
     );

@@ -162,6 +162,17 @@ service cloud.firestore {
         && resource.data.owner_id == uid()
         && request.resource.data.owner_id == resource.data.owner_id;
       allow delete: if signedIn() && resource.data.owner_id == uid();
+
+      match /reactions/{rid} {
+        allow read: if signedIn();
+        allow create, update: if signedIn() && rid == uid();
+        allow delete: if signedIn() && rid == uid();
+      }
+      match /replies/{rid} {
+        allow read: if signedIn();
+        allow create: if signedIn() && request.resource.data.author_id == uid();
+        allow update, delete: if signedIn() && resource.data.author_id == uid();
+      }
     }
 
     match /share_acl/{id} {
@@ -186,12 +197,73 @@ service cloud.firestore {
       allow delete: if signedIn() && (
         resource == null
         || resource.data.owner_id == uid()
+        || resource.data.viewer_id == uid()
         || (
           exists(/databases/$(database)/documents/shared_items/$(resource.data.item_id))
           && get(/databases/$(database)/documents/shared_items/$(resource.data.item_id)).data.owner_id == uid()
         )
       );
-      allow update: if false;
+      allow update: if signedIn()
+        && resource.data.viewer_id == uid()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && request.resource.data.status in ['accepted', 'declined'];
+    }
+
+    match /circles/{cid} {
+      function inCircle() {
+        return signedIn() && (
+          get(/databases/$(database)/documents/circles/$(cid)).data.owner_id == uid()
+          || uid() in get(/databases/$(database)/documents/circles/$(cid)).data.member_ids
+        );
+      }
+      allow get: if signedIn() && (
+        resource == null
+        || resource.data.owner_id == uid()
+        || uid() in resource.data.member_ids
+      );
+      allow list: if signedIn() && (
+        resource.data.owner_id == uid() || uid() in resource.data.member_ids
+      );
+      allow create: if signedIn()
+        && request.resource.data.owner_id == uid()
+        && uid() in request.resource.data.member_ids;
+      allow update, delete: if signedIn() && resource.data.owner_id == uid();
+
+      match /polls/{pid} {
+        allow read, create, update, delete: if inCircle();
+      }
+      match /wants/{wid} {
+        allow read, create, update, delete: if inCircle();
+      }
+    }
+
+    match /memory_albums/{id} {
+      function inAlbum() {
+        return signedIn() && (
+          get(/databases/$(database)/documents/memory_albums/$(id)).data.owner_id == uid()
+          || uid() in get(/databases/$(database)/documents/memory_albums/$(id)).data.participant_ids
+        );
+      }
+      allow get: if signedIn() && (
+        resource == null
+        || resource.data.owner_id == uid()
+        || uid() in resource.data.participant_ids
+      );
+      allow list: if signedIn() && (
+        resource.data.owner_id == uid() || uid() in resource.data.participant_ids
+      );
+      allow create: if signedIn() && request.resource.data.owner_id == uid();
+      allow update, delete: if signedIn() && resource.data.owner_id == uid();
+
+      match /photos/{pid} {
+        allow read: if inAlbum();
+        allow create: if inAlbum() && request.resource.data.author_id == uid();
+        allow delete: if signedIn() && (
+          resource.data.author_id == uid()
+          || get(/databases/$(database)/documents/memory_albums/$(id)).data.owner_id == uid()
+        );
+        allow update: if false;
+      }
     }
 
     match /notifications/{id} {

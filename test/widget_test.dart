@@ -13,6 +13,8 @@ import 'package:nexus/domain/review_scheduler.dart';
 import 'package:nexus/screens/auth/login_page.dart';
 import 'package:nexus/screens/life/schedule_bulk_share_page.dart';
 import 'package:nexus/screens/study/focus_timer_page.dart';
+import 'package:nexus/screens/settings/app_customize_page.dart';
+import 'package:nexus/screens/settings/settings_screen.dart';
 import 'package:nexus/widgets/nexus_nav_bar.dart';
 import 'package:nexus/widgets/schedule_sheet.dart';
 
@@ -77,7 +79,15 @@ void main() {
     await tester.tap(find.byIcon(Icons.close_rounded).first);
     await tester.pumpAndSettle();
 
-    await tapTab('設定');
+    await tapTab('Friend');
+    expect(find.text('Friend'), findsWidgets);
+    expect(find.text('グループ・サークル'), findsOneWidget);
+    expect(find.text('思い出'), findsOneWidget);
+    expect(find.byKey(const Key('friend-add')), findsOneWidget);
+
+    await tapTab('Home');
+    await tester.tap(find.byKey(const Key('open-settings')));
+    await tester.pumpAndSettle();
     expect(find.text('設定'), findsWidgets);
     expect(find.text('ホワイト'), findsOneWidget);
     expect(find.text('ブラック'), findsOneWidget);
@@ -86,8 +96,13 @@ void main() {
     expect(find.text('クリムゾン'), findsOneWidget);
     expect(find.text('ログアウト'), findsOneWidget);
     expect(find.text('メールボックス'), findsOneWidget);
-    expect(find.text('フレンド'), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('アプリをカスタマイズ'), 200);
+    expect(find.byKey(const Key('settings-close')), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('アプリをカスタマイズ'),
+      400,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.pumpAndSettle();
     expect(find.text('アプリをカスタマイズ'), findsOneWidget);
     await tester.tap(find.text('アプリをカスタマイズ'));
     await tester.pumpAndSettle();
@@ -95,8 +110,11 @@ void main() {
     expect(find.text('1分'), findsOneWidget);
     expect(find.text('5分'), findsOneWidget);
     expect(find.text('10分'), findsOneWidget);
-    await tester.tap(find.byIcon(Icons.close_rounded));
+    await tester.tap(find.descendant(of: find.byType(AppCustomizePage), matching: find.byIcon(Icons.close_rounded)));
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('settings-close')));
+    await tester.pumpAndSettle();
+    expect(find.text('今日の予定'), findsOneWidget);
     expect(find.text('保管庫'), findsNothing);
     expect(find.text('動きを減らす'), findsNothing);
     expect(find.text('セキュリティ'), findsNothing);

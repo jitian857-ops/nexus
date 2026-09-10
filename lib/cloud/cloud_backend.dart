@@ -94,7 +94,62 @@ abstract class CloudBackend {
 
   Future<SharedItem?> findMyShare(SharedKind type, String sourceLocalId);
 
-  Future<List<SharedItem>> listSharedWithMe({SharedKind? type, int limit = 20});
+  Future<List<SharedItem>> listSharedWithMe({
+    SharedKind? type,
+    int limit = 20,
+    bool pendingOnly = false,
+  });
+
+  Future<void> respondShare(String aclId, {required bool accept});
+
+  Future<void> reactToShare(String itemId, String emoji);
+
+  Future<List<ShareReaction>> listReactions(String itemId);
+
+  Future<void> replyToShare(String itemId, String body);
+
+  Future<List<ShareReply>> listReplies(String itemId);
+
+  Future<FriendCircle> createCircle({required String name, required List<String> memberIds});
+
+  Future<void> updateCircle(FriendCircle circle);
+
+  Future<void> deleteCircle(String id);
+
+  Future<List<FriendCircle>> listCircles();
+
+  Future<CirclePoll> createPoll({
+    required String circleId,
+    required String title,
+    required List<String> options,
+  });
+
+  Future<void> votePoll(String pollId, int optionIndex);
+
+  Future<List<CirclePoll>> listPolls(String circleId);
+
+  Future<CircleWant> addWant({required String circleId, required String title});
+
+  Future<void> toggleWant(String wantId);
+
+  Future<List<CircleWant>> listWants(String circleId);
+
+  Future<MemoryAlbum> createAlbum({
+    required String title,
+    required List<String> participantIds,
+    String? circleId,
+  });
+
+  Future<List<MemoryAlbum>> listAlbums();
+
+  Future<void> addMemoryPhoto({
+    required String albumId,
+    required DateTime day,
+    required String dataB64,
+    String mime = 'image/jpeg',
+  });
+
+  Future<List<MemoryPhoto>> listMemoryPhotos(String albumId);
 
   Future<void> markFriendNoticeRead(String id);
 }

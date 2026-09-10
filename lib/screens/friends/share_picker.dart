@@ -36,7 +36,7 @@ Future<List<String>?> pickShareViewers(
             const Text('共有できるフレンドがいません', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
             const SizedBox(height: 8),
             Text(
-              '設定のフレンドからコードを渡して、相手に申請してもらってください。',
+              'Friendタブの右上からコードやQRを渡して、相手に申請してもらってください。',
               style: TextStyle(color: NexusColors.textSecondary, height: 1.4),
             ),
             const SizedBox(height: 12),
@@ -52,6 +52,11 @@ Future<List<String>?> pickShareViewers(
   try {
     groups = AppScope.of(context).friendGroups;
   } catch (_) {}
+  var circles = <FriendCircle>[];
+  try {
+    circles = await cloud.listCircles();
+  } catch (_) {}
+  if (!context.mounted) return null;
   return showNexusSheet<List<String>>(
     context: context,
     useRootNavigator: true,
@@ -85,6 +90,35 @@ Future<List<String>?> pickShareViewers(
                           final ids = {
                             for (final friend in friends)
                               if (group.memberIds.contains(friend.uid)) friend.uid,
+                          };
+                          if (ids.isEmpty) return;
+                          setSheet(() {
+                            if (ids.every(picked.contains)) {
+                              picked.removeAll(ids);
+                            } else {
+                              picked.addAll(ids);
+                            }
+                          });
+                        },
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+              ],
+              if (circles.isNotEmpty) ...[
+                Text('サークル', style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final circle in circles)
+                      ActionChip(
+                        label: Text(circle.name),
+                        onPressed: () {
+                          final ids = {
+                            for (final friend in friends)
+                              if (circle.memberIds.contains(friend.uid)) friend.uid,
                           };
                           if (ids.isEmpty) return;
                           setSheet(() {

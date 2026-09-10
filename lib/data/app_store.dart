@@ -428,7 +428,7 @@ class AppStore extends ChangeNotifier {
       (timerTotalSeconds - timerElapsedSeconds()).clamp(0, timerTotalSeconds);
 
   void goTo(int tab) {
-    final next = tab.clamp(NexusTab.home, NexusTab.settings);
+    final next = tab.clamp(NexusTab.home, NexusTab.friends);
     if (next != tabIndex) {
       final today = dateOnly(DateTime.now());
       studyWeek = today;

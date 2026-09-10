@@ -7,7 +7,7 @@ import '../app/theme.dart';
 import 'home/home_screen.dart';
 import 'life/life_screen.dart';
 import 'money/money_screen.dart';
-import 'settings/settings_screen.dart';
+import 'friends/friends_screen.dart';
 import 'study/study_screen.dart';
 
 class AppShell extends StatelessWidget {
@@ -32,7 +32,7 @@ class AppShell extends StatelessWidget {
                   StudyScreen(),
                   LifeScreen(),
                   MoneyScreen(),
-                  SettingsScreen(),
+                  FriendsScreen(),
                 ],
               ),
             ),

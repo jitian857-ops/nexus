@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app/theme.dart';
 import '../../core/format.dart';
 import '../../data/app_store.dart';
-import '../../widgets/nexus_nav_bar.dart';
+import '../settings/settings_screen.dart';
 
 class HomeHeader extends StatelessWidget {
   const HomeHeader({super.key});
@@ -77,7 +77,8 @@ class HomeHeader extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         InkWell(
-          onTap: () => store.goTo(NexusTab.settings),
+          key: const Key('open-settings'),
+          onTap: () => openSettings(context),
           borderRadius: BorderRadius.circular(12),
           child: Container(
             width: 36,

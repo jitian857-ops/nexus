@@ -1,6 +1,6 @@
 import '../widgets/nexus_nav_bar.dart';
 
-enum TutorialTab { home, study, life, money, settings }
+enum TutorialTab { home, study, life, money, friends, settings }
 
 class TutorialSlide {
   const TutorialSlide({
@@ -29,7 +29,7 @@ class TutorialDeck {
       NexusTab.study => TutorialTab.study,
       NexusTab.life => TutorialTab.life,
       NexusTab.money => TutorialTab.money,
-      NexusTab.settings => TutorialTab.settings,
+      NexusTab.friends => TutorialTab.friends,
       _ => null,
     };
   }
@@ -40,6 +40,7 @@ class TutorialDeck {
       TutorialTab.study => study,
       TutorialTab.life => life,
       TutorialTab.money => money,
+      TutorialTab.friends => friends,
       TutorialTab.settings => settings,
     };
   }
@@ -140,12 +141,22 @@ class TutorialDeck {
     ],
   );
 
+  static const friends = TutorialDeck(
+    tab: TutorialTab.friends,
+    slides: [
+      TutorialSlide(
+        asset: 'assets/tutorial/settings_01.jpg',
+        label: '友だちの日記や予定、グループ、思い出はここに集まるよ。右上からフレンドを追加できるよ。',
+      ),
+    ],
+  );
+
   static const settings = TutorialDeck(
     tab: TutorialTab.settings,
     slides: [
       TutorialSlide(
         asset: 'assets/tutorial/settings_01.jpg',
-        label: 'ここで自分好みに設定しよう！テーマやプロフィールを変えたり、フレンドの管理もできるよ。',
+        label: 'ここで自分好みに設定しよう！テーマやプロフィールを変えられるよ。',
       ),
     ],
   );

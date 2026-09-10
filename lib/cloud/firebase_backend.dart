@@ -661,14 +661,16 @@ class FirebaseBackend implements CloudBackend {
   @override
   Future<FriendProfile?> lookupFriend(String query) async {
     final me = _uid();
-    final q = normalizeFriendQuery(query);
+    final q = friendCodeFromScan(query) ?? normalizeFriendQuery(query);
     if (q.isEmpty) return null;
     String? uid;
     if (q.length == 8) {
       final code = await _safeGet(_db.collection('friend_codes').doc(q));
       uid = code?.data()?['uid'] as String?;
+      if (uid == null || uid.isEmpty) return null;
+    } else {
+      uid = query.trim();
     }
-    uid ??= query.trim();
     if (uid.isEmpty) return null;
     if (uid == me) throw CloudException('自分は追加できません');
     if (await _blockedPair(me, uid)) return null;
@@ -944,6 +946,7 @@ class FirebaseBackend implements CloudBackend {
         'item_id': ref.id,
         'viewer_id': viewer,
         'owner_id': me,
+        'status': shareStatusForNew(type),
         'created_at': DateTime.now().toIso8601String(),
       });
       await _notify(
@@ -1005,11 +1008,21 @@ class FirebaseBackend implements CloudBackend {
   }
 
   @override
-  Future<List<SharedItem>> listSharedWithMe({SharedKind? type, int limit = 20}) async {
+  Future<List<SharedItem>> listSharedWithMe({
+    SharedKind? type,
+    int limit = 20,
+    bool pendingOnly = false,
+  }) async {
     final me = _uid();
     final acls = await _safeQuery(_db.collection('share_acl').where('viewer_id', isEqualTo: me));
     final items = <SharedItem>[];
     for (final acl in acls) {
+      final status = shareStatusFrom(acl.data()['status'] as String?);
+      if (pendingOnly) {
+        if (status != ShareStatus.pending) continue;
+      } else if (status != ShareStatus.accepted) {
+        continue;
+      }
       final itemId = acl.data()['item_id'] as String? ?? '';
       final snap = await _safeGet(_db.collection('shared_items').doc(itemId));
       final data = snap?.data();
@@ -1040,11 +1053,352 @@ class FirebaseBackend implements CloudBackend {
           payload: Map<String, dynamic>.from(data['payload'] as Map? ?? {}),
           updatedAt: DateTime.tryParse(data['updated_at'] as String? ?? '') ?? DateTime.now(),
           owner: await _readProfile(ownerId),
+          aclId: acl.id,
+          shareStatus: status,
         ),
       );
     }
     items.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     return items.take(limit).toList();
+  }
+
+  @override
+  Future<void> respondShare(String aclId, {required bool accept}) async {
+    final me = _uid();
+    final ref = _db.collection('share_acl').doc(aclId);
+    final snap = await _safeGet(ref);
+    final data = snap?.data();
+    if (data == null || data['viewer_id'] != me) throw CloudException('共有が見つかりません');
+    if (accept) {
+      await ref.set({'status': 'accepted'}, SetOptions(merge: true));
+    } else {
+      await _safeDelete(ref);
+    }
+  }
+
+  @override
+  Future<void> reactToShare(String itemId, String emoji) async {
+    final me = _uid();
+    await _db.collection('shared_items').doc(itemId).collection('reactions').doc(me).set({
+      'item_id': itemId,
+      'uid': me,
+      'emoji': emoji,
+    });
+  }
+
+  @override
+  Future<List<ShareReaction>> listReactions(String itemId) async {
+    try {
+      final snap = await _db.collection('shared_items').doc(itemId).collection('reactions').get();
+      return [
+        for (final doc in snap.docs)
+          ShareReaction(
+            itemId: itemId,
+            uid: doc.data()['uid'] as String? ?? doc.id,
+            emoji: doc.data()['emoji'] as String? ?? '',
+          ),
+      ];
+    } catch (error) {
+      if (_denied(error)) return const [];
+      rethrow;
+    }
+  }
+
+  @override
+  Future<void> replyToShare(String itemId, String body) async {
+    final text = body.trim();
+    if (text.isEmpty) throw CloudException('ひとことを入力してください');
+    final me = _uid();
+    await _db.collection('shared_items').doc(itemId).collection('replies').add({
+      'item_id': itemId,
+      'author_id': me,
+      'body': text,
+      'created_at': DateTime.now().toIso8601String(),
+    });
+  }
+
+  @override
+  Future<List<ShareReply>> listReplies(String itemId) async {
+    try {
+      final snap = await _db.collection('shared_items').doc(itemId).collection('replies').get();
+      final items = [
+        for (final doc in snap.docs)
+          ShareReply(
+            id: doc.id,
+            itemId: itemId,
+            authorId: doc.data()['author_id'] as String? ?? '',
+            body: doc.data()['body'] as String? ?? '',
+            createdAt: DateTime.tryParse(doc.data()['created_at'] as String? ?? '') ?? DateTime.now(),
+            author: await _readProfile(doc.data()['author_id'] as String? ?? ''),
+          ),
+      ]..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      return items;
+    } catch (error) {
+      if (_denied(error)) return const [];
+      rethrow;
+    }
+  }
+
+  FriendCircle _circleFrom(String id, Map<String, dynamic> data) {
+    return FriendCircle(
+      id: id,
+      name: data['name'] as String? ?? '',
+      ownerId: data['owner_id'] as String? ?? '',
+      memberIds: [
+        for (final id in (data['member_ids'] as List? ?? const []))
+          if (id is String && id.isNotEmpty) id,
+      ],
+      createdAt: DateTime.tryParse(data['created_at'] as String? ?? '') ?? DateTime.now(),
+    );
+  }
+
+  @override
+  Future<FriendCircle> createCircle({required String name, required List<String> memberIds}) async {
+    final me = _uid();
+    final text = name.trim();
+    if (text.isEmpty) throw CloudException('グループ名を入力してください');
+    final members = <String>{me, ...memberIds.where((id) => id != me)};
+    final ref = _db.collection('circles').doc();
+    await ref.set({
+      'name': text,
+      'owner_id': me,
+      'member_ids': members.toList(),
+      'created_at': DateTime.now().toIso8601String(),
+    });
+    return _circleFrom(ref.id, (await ref.get()).data() ?? {'name': text, 'owner_id': me, 'member_ids': members.toList()});
+  }
+
+  @override
+  Future<void> updateCircle(FriendCircle circle) async {
+    final me = _uid();
+    final members = <String>{me, ...circle.memberIds};
+    await _db.collection('circles').doc(circle.id).set({
+      'name': circle.name.trim(),
+      'owner_id': me,
+      'member_ids': members.toList(),
+    }, SetOptions(merge: true));
+  }
+
+  @override
+  Future<void> deleteCircle(String id) async {
+    await _db.collection('circles').doc(id).delete();
+  }
+
+  @override
+  Future<List<FriendCircle>> listCircles() async {
+    final me = _uid();
+    final owned = await _safeQuery(_db.collection('circles').where('owner_id', isEqualTo: me));
+    final member = await _safeQuery(_db.collection('circles').where('member_ids', arrayContains: me));
+    final map = <String, FriendCircle>{};
+    for (final doc in [...owned, ...member]) {
+      map[doc.id] = _circleFrom(doc.id, doc.data());
+    }
+    return map.values.toList();
+  }
+
+  @override
+  Future<CirclePoll> createPoll({
+    required String circleId,
+    required String title,
+    required List<String> options,
+  }) async {
+    final cleaned = [for (final o in options) if (o.trim().isNotEmpty) o.trim()];
+    if (title.trim().isEmpty || cleaned.length < 2) throw CloudException('日程の候補を2つ以上入れてください');
+    final ref = _db.collection('circles').doc(circleId).collection('polls').doc();
+    await ref.set({
+      'circle_id': circleId,
+      'title': title.trim(),
+      'options': cleaned,
+      'votes': <String, dynamic>{},
+      'created_at': DateTime.now().toIso8601String(),
+    });
+    return CirclePoll(
+      id: ref.id,
+      circleId: circleId,
+      title: title.trim(),
+      options: cleaned,
+      votes: const {},
+      createdAt: DateTime.now(),
+    );
+  }
+
+  @override
+  Future<void> votePoll(String pollId, int optionIndex) async {
+    final me = _uid();
+    final circles = await listCircles();
+    for (final circle in circles) {
+      final snap = await _safeGet(_db.collection('circles').doc(circle.id).collection('polls').doc(pollId));
+      if (snap == null || !snap.exists) continue;
+      final votes = Map<String, dynamic>.from(snap.data()?['votes'] as Map? ?? {});
+      votes[me] = optionIndex;
+      await snap.reference.set({'votes': votes}, SetOptions(merge: true));
+      return;
+    }
+    throw CloudException('投票が見つかりません');
+  }
+
+  @override
+  Future<List<CirclePoll>> listPolls(String circleId) async {
+    try {
+      final snap = await _db.collection('circles').doc(circleId).collection('polls').get();
+      final list = [
+        for (final doc in snap.docs)
+          CirclePoll(
+            id: doc.id,
+            circleId: circleId,
+            title: doc.data()['title'] as String? ?? '',
+            options: [
+              for (final o in (doc.data()['options'] as List? ?? const []))
+                if (o is String) o,
+            ],
+            votes: {
+              for (final e in (doc.data()['votes'] as Map? ?? {}).entries)
+                e.key.toString(): (e.value as num?)?.toInt() ?? 0,
+            },
+            createdAt: DateTime.tryParse(doc.data()['created_at'] as String? ?? '') ?? DateTime.now(),
+          ),
+      ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return list;
+    } catch (error) {
+      if (_denied(error)) return const [];
+      rethrow;
+    }
+  }
+
+  @override
+  Future<CircleWant> addWant({required String circleId, required String title}) async {
+    final me = _uid();
+    final text = title.trim();
+    if (text.isEmpty) throw CloudException('やりたいことを入力してください');
+    final ref = _db.collection('circles').doc(circleId).collection('wants').doc();
+    await ref.set({
+      'circle_id': circleId,
+      'title': text,
+      'done': false,
+      'creator_id': me,
+    });
+    return CircleWant(id: ref.id, circleId: circleId, title: text, done: false, creatorId: me);
+  }
+
+  @override
+  Future<void> toggleWant(String wantId) async {
+    final circles = await listCircles();
+    for (final circle in circles) {
+      final snap = await _safeGet(_db.collection('circles').doc(circle.id).collection('wants').doc(wantId));
+      if (snap == null || !snap.exists) continue;
+      await snap.reference.set({'done': !(snap.data()?['done'] as bool? ?? false)}, SetOptions(merge: true));
+      return;
+    }
+  }
+
+  @override
+  Future<List<CircleWant>> listWants(String circleId) async {
+    try {
+      final snap = await _db.collection('circles').doc(circleId).collection('wants').get();
+      return [
+        for (final doc in snap.docs)
+          CircleWant(
+            id: doc.id,
+            circleId: circleId,
+            title: doc.data()['title'] as String? ?? '',
+            done: doc.data()['done'] as bool? ?? false,
+            creatorId: doc.data()['creator_id'] as String? ?? '',
+          ),
+      ];
+    } catch (error) {
+      if (_denied(error)) return const [];
+      rethrow;
+    }
+  }
+
+  @override
+  Future<MemoryAlbum> createAlbum({
+    required String title,
+    required List<String> participantIds,
+    String? circleId,
+  }) async {
+    final me = _uid();
+    final text = title.trim();
+    if (text.isEmpty) throw CloudException('アルバム名を入力してください');
+    final people = <String>{me, ...participantIds};
+    final ref = _db.collection('memory_albums').doc();
+    await ref.set({
+      'title': text,
+      'owner_id': me,
+      'participant_ids': people.toList(),
+      'circle_id': circleId,
+      'created_at': DateTime.now().toIso8601String(),
+    });
+    return MemoryAlbum(
+      id: ref.id,
+      title: text,
+      ownerId: me,
+      participantIds: people.toList(),
+      circleId: circleId,
+      createdAt: DateTime.now(),
+    );
+  }
+
+  @override
+  Future<List<MemoryAlbum>> listAlbums() async {
+    final me = _uid();
+    final owned = await _safeQuery(_db.collection('memory_albums').where('owner_id', isEqualTo: me));
+    final member = await _safeQuery(_db.collection('memory_albums').where('participant_ids', arrayContains: me));
+    final map = <String, MemoryAlbum>{};
+    for (final doc in [...owned, ...member]) {
+      map[doc.id] = MemoryAlbum(
+        id: doc.id,
+        title: doc.data()['title'] as String? ?? '',
+        ownerId: doc.data()['owner_id'] as String? ?? '',
+        participantIds: [
+          for (final id in (doc.data()['participant_ids'] as List? ?? const []))
+            if (id is String && id.isNotEmpty) id,
+        ],
+        circleId: doc.data()['circle_id'] as String?,
+        createdAt: DateTime.tryParse(doc.data()['created_at'] as String? ?? '') ?? DateTime.now(),
+      );
+    }
+    return map.values.toList();
+  }
+
+  @override
+  Future<void> addMemoryPhoto({
+    required String albumId,
+    required DateTime day,
+    required String dataB64,
+    String mime = 'image/jpeg',
+  }) async {
+    final me = _uid();
+    if (dataB64.isEmpty) throw CloudException('写真を選べませんでした');
+    await _db.collection('memory_albums').doc(albumId).collection('photos').add({
+      'album_id': albumId,
+      'day': DateTime(day.year, day.month, day.day).toIso8601String(),
+      'author_id': me,
+      'data_b64': dataB64,
+      'mime': mime,
+    });
+  }
+
+  @override
+  Future<List<MemoryPhoto>> listMemoryPhotos(String albumId) async {
+    try {
+      final snap = await _db.collection('memory_albums').doc(albumId).collection('photos').get();
+      final list = [
+        for (final doc in snap.docs)
+          MemoryPhoto(
+            id: doc.id,
+            albumId: albumId,
+            day: DateTime.tryParse(doc.data()['day'] as String? ?? '') ?? DateTime.now(),
+            authorId: doc.data()['author_id'] as String? ?? '',
+            dataB64: doc.data()['data_b64'] as String? ?? '',
+            mime: doc.data()['mime'] as String? ?? 'image/jpeg',
+          ),
+      ]..sort((a, b) => b.day.compareTo(a.day));
+      return list;
+    } catch (error) {
+      if (_denied(error)) return const [];
+      rethrow;
+    }
   }
 
   @override
