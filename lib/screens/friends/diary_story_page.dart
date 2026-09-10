@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../cloud/cloud_models.dart';
 import '../../cloud/friend_models.dart';
 import '../../cloud/nexus_cloud.dart';
+import '../../widgets/friend_avatar.dart';
 import '../../widgets/ui_bits.dart';
 
 const _kReactions = ['❤️', '👍', '🔥', '😊', '😢', '👏'];
@@ -152,9 +153,24 @@ class _DiaryStoryPageState extends State<DiaryStoryPage> {
                           const SizedBox(height: 24),
                           Expanded(
                             child: SingleChildScrollView(
-                              child: Text(
-                                body.isEmpty ? '（本文なし）' : body,
-                                style: const TextStyle(color: Colors.white, fontSize: 20, height: 1.5),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    body.isEmpty && item.imageUrls.isEmpty ? '（本文なし）' : body,
+                                    style: const TextStyle(color: Colors.white, fontSize: 20, height: 1.5),
+                                  ),
+                                  if (item.imageUrls.isNotEmpty) ...[
+                                    const SizedBox(height: 16),
+                                    for (final url in item.imageUrls) ...[
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(12),
+                                        child: NexusImage(src: url, height: 220),
+                                      ),
+                                      const SizedBox(height: 8),
+                                    ],
+                                  ],
+                                ],
                               ),
                             ),
                           ),

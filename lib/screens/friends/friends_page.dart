@@ -7,6 +7,7 @@ import '../../cloud/cloud_models.dart';
 import '../../cloud/friend_models.dart';
 import '../../cloud/nexus_cloud.dart';
 import '../../data/app_store.dart';
+import '../../widgets/friend_avatar.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/ui_bits.dart';
 import 'friend_qr_scan_page.dart';
@@ -372,6 +373,8 @@ class FriendDetailPage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  FriendAvatar(name: friend.displayName, photoUrl: friend.photoUrl, radius: 28),
+                  const SizedBox(height: 12),
                   Text(friend.friendCode, style: TextStyle(color: NexusColors.textMuted)),
                   if (friend.occupation.isNotEmpty) ...[
                     const SizedBox(height: 4),

@@ -257,10 +257,22 @@ class NexusCloud extends ChangeNotifier {
     );
   }
 
-  Future<void> updateProfile({required String displayName, required String occupation}) {
+  Future<void> updateProfile({
+    required String displayName,
+    required String occupation,
+    String? photoUrl,
+  }) {
     return _run(
-      () => _backend.updateProfile(displayName: displayName, occupation: occupation),
+      () => _backend.updateProfile(
+        displayName: displayName,
+        occupation: occupation,
+        photoUrl: photoUrl,
+      ),
     );
+  }
+
+  Future<String> uploadMedia(List<int> bytes, {String mime = 'image/jpeg'}) {
+    return _run(() => _backend.uploadMedia(bytes, mime: mime));
   }
 
   Future<void> deleteAccount({required String password}) {
@@ -459,18 +471,60 @@ class NexusCloud extends ChangeNotifier {
 
   Future<List<MemoryAlbum>> listAlbums() => _backend.listAlbums();
 
+  Future<void> updateAlbum(MemoryAlbum album) {
+    return _run(() => _backend.updateAlbum(album));
+  }
+
   Future<void> addMemoryPhoto({
     required String albumId,
     required DateTime day,
-    required String dataB64,
+    String dataB64 = '',
+    String url = '',
     String mime = 'image/jpeg',
   }) {
     return _run(
-      () => _backend.addMemoryPhoto(albumId: albumId, day: day, dataB64: dataB64, mime: mime),
+      () => _backend.addMemoryPhoto(
+        albumId: albumId,
+        day: day,
+        dataB64: dataB64,
+        url: url,
+        mime: mime,
+      ),
     );
   }
 
   Future<List<MemoryPhoto>> listMemoryPhotos(String albumId) => _backend.listMemoryPhotos(albumId);
+
+  Future<void> addPhotoComment({
+    required String albumId,
+    required String photoId,
+    required String body,
+  }) {
+    return _run(
+      () => _backend.addPhotoComment(albumId: albumId, photoId: photoId, body: body),
+    );
+  }
+
+  Future<List<PhotoComment>> listPhotoComments({
+    required String albumId,
+    required String photoId,
+  }) {
+    return _backend.listPhotoComments(albumId: albumId, photoId: photoId);
+  }
+
+  Future<String> ensureDmChat(String otherUid) {
+    return _run(() => _backend.ensureDmChat(otherUid));
+  }
+
+  Future<String> ensureCircleChat(FriendCircle circle) {
+    return _run(() => _backend.ensureCircleChat(circle));
+  }
+
+  Future<List<TalkMessage>> listMessages(String chatId) => _backend.listMessages(chatId);
+
+  Future<void> sendMessage(String chatId, {String body = '', String imageUrl = ''}) {
+    return _run(() => _backend.sendMessage(chatId, body: body, imageUrl: imageUrl));
+  }
 
   Future<void> _refreshMailBadge() async {
     if (uid.isEmpty) {

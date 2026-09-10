@@ -276,6 +276,7 @@ class LocalBackend implements CloudBackend {
   Future<CloudSession> updateProfile({
     required String displayName,
     required String occupation,
+    String? photoUrl,
   }) async {
     final session = _session;
     if (session == null) throw CloudException('ログインしてください');
@@ -285,9 +286,23 @@ class LocalBackend implements CloudBackend {
     account['displayName'] = displayName.trim();
     account['occupation'] = occupation.trim();
     _map('accounts')[session.email] = account;
+    final row = _profileMap(session.uid);
+    row['displayName'] = displayName.trim();
+    row['occupation'] = occupation.trim();
+    if (photoUrl != null) row['photoUrl'] = photoUrl;
     _session = session.copyWith(displayName: displayName.trim(), occupation: occupation.trim());
     await _persist();
     return _session!;
+  }
+
+  @override
+  Future<String> uploadMedia(List<int> bytes, {String mime = 'image/jpeg'}) async {
+    if (bytes.isEmpty) throw CloudException('写真を選べませんでした');
+    final id = _id();
+    final url = 'data:$mime;base64,${base64Encode(bytes)}';
+    _map('media')[id] = url;
+    await _persist();
+    return url;
   }
 
   @override
@@ -448,6 +463,7 @@ class LocalBackend implements CloudBackend {
       displayName: name.isEmpty ? 'ユーザー' : name,
       friendCode: row['friendCode'] as String? ?? '',
       occupation: row['occupation'] as String? ?? '',
+      photoUrl: row['photoUrl'] as String? ?? '',
     );
   }
 
@@ -1254,21 +1270,43 @@ class LocalBackend implements CloudBackend {
   }
 
   @override
+  Future<void> updateAlbum(MemoryAlbum album) async {
+    final me = _me();
+    final row = _map('memoryAlbums')[album.id];
+    if (row is! Map || row['ownerId'] != me) throw CloudException('アルバムを変えられません');
+    final people = <String>{me, ...album.participantIds};
+    _map('memoryAlbums')[album.id] = {
+      ...Map<String, dynamic>.from(row),
+      'title': album.title.trim(),
+      'participantIds': people.toList(),
+      'circleId': album.circleId,
+    };
+    await _persist();
+  }
+
+  @override
   Future<void> addMemoryPhoto({
     required String albumId,
     required DateTime day,
-    required String dataB64,
+    String dataB64 = '',
+    String url = '',
     String mime = 'image/jpeg',
   }) async {
     final me = _me();
-    if (dataB64.isEmpty) throw CloudException('写真を選べませんでした');
+    var storedUrl = url;
+    final storedB64 = dataB64;
+    if (storedUrl.isEmpty && storedB64.isNotEmpty) {
+      storedUrl = 'data:$mime;base64,$storedB64';
+    }
+    if (storedUrl.isEmpty) throw CloudException('写真を選べませんでした');
     final id = _id();
     _map('memoryPhotos')[id] = {
       'id': id,
       'albumId': albumId,
       'day': DateTime(day.year, day.month, day.day).toIso8601String(),
       'authorId': me,
-      'dataB64': dataB64,
+      'dataB64': storedB64,
+      'url': storedUrl,
       'mime': mime,
     };
     await _persist();
@@ -1285,10 +1323,130 @@ class LocalBackend implements CloudBackend {
             day: DateTime.tryParse(value['day'] as String? ?? '') ?? DateTime.now(),
             authorId: value['authorId'] as String? ?? '',
             dataB64: value['dataB64'] as String? ?? '',
+            url: value['url'] as String? ?? '',
             mime: value['mime'] as String? ?? 'image/jpeg',
           ),
     ]..sort((a, b) => b.day.compareTo(a.day));
     return list;
+  }
+
+  @override
+  Future<void> addPhotoComment({
+    required String albumId,
+    required String photoId,
+    required String body,
+  }) async {
+    final text = body.trim();
+    if (text.isEmpty) throw CloudException('コメントを入力してください');
+    final me = _me();
+    final id = _id();
+    _map('photoComments')[id] = {
+      'id': id,
+      'albumId': albumId,
+      'photoId': photoId,
+      'authorId': me,
+      'body': text,
+      'createdAt': DateTime.now().toIso8601String(),
+    };
+    await _persist();
+  }
+
+  @override
+  Future<List<PhotoComment>> listPhotoComments({
+    required String albumId,
+    required String photoId,
+  }) async {
+    final items = [
+      for (final value in _map('photoComments').values)
+        if (value is Map && value['albumId'] == albumId && value['photoId'] == photoId)
+          PhotoComment(
+            id: value['id'] as String? ?? '',
+            photoId: photoId,
+            authorId: value['authorId'] as String? ?? '',
+            body: value['body'] as String? ?? '',
+            createdAt: DateTime.tryParse(value['createdAt'] as String? ?? '') ?? DateTime.now(),
+            author: _profileOf(value['authorId'] as String? ?? ''),
+          ),
+    ]..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    return items;
+  }
+
+  @override
+  Future<String> ensureDmChat(String otherUid) async {
+    final me = _me();
+    final id = 'dm_${_pairKey(me, otherUid)}';
+    _map('chats')[id] = {
+      'id': id,
+      'type': 'dm',
+      'memberIds': [me, otherUid],
+      'updatedAt': DateTime.now().toIso8601String(),
+    };
+    await _persist();
+    return id;
+  }
+
+  @override
+  Future<String> ensureCircleChat(FriendCircle circle) async {
+    final me = _me();
+    if (!circle.memberIds.contains(me) && circle.ownerId != me) {
+      throw CloudException('グループのメンバーではありません');
+    }
+    final id = 'circle_${circle.id}';
+    final members = <String>{me, circle.ownerId, ...circle.memberIds};
+    _map('chats')[id] = {
+      'id': id,
+      'type': 'circle',
+      'circleId': circle.id,
+      'memberIds': members.toList(),
+      'updatedAt': DateTime.now().toIso8601String(),
+    };
+    await _persist();
+    return id;
+  }
+
+  @override
+  Future<List<TalkMessage>> listMessages(String chatId) async {
+    final items = [
+      for (final value in _map('talkMessages').values)
+        if (value is Map && value['chatId'] == chatId)
+          TalkMessage(
+            id: value['id'] as String? ?? '',
+            chatId: chatId,
+            authorId: value['authorId'] as String? ?? '',
+            body: value['body'] as String? ?? '',
+            imageUrl: value['imageUrl'] as String? ?? '',
+            createdAt: DateTime.tryParse(value['createdAt'] as String? ?? '') ?? DateTime.now(),
+            author: _profileOf(value['authorId'] as String? ?? ''),
+          ),
+    ]..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    return items;
+  }
+
+  @override
+  Future<void> sendMessage(String chatId, {String body = '', String imageUrl = ''}) async {
+    final text = body.trim();
+    if (text.isEmpty && imageUrl.isEmpty) throw CloudException('メッセージを入力してください');
+    final me = _me();
+    final chat = _map('chats')[chatId];
+    if (chat is! Map) throw CloudException('トークが見つかりません');
+    final members = [
+      for (final id in (chat['memberIds'] as List? ?? const []))
+        if (id is String) id,
+    ];
+    if (!members.contains(me)) throw CloudException('トークのメンバーではありません');
+    final id = _id();
+    _map('talkMessages')[id] = {
+      'id': id,
+      'chatId': chatId,
+      'authorId': me,
+      'body': text,
+      'imageUrl': imageUrl,
+      'createdAt': DateTime.now().toIso8601String(),
+    };
+    chat['updatedAt'] = DateTime.now().toIso8601String();
+    chat['lastText'] = text.isEmpty ? '写真' : text;
+    _map('chats')[chatId] = Map<String, dynamic>.from(chat);
+    await _persist();
   }
 
   @override

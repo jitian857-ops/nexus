@@ -1,6 +1,3 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -9,6 +6,8 @@ import '../../cloud/cloud_models.dart';
 import '../../cloud/friend_models.dart';
 import '../../cloud/nexus_cloud.dart';
 import '../../core/format.dart';
+import '../../data/app_store.dart';
+import '../../widgets/friend_avatar.dart';
 import '../../widgets/ui_bits.dart';
 
 class MemoryCreatePage extends StatefulWidget {
@@ -23,7 +22,7 @@ class MemoryCreatePage extends StatefulWidget {
 
 class _MemoryCreatePageState extends State<MemoryCreatePage> {
   final _title = TextEditingController();
-  var _withFriend = '';
+  final _pickedFriends = <String>{};
   var _withCircle = '';
 
   @override
@@ -39,8 +38,7 @@ class _MemoryCreatePageState extends State<MemoryCreatePage> {
       return;
     }
     try {
-      final participants = <String>{};
-      if (_withFriend.isNotEmpty) participants.add(_withFriend);
+      final participants = <String>{..._pickedFriends};
       FriendCircle? circle;
       if (_withCircle.isNotEmpty) {
         for (final item in widget.circles) {
@@ -74,27 +72,32 @@ class _MemoryCreatePageState extends State<MemoryCreatePage> {
             decoration: const InputDecoration(labelText: 'タイトル', hintText: '2026夏、大学の友だち'),
           ),
           const SizedBox(height: 16),
-          Text('友だちと', style: TextStyle(color: NexusColors.textMuted)),
+          Text('メンバー', style: TextStyle(color: NexusColors.textMuted)),
           const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              ChoiceChip(
-                label: const Text('指定しない'),
-                selected: _withFriend.isEmpty,
-                onSelected: (_) => setState(() => _withFriend = ''),
-              ),
-              for (final friend in widget.friends)
-                ChoiceChip(
-                  label: Text(friend.displayName),
-                  selected: _withFriend == friend.uid,
-                  onSelected: (_) => setState(() => _withFriend = friend.uid),
-                ),
-            ],
-          ),
+          if (widget.friends.isEmpty)
+            Text('フレンドを追加すると、一緒に残す人を選べます', style: TextStyle(color: NexusColors.textMuted))
+          else
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final friend in widget.friends)
+                  FilterChip(
+                    avatar: FriendAvatar(name: friend.displayName, photoUrl: friend.photoUrl, radius: 12),
+                    label: Text(friend.displayName),
+                    selected: _pickedFriends.contains(friend.uid),
+                    onSelected: (on) => setState(() {
+                      if (on) {
+                        _pickedFriends.add(friend.uid);
+                      } else {
+                        _pickedFriends.remove(friend.uid);
+                      }
+                    }),
+                  ),
+              ],
+            ),
           const SizedBox(height: 12),
-          Text('グループと', style: TextStyle(color: NexusColors.textMuted)),
+          Text('グループからも追加', style: TextStyle(color: NexusColors.textMuted)),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
@@ -120,15 +123,17 @@ class _MemoryCreatePageState extends State<MemoryCreatePage> {
 }
 
 class MemoryAlbumPage extends StatefulWidget {
-  const MemoryAlbumPage({super.key, required this.album});
+  const MemoryAlbumPage({super.key, required this.album, this.friends = const []});
 
   final MemoryAlbum album;
+  final List<FriendProfile> friends;
 
   @override
   State<MemoryAlbumPage> createState() => _MemoryAlbumPageState();
 }
 
 class _MemoryAlbumPageState extends State<MemoryAlbumPage> {
+  late MemoryAlbum _album;
   late DateTime _month;
   var _photos = <MemoryPhoto>[];
   var _loading = true;
@@ -136,15 +141,38 @@ class _MemoryAlbumPageState extends State<MemoryAlbumPage> {
   @override
   void initState() {
     super.initState();
+    _album = widget.album;
     final now = DateTime.now();
     _month = DateTime(now.year, now.month);
     WidgetsBinding.instance.addPostFrameCallback((_) => _reload());
   }
 
+  FriendProfile _profileOf(String uid) {
+    final store = AppScope.of(context);
+    final me = CloudScope.of(context).uid;
+    if (uid == me) {
+      return FriendProfile(
+        uid: uid,
+        displayName: store.userName,
+        friendCode: '',
+        photoUrl: store.photoUrl,
+      );
+    }
+    for (final friend in widget.friends) {
+      if (friend.uid == uid) return friend;
+    }
+    return FriendProfile(uid: uid, displayName: 'メンバー', friendCode: '');
+  }
+
+  List<FriendProfile> get _members {
+    final ids = <String>{_album.ownerId, ..._album.participantIds};
+    return [for (final id in ids) _profileOf(id)];
+  }
+
   Future<void> _reload() async {
     setState(() => _loading = true);
     try {
-      final photos = await CloudScope.of(context).listMemoryPhotos(widget.album.id);
+      final photos = await CloudScope.of(context).listMemoryPhotos(_album.id);
       if (!mounted) return;
       setState(() {
         _photos = photos;
@@ -166,25 +194,13 @@ class _MemoryAlbumPageState extends State<MemoryAlbumPage> {
   }
 
   Future<void> _addPhoto(DateTime day, ImageSource source) async {
-    final picker = ImagePicker();
-    final file = await picker.pickImage(
-      source: source,
-      maxWidth: 1280,
-      imageQuality: 72,
-    );
-    if (file == null || !mounted) return;
-    final bytes = await file.readAsBytes();
-    if (!mounted) return;
-    if (bytes.length > 900 * 1024) {
-      showNexusToast(context, '画像が大きすぎます。もう少し小さい写真にしてください');
-      return;
-    }
+    final url = await pickAndUploadMedia(context, source: source);
+    if (url == null || !mounted) return;
     try {
       await CloudScope.of(context).addMemoryPhoto(
-        albumId: widget.album.id,
+        albumId: _album.id,
         day: day,
-        dataB64: base64Encode(bytes),
-        mime: file.mimeType ?? 'image/jpeg',
+        url: url,
       );
       await _reload();
     } catch (error) {
@@ -193,28 +209,69 @@ class _MemoryAlbumPageState extends State<MemoryAlbumPage> {
   }
 
   Future<void> _pickSource(DateTime day) async {
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('アルバムから選ぶ'),
-              onTap: () => Navigator.pop(context, ImageSource.gallery),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_camera_outlined),
-              title: const Text('カメラで撮る'),
-              onTap: () => Navigator.pop(context, ImageSource.camera),
-            ),
-          ],
-        ),
-      ),
-    );
+    final source = await pickImageSource(context);
     if (source == null || !mounted) return;
     await _addPhoto(day, source);
+  }
+
+  Future<void> _editMembers() async {
+    final cloud = CloudScope.of(context);
+    if (_album.ownerId != cloud.uid) return;
+    final selected = <String>{..._album.participantIds};
+    final saved = await showModalBottomSheet<Set<String>>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheet) {
+            return Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.paddingOf(context).bottom),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text('メンバーを編集', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final friend in widget.friends)
+                        FilterChip(
+                          avatar: FriendAvatar(name: friend.displayName, photoUrl: friend.photoUrl, radius: 12),
+                          label: Text(friend.displayName),
+                          selected: selected.contains(friend.uid),
+                          onSelected: (on) => setSheet(() {
+                            if (on) {
+                              selected.add(friend.uid);
+                            } else {
+                              selected.remove(friend.uid);
+                            }
+                          }),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(context, selected),
+                    child: const Text('保存'),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+    if (saved == null || !mounted) return;
+    try {
+      final next = _album.copyWith(participantIds: saved.toList());
+      await cloud.updateAlbum(next);
+      if (!mounted) return;
+      setState(() => _album = next);
+    } catch (error) {
+      if (mounted) showNexusToast(context, cloudErrorMessage(error));
+    }
   }
 
   @override
@@ -223,13 +280,38 @@ class _MemoryAlbumPageState extends State<MemoryAlbumPage> {
     final first = DateTime(_month.year, _month.month, 1);
     final daysInMonth = DateTime(_month.year, _month.month + 1, 0).day;
     final leading = first.weekday % 7;
+    final owner = CloudScope.of(context).uid == _album.ownerId;
     return Scaffold(
-      appBar: AppBar(title: Text(widget.album.title)),
+      appBar: AppBar(
+        title: Text(_album.title),
+        actions: [
+          if (owner)
+            TextButton(onPressed: _editMembers, child: const Text('メンバー')),
+        ],
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
+                Text('メンバー', style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 8,
+                  children: [
+                    for (final member in _members)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          FriendAvatar(name: member.displayName, photoUrl: member.photoUrl, radius: 14),
+                          const SizedBox(width: 6),
+                          Text(member.displayName),
+                        ],
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 16),
                 Row(
                   children: [
                     IconButton(
@@ -299,9 +381,9 @@ class _MemoryAlbumPageState extends State<MemoryAlbumPage> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (context) {
+      builder: (sheetContext) {
         return Padding(
-          padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.paddingOf(context).bottom),
+          padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.paddingOf(sheetContext).bottom),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -318,12 +400,20 @@ class _MemoryAlbumPageState extends State<MemoryAlbumPage> {
                     itemCount: photos.length,
                     separatorBuilder: (_, _) => const SizedBox(width: 8),
                     itemBuilder: (context, index) {
-                      final bytes = _decode(photos[index].dataB64);
-                      return ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: bytes == null
-                            ? const SizedBox(width: 120, child: Center(child: Text('画像なし')))
-                            : Image.memory(bytes, width: 120, height: 160, fit: BoxFit.cover),
+                      final photo = photos[index];
+                      return GestureDetector(
+                        onTap: () async {
+                          Navigator.pop(sheetContext);
+                          await Navigator.of(this.context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => PhotoCommentsPage(album: _album, photo: photo),
+                            ),
+                          );
+                        },
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: NexusImage(src: photo.src, width: 120, height: 160),
+                        ),
                       );
                     },
                   ),
@@ -334,7 +424,7 @@ class _MemoryAlbumPageState extends State<MemoryAlbumPage> {
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () {
-                        Navigator.pop(context);
+                        Navigator.pop(sheetContext);
                         _pickSource(day);
                       },
                       icon: const Icon(Icons.add_photo_alternate_outlined),
@@ -349,12 +439,142 @@ class _MemoryAlbumPageState extends State<MemoryAlbumPage> {
       },
     );
   }
+}
 
-  Uint8List? _decode(String data) {
+class PhotoCommentsPage extends StatefulWidget {
+  const PhotoCommentsPage({super.key, required this.album, required this.photo});
+
+  final MemoryAlbum album;
+  final MemoryPhoto photo;
+
+  @override
+  State<PhotoCommentsPage> createState() => _PhotoCommentsPageState();
+}
+
+class _PhotoCommentsPageState extends State<PhotoCommentsPage> {
+  final _text = TextEditingController();
+  var _comments = <PhotoComment>[];
+  var _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _reload());
+  }
+
+  @override
+  void dispose() {
+    _text.dispose();
+    super.dispose();
+  }
+
+  Future<void> _reload() async {
+    setState(() => _loading = true);
     try {
-      return base64Decode(data);
-    } catch (_) {
-      return null;
+      final comments = await CloudScope.of(context).listPhotoComments(
+        albumId: widget.album.id,
+        photoId: widget.photo.id,
+      );
+      if (!mounted) return;
+      setState(() {
+        _comments = comments;
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      showNexusToast(context, cloudErrorMessage(error));
     }
+  }
+
+  Future<void> _send() async {
+    final body = _text.text.trim();
+    if (body.isEmpty) return;
+    try {
+      await CloudScope.of(context).addPhotoComment(
+        albumId: widget.album.id,
+        photoId: widget.photo.id,
+        body: body,
+      );
+      _text.clear();
+      await _reload();
+    } catch (error) {
+      if (mounted) showNexusToast(context, cloudErrorMessage(error));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('写真')),
+      body: Column(
+        children: [
+          AspectRatio(
+            aspectRatio: 1,
+            child: NexusImage(src: widget.photo.src),
+          ),
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _comments.isEmpty
+                    ? Center(child: Text('コメントはまだありません', style: TextStyle(color: NexusColors.textMuted)))
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: _comments.length,
+                        itemBuilder: (context, index) {
+                          final comment = _comments[index];
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                FriendAvatar(
+                                  name: comment.author?.displayName ?? '',
+                                  photoUrl: comment.author?.photoUrl ?? '',
+                                  radius: 14,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        comment.author?.displayName ?? 'メンバー',
+                                        style: const TextStyle(fontWeight: FontWeight.w700),
+                                      ),
+                                      Text(comment.body),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+          ),
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _text,
+                      decoration: const InputDecoration(hintText: 'コメントを書く'),
+                      onSubmitted: (_) => _send(),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: _send,
+                    icon: Icon(Icons.send_rounded, color: NexusColors.cyan),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

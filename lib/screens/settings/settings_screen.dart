@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../app/theme.dart';
 import '../../cloud/nexus_cloud.dart';
 import '../../data/app_store.dart';
 import '../../data/models.dart';
 import '../../tutorial/tutorial_gate.dart';
+import '../../widgets/friend_avatar.dart';
 import '../../widgets/glass_card.dart';
-import '../../widgets/nexus_logo.dart';
 import '../../widgets/ui_bits.dart';
 import '../../widgets/nexus_nav_bar.dart';
 import 'app_customize_page.dart';
@@ -145,7 +146,11 @@ class SettingsScreen extends StatelessWidget {
                   GlassCard(
                     child: Row(
                       children: [
-                        const NexusLogo(size: 52),
+                        FriendAvatar(
+                          name: store.userName,
+                          photoUrl: store.photoUrl,
+                          radius: 26,
+                        ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
@@ -354,43 +359,75 @@ class SettingsScreen extends StatelessWidget {
     final cloud = CloudScope.of(context);
     final name = TextEditingController(text: store.userName);
     final job = TextEditingController(text: store.occupation);
+    var photoUrl = store.photoUrl;
     final saved = await showNexusSheet<bool>(
       context: context,
       builder: (context) {
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'プロフィール',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-            ),
-            TextField(
-              controller: name,
-              style: TextStyle(color: NexusColors.text),
-              decoration: const InputDecoration(labelText: '名前'),
-            ),
-            TextField(
-              controller: job,
-              style: TextStyle(color: NexusColors.text),
-              decoration: const InputDecoration(labelText: '職業'),
-            ),
-            const SizedBox(height: 12),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('保存'),
-            ),
-          ],
+        return StatefulBuilder(
+          builder: (context, setSheet) {
+            Future<void> setPhoto(ImageSource source) async {
+              final url = await pickAndUploadMedia(context, source: source);
+              if (url != null) setSheet(() => photoUrl = url);
+            }
+
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'プロフィール',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 12),
+                Center(child: FriendAvatar(name: name.text, photoUrl: photoUrl, radius: 36)),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => setPhoto(ImageSource.gallery),
+                        child: const Text('アルバム'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => setPhoto(ImageSource.camera),
+                        child: const Text('カメラ'),
+                      ),
+                    ),
+                  ],
+                ),
+                TextField(
+                  controller: name,
+                  style: TextStyle(color: NexusColors.text),
+                  decoration: const InputDecoration(labelText: '名前'),
+                ),
+                TextField(
+                  controller: job,
+                  style: TextStyle(color: NexusColors.text),
+                  decoration: const InputDecoration(labelText: '職業'),
+                ),
+                const SizedBox(height: 12),
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('保存'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
     if (saved == true && name.text.trim().isNotEmpty) {
       store.setUserName(name.text.trim());
       store.setOccupation(job.text);
+      store.setPhotoUrl(photoUrl);
       try {
         await cloud.updateProfile(
           displayName: name.text.trim(),
           occupation: job.text.trim(),
+          photoUrl: photoUrl,
         );
       } catch (_) {}
     }

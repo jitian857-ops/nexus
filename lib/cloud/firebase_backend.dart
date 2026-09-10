@@ -1,5 +1,9 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 import 'cloud_backend.dart';
 import 'cloud_models.dart';
@@ -222,22 +226,27 @@ class FirebaseBackend implements CloudBackend {
     );
   }
 
-  Future<void> _writeProfile(User user, {required String displayName, required String occupation}) async {
-    await _user(user.uid).set(
-      {
-        'email': user.email,
-        'displayName': displayName,
-        'occupation': occupation,
-        'updatedAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
+  Future<void> _writeProfile(
+    User user, {
+    required String displayName,
+    required String occupation,
+    String? photoUrl,
+  }) async {
+    final data = <String, dynamic>{
+      'email': user.email,
+      'displayName': displayName,
+      'occupation': occupation,
+      'updatedAt': FieldValue.serverTimestamp(),
+      if (photoUrl != null) 'photoUrl': photoUrl,
+    };
+    await _user(user.uid).set(data, SetOptions(merge: true));
     await _db.collection('profiles').doc(user.uid).set(
       {
         'uid': user.uid,
         'displayName': displayName,
         'occupation': occupation,
         'updatedAt': FieldValue.serverTimestamp(),
+        if (photoUrl != null) 'photoUrl': photoUrl,
       },
       SetOptions(merge: true),
     );
@@ -341,17 +350,37 @@ class FirebaseBackend implements CloudBackend {
   Future<CloudSession> updateProfile({
     required String displayName,
     required String occupation,
+    String? photoUrl,
   }) async {
     final user = _auth.currentUser;
     if (user == null) throw CloudException('ログインしてください');
     if (displayName.trim().isEmpty) throw CloudException('名前を入力してください');
     await user.updateDisplayName(displayName.trim());
-    await _writeProfile(user, displayName: displayName.trim(), occupation: occupation.trim());
+    await _writeProfile(
+      user,
+      displayName: displayName.trim(),
+      occupation: occupation.trim(),
+      photoUrl: photoUrl,
+    );
     _session = (await _sessionFrom(user)).copyWith(
       displayName: displayName.trim(),
       occupation: occupation.trim(),
     );
     return _session!;
+  }
+
+  @override
+  Future<String> uploadMedia(List<int> bytes, {String mime = 'image/jpeg'}) async {
+    final me = _uid();
+    if (bytes.isEmpty) throw CloudException('写真を選べませんでした');
+    try {
+      final id = _db.collection('_').doc().id;
+      final ref = FirebaseStorage.instance.ref('media/$me/$id');
+      await ref.putData(Uint8List.fromList(bytes), SettableMetadata(contentType: mime));
+      return await ref.getDownloadURL();
+    } catch (error) {
+      throw CloudException(cloudErrorMessage(error));
+    }
   }
 
   @override
@@ -504,6 +533,7 @@ class FirebaseBackend implements CloudBackend {
         displayName: data['displayName'] as String? ?? 'ユーザー',
         friendCode: data['friendCode'] as String? ?? '',
         occupation: data['occupation'] as String? ?? '',
+        photoUrl: data['photoUrl'] as String? ?? data['photo_url'] as String? ?? '',
       );
     } catch (error) {
       if (_denied(error)) {
@@ -611,12 +641,7 @@ class FirebaseBackend implements CloudBackend {
     }
     final current = data?['friendCode'] as String? ?? '';
     if (!regenerate && current.isNotEmpty) {
-      return FriendProfile(
-        uid: uid,
-        displayName: data?['displayName'] as String? ?? _session?.displayName ?? 'ユーザー',
-        friendCode: current,
-        occupation: data?['occupation'] as String? ?? _session?.occupation ?? '',
-      );
+      return _readProfile(uid);
     }
     if (current.isNotEmpty) {
       try {
@@ -1362,19 +1387,43 @@ class FirebaseBackend implements CloudBackend {
   }
 
   @override
+  Future<void> updateAlbum(MemoryAlbum album) async {
+    final me = _uid();
+    final ref = _db.collection('memory_albums').doc(album.id);
+    final snap = await ref.get();
+    if (!snap.exists || snap.data()?['owner_id'] != me) {
+      throw CloudException('アルバムを変えられません');
+    }
+    final people = <String>{me, ...album.participantIds};
+    await ref.set(
+      {
+        'title': album.title.trim(),
+        'participant_ids': people.toList(),
+        'circle_id': album.circleId,
+      },
+      SetOptions(merge: true),
+    );
+  }
+
+  @override
   Future<void> addMemoryPhoto({
     required String albumId,
     required DateTime day,
-    required String dataB64,
+    String dataB64 = '',
+    String url = '',
     String mime = 'image/jpeg',
   }) async {
     final me = _uid();
-    if (dataB64.isEmpty) throw CloudException('写真を選べませんでした');
+    var storedUrl = url.trim();
+    if (storedUrl.isEmpty && dataB64.isNotEmpty) {
+      storedUrl = await uploadMedia(base64Decode(dataB64), mime: mime);
+    }
+    if (storedUrl.isEmpty) throw CloudException('写真を選べませんでした');
     await _db.collection('memory_albums').doc(albumId).collection('photos').add({
       'album_id': albumId,
       'day': DateTime(day.year, day.month, day.day).toIso8601String(),
       'author_id': me,
-      'data_b64': dataB64,
+      'url': storedUrl,
       'mime': mime,
     });
   }
@@ -1391,6 +1440,7 @@ class FirebaseBackend implements CloudBackend {
             day: DateTime.tryParse(doc.data()['day'] as String? ?? '') ?? DateTime.now(),
             authorId: doc.data()['author_id'] as String? ?? '',
             dataB64: doc.data()['data_b64'] as String? ?? '',
+            url: doc.data()['url'] as String? ?? '',
             mime: doc.data()['mime'] as String? ?? 'image/jpeg',
           ),
       ]..sort((a, b) => b.day.compareTo(a.day));
@@ -1399,6 +1449,144 @@ class FirebaseBackend implements CloudBackend {
       if (_denied(error)) return const [];
       rethrow;
     }
+  }
+
+  @override
+  Future<void> addPhotoComment({
+    required String albumId,
+    required String photoId,
+    required String body,
+  }) async {
+    final text = body.trim();
+    if (text.isEmpty) throw CloudException('コメントを入力してください');
+    final me = _uid();
+    await _db
+        .collection('memory_albums')
+        .doc(albumId)
+        .collection('photos')
+        .doc(photoId)
+        .collection('comments')
+        .add({
+      'author_id': me,
+      'body': text,
+      'created_at': DateTime.now().toIso8601String(),
+    });
+  }
+
+  @override
+  Future<List<PhotoComment>> listPhotoComments({
+    required String albumId,
+    required String photoId,
+  }) async {
+    try {
+      final snap = await _db
+          .collection('memory_albums')
+          .doc(albumId)
+          .collection('photos')
+          .doc(photoId)
+          .collection('comments')
+          .get();
+      final items = [
+        for (final doc in snap.docs)
+          PhotoComment(
+            id: doc.id,
+            photoId: photoId,
+            authorId: doc.data()['author_id'] as String? ?? '',
+            body: doc.data()['body'] as String? ?? '',
+            createdAt: DateTime.tryParse(doc.data()['created_at'] as String? ?? '') ?? DateTime.now(),
+            author: await _readProfile(doc.data()['author_id'] as String? ?? ''),
+          ),
+      ]..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      return items;
+    } catch (error) {
+      if (_denied(error)) return const [];
+      rethrow;
+    }
+  }
+
+  @override
+  Future<String> ensureDmChat(String otherUid) async {
+    final me = _uid();
+    if (otherUid.isEmpty || otherUid == me) throw CloudException('トーク相手が不明です');
+    final id = 'dm_${_pairKey(me, otherUid)}';
+    await _db.collection('chats').doc(id).set(
+      {
+        'type': 'dm',
+        'member_ids': [me, otherUid],
+        'updated_at': DateTime.now().toIso8601String(),
+      },
+      SetOptions(merge: true),
+    );
+    return id;
+  }
+
+  @override
+  Future<String> ensureCircleChat(FriendCircle circle) async {
+    final me = _uid();
+    if (circle.ownerId != me && !circle.memberIds.contains(me)) {
+      throw CloudException('グループのメンバーではありません');
+    }
+    final id = 'circle_${circle.id}';
+    final members = <String>{me, circle.ownerId, ...circle.memberIds};
+    await _db.collection('chats').doc(id).set(
+      {
+        'type': 'circle',
+        'circle_id': circle.id,
+        'member_ids': members.toList(),
+        'updated_at': DateTime.now().toIso8601String(),
+      },
+      SetOptions(merge: true),
+    );
+    return id;
+  }
+
+  @override
+  Future<List<TalkMessage>> listMessages(String chatId) async {
+    try {
+      final snap = await _db.collection('chats').doc(chatId).collection('messages').get();
+      final items = [
+        for (final doc in snap.docs)
+          TalkMessage(
+            id: doc.id,
+            chatId: chatId,
+            authorId: doc.data()['author_id'] as String? ?? '',
+            body: doc.data()['body'] as String? ?? '',
+            imageUrl: doc.data()['image_url'] as String? ?? '',
+            createdAt: DateTime.tryParse(doc.data()['created_at'] as String? ?? '') ?? DateTime.now(),
+            author: await _readProfile(doc.data()['author_id'] as String? ?? ''),
+          ),
+      ]..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      return items;
+    } catch (error) {
+      if (_denied(error)) return const [];
+      rethrow;
+    }
+  }
+
+  @override
+  Future<void> sendMessage(String chatId, {String body = '', String imageUrl = ''}) async {
+    final text = body.trim();
+    if (text.isEmpty && imageUrl.isEmpty) throw CloudException('メッセージを入力してください');
+    final me = _uid();
+    final chat = await _db.collection('chats').doc(chatId).get();
+    final members = [
+      for (final id in (chat.data()?['member_ids'] as List? ?? const []))
+        if (id is String) id,
+    ];
+    if (!chat.exists || !members.contains(me)) throw CloudException('トークのメンバーではありません');
+    await chat.reference.collection('messages').add({
+      'author_id': me,
+      'body': text,
+      'image_url': imageUrl,
+      'created_at': DateTime.now().toIso8601String(),
+    });
+    await chat.reference.set(
+      {
+        'updated_at': DateTime.now().toIso8601String(),
+        'last_text': text.isEmpty ? '写真' : text,
+      },
+      SetOptions(merge: true),
+    );
   }
 
   @override

@@ -32,7 +32,9 @@ class AppStore extends ChangeNotifier {
 
   String userName = '蒼井 ユウ';
   String occupation = '';
+  String photoUrl = '';
   final Map<String, String> diaries = {};
+  final Map<String, List<String>> diaryImages = {};
 
   int dailyStudyGoalMinutes = 120;
   DateTime todayStudyDate = dateOnly(DateTime.now());
@@ -97,7 +99,8 @@ class AppStore extends ChangeNotifier {
       diaryPosts.isNotEmpty ||
       subjects.isNotEmpty ||
       boxes.isNotEmpty ||
-      diaries.values.any((text) => text.trim().isNotEmpty);
+      diaries.values.any((text) => text.trim().isNotEmpty) ||
+      diaryImages.values.any((urls) => urls.isNotEmpty);
   int mood = 0;
   int energy = 0;
   int steps = 0;
@@ -160,6 +163,10 @@ class AppStore extends ChangeNotifier {
   String diaryOn(DateTime day) => diaries[dateKey(day)] ?? '';
 
   String get diary => diaryOn(lifeDate);
+
+  List<String> diaryImagesOn(DateTime day) => List<String>.unmodifiable(diaryImages[dateKey(day)] ?? const []);
+
+  List<String> get diaryPhotoUrls => diaryImagesOn(lifeDate);
 
   int savingsAllocatedFor(DateTime day) {
     return cards.where((c) {
@@ -520,6 +527,9 @@ class AppStore extends ChangeNotifier {
     String category = 'life',
     String source = 'user',
   }) {
+    if (source.startsWith('shared:') && schedules.any((item) => item.source == source)) {
+      return;
+    }
     schedules.add(
       ScheduleItem(
         id: _id(),
@@ -685,6 +695,24 @@ class AppStore extends ChangeNotifier {
     } else {
       diaries[key] = text;
     }
+    notifyListeners();
+    _saveUserData();
+  }
+
+  void setDiaryImages(List<String> urls, {DateTime? day}) {
+    final key = dateKey(day ?? lifeDate);
+    final clean = [for (final url in urls) if (url.trim().isNotEmpty) url.trim()];
+    if (clean.isEmpty) {
+      diaryImages.remove(key);
+    } else {
+      diaryImages[key] = clean;
+    }
+    notifyListeners();
+    _saveUserData();
+  }
+
+  void setPhotoUrl(String value) {
+    photoUrl = value.trim();
     notifyListeners();
     _saveUserData();
   }
@@ -1488,12 +1516,14 @@ class AppStore extends ChangeNotifier {
       'updatedAt': DateTime.now().millisecondsSinceEpoch,
       'userName': userName,
       'occupation': occupation,
+      'photoUrl': photoUrl,
       'dailyStudyGoalMinutes': dailyStudyGoalMinutes,
       'todayStudyDate': todayStudyDate.toIso8601String(),
       'todayStudyLoggedSeconds': todayStudyLoggedSeconds,
       'totalStudyHours': totalStudyHours,
       'settings': settings.toJson(),
       'diaries': diaries,
+      'diaryImages': diaryImages,
       'subjects': [for (final s in subjects) s.toJson()],
       'sessions': [for (final s in sessions) s.toJson()],
       'exams': [for (final e in exams) e.toJson()],
@@ -1648,6 +1678,7 @@ class AppStore extends ChangeNotifier {
       userName = savedName;
     }
     occupation = (data['occupation'] as String?)?.trim() ?? occupation;
+    photoUrl = (data['photoUrl'] as String?)?.trim() ?? photoUrl;
     final goal = data['dailyStudyGoalMinutes'] as int?;
     if (goal != null) dailyStudyGoalMinutes = goal;
     diaries.clear();
@@ -1661,6 +1692,20 @@ class AppStore extends ChangeNotifier {
     final legacyDiary = (data['diary'] as String?)?.trim();
     if (legacyDiary != null && legacyDiary.isNotEmpty && diaries.isEmpty) {
       diaries[dateKey(DateTime.now())] = legacyDiary;
+    }
+    diaryImages.clear();
+    final rawDiaryImages = data['diaryImages'];
+    if (rawDiaryImages is Map) {
+      for (final entry in rawDiaryImages.entries) {
+        final value = entry.value;
+        final urls = <String>[];
+        if (value is List) {
+          for (final item in value) {
+            if (item is String && item.isNotEmpty) urls.add(item);
+          }
+        }
+        if (urls.isNotEmpty) diaryImages[entry.key.toString()] = urls;
+      }
     }
     final rawSettings = data['settings'];
     if (rawSettings is Map) {
@@ -1721,6 +1766,7 @@ class AppStore extends ChangeNotifier {
     problems.clear();
     reviewCards.clear();
     diaries.clear();
+    diaryImages.clear();
     friendGroups.clear();
     diaryPosts.clear();
     messages.clear();
@@ -1830,8 +1876,10 @@ class AppStore extends ChangeNotifier {
     energy = 0;
     steps = 0;
     diaries.clear();
+    diaryImages.clear();
     proposal = null;
     occupation = '';
+    photoUrl = '';
     userName = '蒼井 ユウ';
     dailyStudyGoalMinutes = 120;
     todayStudyLoggedSeconds = 0;

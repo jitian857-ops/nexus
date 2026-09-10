@@ -44,6 +44,12 @@ String jpMonth(DateTime d) => '${d.year}年${d.month}月';
 
 String hm(DateTime d) => '${two(d.hour)}:${two(d.minute)}';
 
+String scheduleRangeLabel({required DateTime start, DateTime? end, bool allDay = false}) {
+  if (allDay) return '${jpDate(start)} 終日';
+  final endText = end == null ? '' : '〜${hm(end)}';
+  return '${jpDate(start)} ${hm(start)}$endText';
+}
+
 String mmss(int seconds) {
   final s = seconds < 0 ? 0 : seconds;
   final hours = s ~/ 3600;

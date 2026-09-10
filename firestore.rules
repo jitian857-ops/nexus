@@ -263,6 +263,34 @@ service cloud.firestore {
           || get(/databases/$(database)/documents/memory_albums/$(id)).data.owner_id == uid()
         );
         allow update: if false;
+
+        match /comments/{cid} {
+          allow read: if inAlbum();
+          allow create: if inAlbum() && request.resource.data.author_id == uid();
+          allow update, delete: if signedIn() && resource.data.author_id == uid();
+        }
+      }
+    }
+
+    match /chats/{chatId} {
+      function inChatDoc() {
+        return signedIn() && uid() in resource.data.member_ids;
+      }
+      allow get: if signedIn() && (
+        resource == null || uid() in resource.data.member_ids
+      );
+      allow list: if signedIn() && uid() in resource.data.member_ids;
+      allow create: if signedIn() && uid() in request.resource.data.member_ids;
+      allow update: if inChatDoc() && uid() in request.resource.data.member_ids;
+      allow delete: if false;
+
+      match /messages/{mid} {
+        allow read: if signedIn() &&
+          uid() in get(/databases/$(database)/documents/chats/$(chatId)).data.member_ids;
+        allow create: if signedIn()
+          && request.resource.data.author_id == uid()
+          && uid() in get(/databases/$(database)/documents/chats/$(chatId)).data.member_ids;
+        allow update, delete: if false;
       }
     }
 

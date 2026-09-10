@@ -39,7 +39,10 @@ abstract class CloudBackend {
   Future<CloudSession> updateProfile({
     required String displayName,
     required String occupation,
+    String? photoUrl,
   });
+
+  Future<String> uploadMedia(List<int> bytes, {String mime = 'image/jpeg'});
 
   Future<void> deleteAccount({required String password});
 
@@ -142,14 +145,36 @@ abstract class CloudBackend {
 
   Future<List<MemoryAlbum>> listAlbums();
 
+  Future<void> updateAlbum(MemoryAlbum album);
+
   Future<void> addMemoryPhoto({
     required String albumId,
     required DateTime day,
-    required String dataB64,
+    String dataB64 = '',
+    String url = '',
     String mime = 'image/jpeg',
   });
 
   Future<List<MemoryPhoto>> listMemoryPhotos(String albumId);
+
+  Future<void> addPhotoComment({
+    required String albumId,
+    required String photoId,
+    required String body,
+  });
+
+  Future<List<PhotoComment>> listPhotoComments({
+    required String albumId,
+    required String photoId,
+  });
+
+  Future<String> ensureDmChat(String otherUid);
+
+  Future<String> ensureCircleChat(FriendCircle circle);
+
+  Future<List<TalkMessage>> listMessages(String chatId);
+
+  Future<void> sendMessage(String chatId, {String body = '', String imageUrl = ''});
 
   Future<void> markFriendNoticeRead(String id);
 }

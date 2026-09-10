@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../app/theme.dart';
 import '../../cloud/friend_models.dart';
@@ -6,6 +7,7 @@ import '../../cloud/nexus_cloud.dart';
 import '../../core/format.dart';
 import '../../data/app_store.dart';
 import '../../data/models.dart';
+import '../../widgets/friend_avatar.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/schedule_sheet.dart';
 import '../../widgets/ui_bits.dart';
@@ -208,6 +210,23 @@ class LifeScreen extends StatelessWidget {
                       color: store.diary.isEmpty ? NexusColors.textMuted : NexusColors.text,
                     ),
                   ),
+                  if (store.diaryPhotoUrls.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      height: 72,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: store.diaryPhotoUrls.length,
+                        separatorBuilder: (_, _) => const SizedBox(width: 8),
+                        itemBuilder: (context, index) {
+                          return ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: NexusImage(src: store.diaryPhotoUrls[index], width: 72, height: 72),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -220,6 +239,7 @@ class LifeScreen extends StatelessWidget {
   Future<void> _editDiary(BuildContext context, AppStore store) async {
     final cloud = CloudScope.of(context);
     final controller = TextEditingController(text: store.diary);
+    var images = [...store.diaryPhotoUrls];
     var shareWith = <String>[];
     try {
       final existing = await cloud.findMyShare(SharedKind.diary, dateKey(store.lifeDate));
@@ -231,6 +251,11 @@ class LifeScreen extends StatelessWidget {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setSheet) {
+            Future<void> addImage(ImageSource source) async {
+              final url = await pickAndUploadMedia(context, source: source);
+              if (url != null) setSheet(() => images = [...images, url]);
+            }
+
             return Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -246,6 +271,50 @@ class LifeScreen extends StatelessWidget {
                   style: TextStyle(color: NexusColors.text),
                 ),
                 const SizedBox(height: 8),
+                if (images.isNotEmpty)
+                  SizedBox(
+                    height: 72,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: images.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 8),
+                      itemBuilder: (context, index) {
+                        return Stack(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: NexusImage(src: images[index], width: 72, height: 72),
+                            ),
+                            Positioned(
+                              right: 0,
+                              top: 0,
+                              child: IconButton(
+                                visualDensity: VisualDensity.compact,
+                                onPressed: () => setSheet(() {
+                                  images = [for (var i = 0; i < images.length; i++) if (i != index) images[i]];
+                                }),
+                                icon: const Icon(Icons.close_rounded, size: 16),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                Row(
+                  children: [
+                    TextButton.icon(
+                      onPressed: () => addImage(ImageSource.gallery),
+                      icon: const Icon(Icons.photo_outlined),
+                      label: const Text('写真'),
+                    ),
+                    TextButton.icon(
+                      onPressed: () => addImage(ImageSource.camera),
+                      icon: const Icon(Icons.photo_camera_outlined),
+                      label: const Text('カメラ'),
+                    ),
+                  ],
+                ),
                 Text(
                   shareWith.isEmpty ? '公開範囲  自分のみ' : '公開範囲  ${shareWith.length}人に共有',
                   style: TextStyle(color: NexusColors.textMuted, fontSize: 12),
@@ -270,9 +339,11 @@ class LifeScreen extends StatelessWidget {
     );
     if (saved == true) {
       store.setDiary(controller.text.trim());
+      store.setDiaryImages(images);
       final key = dateKey(store.lifeDate);
+      final body = controller.text.trim();
       try {
-        if (shareWith.isEmpty || controller.text.trim().isEmpty) {
+        if (shareWith.isEmpty || (body.isEmpty && images.isEmpty)) {
           await cloud.revokeShareBySource(SharedKind.diary, key);
         } else {
           await cloud.shareItem(
@@ -280,7 +351,8 @@ class LifeScreen extends StatelessWidget {
             sourceLocalId: key,
             payload: {
               'title': '${store.lifeDate.month}月${store.lifeDate.day}日の日記',
-              'body': controller.text.trim(),
+              'body': body,
+              'images': images,
               'occurred_at': store.lifeDate.toIso8601String(),
             },
             viewerIds: shareWith,

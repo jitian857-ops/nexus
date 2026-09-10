@@ -6,6 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:nexus/app/app.dart';
 import 'package:nexus/cloud/friend_models.dart';
 import 'package:nexus/cloud/local_backend.dart';
+import 'package:nexus/data/app_store.dart';
+import 'package:nexus/screens/friends/chat_page.dart';
 import 'package:nexus/screens/friends/circle_detail_page.dart';
 import 'package:nexus/screens/friends/friends_page.dart';
 import 'package:nexus/screens/friends/memory_album_page.dart';
@@ -133,7 +135,62 @@ void main() {
     final photos = await cloud.listMemoryPhotos(album.id);
     expect(photos, hasLength(1));
     expect(photos.single.day.day, 10);
-    expect((await cloud.listAlbums()).single.title, '夏の思い出');
+    expect(photos.single.src, contains('base64'));
+    await cloud.addPhotoComment(albumId: album.id, photoId: photos.single.id, body: '最高');
+    expect((await cloud.listPhotoComments(albumId: album.id, photoId: photos.single.id)).single.body, '最高');
+    await cloud.updateAlbum(album.copyWith(title: '夏の記録'));
+    expect((await cloud.listAlbums()).single.title, '夏の記録');
+  });
+
+  test('アイコンとトークができる', () async {
+    final cloud = LocalBackend();
+    await cloud.init();
+    final alice = await cloud.signUp(
+      email: 'alice@example.com',
+      password: 'secret123',
+      displayName: 'アリス',
+      occupation: '',
+    );
+    await cloud.updateProfile(displayName: 'アリス', occupation: '', photoUrl: 'data:image/png;base64,Zm9v');
+    final aliceCode = (await cloud.ensureFriendCode()).friendCode;
+    expect((await cloud.ensureFriendCode()).photoUrl, 'data:image/png;base64,Zm9v');
+    await cloud.signOut();
+
+    final bob = await cloud.signUp(
+      email: 'bob@example.com',
+      password: 'secret123',
+      displayName: 'ボブ',
+      occupation: '',
+    );
+    await cloud.sendFriendRequest((await cloud.lookupFriend(aliceCode))!.uid);
+    await cloud.signOut();
+    await cloud.signIn(email: 'alice@example.com', password: 'secret123');
+    await cloud.respondFriendRequest((await cloud.incomingFriendRequests()).single.id, accept: true);
+    await cloud.signOut();
+
+    await cloud.signIn(email: 'bob@example.com', password: 'secret123');
+    expect((await cloud.listFriends()).single.photoUrl, 'data:image/png;base64,Zm9v');
+    final chatId = await cloud.ensureDmChat(alice.uid);
+    await cloud.sendMessage(chatId, body: '今空いてる？');
+    expect((await cloud.listMessages(chatId)).single.body, '今空いてる？');
+    final uploaded = await cloud.uploadMedia([1, 2, 3], mime: 'image/png');
+    expect(uploaded, startsWith('data:image/png;base64,'));
+    await cloud.sendMessage(chatId, imageUrl: uploaded);
+    expect((await cloud.listMessages(chatId)).last.imageUrl, uploaded);
+
+    final circle = await cloud.createCircle(name: '大学の友だち', memberIds: [alice.uid]);
+    final groupId = await cloud.ensureCircleChat(circle);
+    await cloud.sendMessage(groupId, body: '集合ね');
+    expect((await cloud.listMessages(groupId)).single.body, '集合ね');
+    expect(bob.uid, isNot(alice.uid));
+  });
+
+  test('共有予定は同じsourceなら二重に入らない', () {
+    final store = AppStore.seed();
+    final start = DateTime(2026, 9, 12, 18);
+    store.addSchedule(title: '勉強会', startAt: start, endAt: DateTime(2026, 9, 12, 20), source: 'shared:item1');
+    store.addSchedule(title: '勉強会', startAt: start, source: 'shared:item1');
+    expect(store.schedules.where((item) => item.source == 'shared:item1'), hasLength(1));
   });
 
   testWidgets('Friendタブから追加・グループ・思い出を開ける', (tester) async {
@@ -170,8 +227,14 @@ void main() {
 
     await tester.tap(find.text('大学の友だち').first);
     await tester.pumpAndSettle();
+    expect(find.byType(ChatPage), findsOneWidget);
+    await tester.tap(find.text('詳細'));
+    await tester.pumpAndSettle();
     expect(find.byType(CircleDetailPage), findsOneWidget);
-    await tester.enterText(find.byType(TextField), 'カフェに行く');
+    await tester.enterText(
+      find.descendant(of: find.byType(CircleDetailPage), matching: find.byType(TextField)),
+      'カフェに行く',
+    );
     await tester.tap(find.byIcon(Icons.add_rounded));
     await tester.pumpAndSettle();
     expect(find.text('カフェに行く'), findsOneWidget);
@@ -186,6 +249,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('いつ集まる？'), findsOneWidget);
     await tester.tap(find.text('投票').first);
+    await tester.pumpAndSettle();
+    await tester.pageBack();
     await tester.pumpAndSettle();
     await tester.pageBack();
     await tester.pumpAndSettle();

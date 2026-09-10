@@ -12,18 +12,21 @@ class FriendProfile {
     required this.displayName,
     required this.friendCode,
     this.occupation = '',
+    this.photoUrl = '',
   });
 
   final String uid;
   final String displayName;
   final String friendCode;
   final String occupation;
+  final String photoUrl;
 
   Map<String, dynamic> toJson() => {
         'uid': uid,
         'displayName': displayName,
         'friendCode': friendCode,
         'occupation': occupation,
+        'photoUrl': photoUrl,
       };
 
   factory FriendProfile.fromJson(Map<String, dynamic> json) {
@@ -32,6 +35,7 @@ class FriendProfile {
       displayName: json['displayName'] as String? ?? json['display_name'] as String? ?? '',
       friendCode: json['friendCode'] as String? ?? json['friend_code'] as String? ?? '',
       occupation: json['occupation'] as String? ?? '',
+      photoUrl: json['photoUrl'] as String? ?? json['photo_url'] as String? ?? '',
     );
   }
 }
@@ -88,6 +92,17 @@ class SharedItem {
   String get title => payload['title'] as String? ?? '';
 
   String get body => payload['body'] as String? ?? payload['note'] as String? ?? '';
+
+  List<String> get imageUrls => [
+        for (final item in (payload['images'] as List? ?? payload['image_urls'] as List? ?? const []))
+          if (item is String && item.isNotEmpty) item,
+      ];
+
+  DateTime? get startAt => DateTime.tryParse(payload['start_at'] as String? ?? '');
+
+  DateTime? get endAt => DateTime.tryParse(payload['end_at'] as String? ?? '');
+
+  bool get allDay => payload['all_day'] as bool? ?? false;
 }
 
 class FriendNotice {
@@ -221,6 +236,21 @@ class MemoryAlbum {
   final List<String> participantIds;
   final String? circleId;
   final DateTime createdAt;
+
+  MemoryAlbum copyWith({
+    String? title,
+    List<String>? participantIds,
+    String? circleId,
+  }) {
+    return MemoryAlbum(
+      id: id,
+      title: title ?? this.title,
+      ownerId: ownerId,
+      participantIds: participantIds ?? this.participantIds,
+      circleId: circleId ?? this.circleId,
+      createdAt: createdAt,
+    );
+  }
 }
 
 class MemoryPhoto {
@@ -229,7 +259,8 @@ class MemoryPhoto {
     required this.albumId,
     required this.day,
     required this.authorId,
-    required this.dataB64,
+    this.dataB64 = '',
+    this.url = '',
     this.mime = 'image/jpeg',
   });
   final String id;
@@ -237,7 +268,50 @@ class MemoryPhoto {
   final DateTime day;
   final String authorId;
   final String dataB64;
+  final String url;
   final String mime;
+
+  String get src {
+    if (url.isNotEmpty) return url;
+    if (dataB64.isEmpty) return '';
+    return 'data:$mime;base64,$dataB64';
+  }
+}
+
+class PhotoComment {
+  const PhotoComment({
+    required this.id,
+    required this.photoId,
+    required this.authorId,
+    required this.body,
+    required this.createdAt,
+    this.author,
+  });
+  final String id;
+  final String photoId;
+  final String authorId;
+  final String body;
+  final DateTime createdAt;
+  final FriendProfile? author;
+}
+
+class TalkMessage {
+  const TalkMessage({
+    required this.id,
+    required this.chatId,
+    required this.authorId,
+    required this.body,
+    required this.createdAt,
+    this.imageUrl = '',
+    this.author,
+  });
+  final String id;
+  final String chatId;
+  final String authorId;
+  final String body;
+  final DateTime createdAt;
+  final String imageUrl;
+  final FriendProfile? author;
 }
 
 String generateFriendCode() {

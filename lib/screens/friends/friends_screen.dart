@@ -4,9 +4,12 @@ import '../../app/theme.dart';
 import '../../cloud/cloud_models.dart';
 import '../../cloud/friend_models.dart';
 import '../../cloud/nexus_cloud.dart';
+import '../../core/format.dart';
 import '../../data/app_store.dart';
+import '../../widgets/friend_avatar.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/ui_bits.dart';
+import 'chat_page.dart';
 import 'circle_detail_page.dart';
 import 'diary_story_page.dart';
 import 'friends_page.dart';
@@ -25,7 +28,6 @@ class _FriendsScreenState extends State<FriendsScreen> {
   var _friends = <FriendProfile>[];
   var _diaries = <SharedItem>[];
   var _pending = <SharedItem>[];
-  var _acceptedSchedules = <SharedItem>[];
   var _circles = <FriendCircle>[];
   var _albums = <MemoryAlbum>[];
 
@@ -46,7 +48,6 @@ class _FriendsScreenState extends State<FriendsScreen> {
       final friends = await _loadList(cloud.listFriends);
       final diaries = await _loadList(() => cloud.listSharedWithMe(type: SharedKind.diary, limit: 40));
       final pending = await _loadList(() => cloud.listSharedWithMe(pendingOnly: true, limit: 40));
-      final schedules = await _loadList(() => cloud.listSharedWithMe(type: SharedKind.schedule, limit: 40));
       final circles = await _loadList(cloud.listCircles);
       final albums = await _loadList(cloud.listAlbums);
       if (!mounted) return;
@@ -54,7 +55,6 @@ class _FriendsScreenState extends State<FriendsScreen> {
         _friends = friends;
         _diaries = diaries;
         _pending = pending.where((item) => item.type == SharedKind.schedule).toList();
-        _acceptedSchedules = schedules;
         _circles = circles;
         _albums = albums;
         _loading = false;
@@ -81,6 +81,43 @@ class _FriendsScreenState extends State<FriendsScreen> {
       MaterialPageRoute<void>(builder: (_) => const FriendAddPage()),
     );
     if (mounted) await _reload();
+  }
+
+  Future<void> _openChat({
+    required String title,
+    required Future<String> Function() ensure,
+    WidgetBuilder? detailBuilder,
+  }) async {
+    try {
+      final chatId = await ensure();
+      if (!mounted) return;
+      await Navigator.of(context, rootNavigator: true).push(
+        MaterialPageRoute<void>(
+          builder: (_) => ChatPage(chatId: chatId, title: title, detailBuilder: detailBuilder),
+        ),
+      );
+      if (mounted) await _reload();
+    } catch (error) {
+      if (mounted) showNexusToast(context, cloudErrorMessage(error));
+    }
+  }
+
+  FriendProfile _selfProfile() {
+    final store = AppScope.of(context);
+    return FriendProfile(
+      uid: CloudScope.of(context).uid,
+      displayName: store.userName,
+      friendCode: '',
+      photoUrl: store.photoUrl,
+    );
+  }
+
+  FriendProfile _named(String uid) {
+    if (uid == CloudScope.of(context).uid) return _selfProfile();
+    for (final friend in _friends) {
+      if (friend.uid == uid) return friend;
+    }
+    return FriendProfile(uid: uid, displayName: 'メンバー', friendCode: '');
   }
 
   @override
@@ -131,12 +168,10 @@ class _FriendsScreenState extends State<FriendsScreen> {
             const SizedBox(height: 16),
             Text('共有された予定', style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
             const SizedBox(height: 8),
-            if (_pending.isEmpty && _acceptedSchedules.isEmpty)
+            if (_pending.isEmpty)
               Text('届いた予定はまだありません', style: TextStyle(color: NexusColors.textMuted))
-            else ...[
+            else
               for (final item in _pending) _PendingScheduleCard(item: item, onChanged: _reload),
-              for (final item in _acceptedSchedules) _AcceptedScheduleCard(item: item),
-            ],
             const SizedBox(height: 18),
             Row(
               children: [
@@ -161,16 +196,20 @@ class _FriendsScreenState extends State<FriendsScreen> {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: InkWell(
-                    onTap: () async {
-                      await Navigator.of(context, rootNavigator: true).push(
-                        MaterialPageRoute<void>(builder: (_) => CircleDetailPage(circle: circle)),
-                      );
-                      if (mounted) await _reload();
-                    },
+                    onTap: () => _openChat(
+                      title: circle.name,
+                      ensure: () => CloudScope.of(context).ensureCircleChat(circle),
+                      detailBuilder: (_) => CircleDetailPage(circle: circle),
+                    ),
                     borderRadius: BorderRadius.circular(16),
                     child: GlassCard(
                       child: Row(
                         children: [
+                          CircleAvatar(
+                            backgroundColor: NexusColors.surface,
+                            child: Icon(Icons.groups_rounded, color: NexusColors.cyan),
+                          ),
+                          const SizedBox(width: 12),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -214,7 +253,9 @@ class _FriendsScreenState extends State<FriendsScreen> {
                   child: InkWell(
                     onTap: () async {
                       await Navigator.of(context, rootNavigator: true).push(
-                        MaterialPageRoute<void>(builder: (_) => MemoryAlbumPage(album: album)),
+                        MaterialPageRoute<void>(
+                          builder: (_) => MemoryAlbumPage(album: album, friends: _friends),
+                        ),
                       );
                       if (mounted) await _reload();
                     },
@@ -223,7 +264,35 @@ class _FriendsScreenState extends State<FriendsScreen> {
                       child: Row(
                         children: [
                           Expanded(
-                            child: Text(album.title, style: const TextStyle(fontWeight: FontWeight.w700)),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(album.title, style: const TextStyle(fontWeight: FontWeight.w700)),
+                                const SizedBox(height: 6),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 4,
+                                  children: [
+                                    for (final id in {album.ownerId, ...album.participantIds})
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          FriendAvatar(
+                                            name: _named(id).displayName,
+                                            photoUrl: _named(id).photoUrl,
+                                            radius: 10,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            _named(id).displayName,
+                                            style: TextStyle(color: NexusColors.textMuted, fontSize: 12),
+                                          ),
+                                        ],
+                                      ),
+                                  ],
+                                ),
+                              ],
+                            ),
                           ),
                           Icon(Icons.photo_library_outlined, color: NexusColors.cyan),
                         ],
@@ -241,16 +310,17 @@ class _FriendsScreenState extends State<FriendsScreen> {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: InkWell(
-                    onTap: () async {
-                      await Navigator.of(context, rootNavigator: true).push(
-                        MaterialPageRoute<void>(builder: (_) => FriendDetailPage(friend: friend)),
-                      );
-                      if (mounted) await _reload();
-                    },
+                    onTap: () => _openChat(
+                      title: friend.displayName,
+                      ensure: () => CloudScope.of(context).ensureDmChat(friend.uid),
+                      detailBuilder: (_) => FriendDetailPage(friend: friend),
+                    ),
                     borderRadius: BorderRadius.circular(16),
                     child: GlassCard(
                       child: Row(
                         children: [
+                          FriendAvatar(name: friend.displayName, photoUrl: friend.photoUrl, radius: 22),
+                          const SizedBox(width: 12),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -260,7 +330,16 @@ class _FriendsScreenState extends State<FriendsScreen> {
                               ],
                             ),
                           ),
-                          Icon(Icons.chevron_right_rounded, color: NexusColors.textMuted),
+                          IconButton(
+                            tooltip: '詳細',
+                            onPressed: () async {
+                              await Navigator.of(context, rootNavigator: true).push(
+                                MaterialPageRoute<void>(builder: (_) => FriendDetailPage(friend: friend)),
+                              );
+                              if (mounted) await _reload();
+                            },
+                            icon: Icon(Icons.more_horiz_rounded, color: NexusColors.textMuted),
+                          ),
                         ],
                       ),
                     ),
@@ -313,9 +392,10 @@ class _StoriesRow extends StatelessWidget {
                     padding: const EdgeInsets.all(3),
                     child: CircleAvatar(
                       backgroundColor: NexusColors.surface,
-                      child: Text(
-                        _storyInitial(item.owner?.displayName ?? '?'),
-                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      child: FriendAvatar(
+                        name: item.owner?.displayName ?? '?',
+                        photoUrl: item.owner?.photoUrl ?? '',
+                        radius: 28,
                       ),
                     ),
                   ),
@@ -355,6 +435,15 @@ class _PendingScheduleCard extends StatelessWidget {
             const SizedBox(height: 4),
             Text(item.title, style: const TextStyle(fontWeight: FontWeight.w700)),
             Text('from ${item.owner?.displayName ?? ''}', style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
+            if (item.startAt != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                scheduleRangeLabel(start: item.startAt!, end: item.endAt, allDay: item.allDay),
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ],
+            if (item.body.isNotEmpty)
+              Text(item.body, style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
             const SizedBox(height: 8),
             Row(
               children: [
@@ -363,6 +452,20 @@ class _PendingScheduleCard extends StatelessWidget {
                       ? null
                       : () async {
                           try {
+                            final start = item.startAt;
+                            if (start != null) {
+                              AppScope.of(context).addSchedule(
+                                title: item.title.isEmpty ? '共有された予定' : item.title,
+                                startAt: start,
+                                endAt: item.endAt,
+                                allDay: item.allDay,
+                                tags: [
+                                  for (final tag in (item.payload['tags'] as List? ?? const []))
+                                    if (tag is String) tag,
+                                ],
+                                source: 'shared:${item.id}',
+                              );
+                            }
                             await cloud.respondShare(item.aclId, accept: true);
                             if (context.mounted) await onChanged();
                           } catch (error) {
@@ -392,57 +495,4 @@ class _PendingScheduleCard extends StatelessWidget {
       ),
     );
   }
-}
-
-class _AcceptedScheduleCard extends StatelessWidget {
-  const _AcceptedScheduleCard({required this.item});
-
-  final SharedItem item;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: GlassCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('予定', style: TextStyle(color: NexusColors.cyan, fontSize: 11, fontWeight: FontWeight.w700)),
-            const SizedBox(height: 4),
-            Text(item.title, style: const TextStyle(fontWeight: FontWeight.w700)),
-            Text('from ${item.owner?.displayName ?? ''}', style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () {
-                  final start = DateTime.tryParse(item.payload['start_at'] as String? ?? '');
-                  if (start == null) return;
-                  final end = DateTime.tryParse(item.payload['end_at'] as String? ?? '');
-                  AppScope.of(context).addSchedule(
-                    title: item.title,
-                    startAt: start,
-                    endAt: end,
-                    allDay: item.payload['all_day'] as bool? ?? false,
-                    tags: [
-                      for (final tag in (item.payload['tags'] as List? ?? const []))
-                        if (tag is String) tag,
-                    ],
-                    source: 'shared',
-                  );
-                  showNexusToast(context, '自分の予定に複製しました');
-                },
-                child: const Text('自分用に複製'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-String _storyInitial(String name) {
-  final trimmed = name.trim();
-  if (trimmed.isEmpty) return '?';
-  return String.fromCharCodes(trimmed.runes.take(1));
 }
