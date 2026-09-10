@@ -193,25 +193,18 @@ class _MemoryAlbumPageState extends State<MemoryAlbumPage> {
     }).toList();
   }
 
-  Future<void> _addPhoto(DateTime day, ImageSource source) async {
-    final url = await pickAndUploadMedia(context, source: source);
-    if (url == null || !mounted) return;
+  Future<void> _addPhotos(DateTime day, {required ImageSource source}) async {
+    final urls = await pickAndUploadMediaList(context, source: source);
+    if (urls.isEmpty || !mounted) return;
+    final cloud = CloudScope.of(context);
     try {
-      await CloudScope.of(context).addMemoryPhoto(
-        albumId: _album.id,
-        day: day,
-        url: url,
-      );
+      for (final url in urls) {
+        await cloud.addMemoryPhoto(albumId: _album.id, day: day, url: url);
+      }
       await _reload();
     } catch (error) {
       if (mounted) showNexusToast(context, cloudErrorMessage(error));
     }
-  }
-
-  Future<void> _pickSource(DateTime day) async {
-    final source = await pickImageSource(context);
-    if (source == null || !mounted) return;
-    await _addPhoto(day, source);
   }
 
   Future<void> _editMembers() async {
@@ -371,70 +364,84 @@ class _MemoryAlbumPageState extends State<MemoryAlbumPage> {
                   },
                 ),
                 const SizedBox(height: 16),
-                Text('写真を追加するには日付をタップ', style: TextStyle(color: NexusColors.textMuted)),
+                Text('日付をタップして、同じ日に何枚でも写真を追加できます', style: TextStyle(color: NexusColors.textMuted)),
               ],
             ),
     );
   }
 
-  Future<void> _showDay(DateTime day, List<MemoryPhoto> photos) async {
+  Future<void> _showDay(DateTime day, List<MemoryPhoto> initial) async {
+    var photos = [...initial];
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       builder: (sheetContext) {
-        return Padding(
-          padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.paddingOf(sheetContext).bottom),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('${day.month}月${day.day}日', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
-              const SizedBox(height: 8),
-              if (photos.isEmpty)
-                Text('まだ写真がありません', style: TextStyle(color: NexusColors.textMuted))
-              else
-                SizedBox(
-                  height: 160,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: photos.length,
-                    separatorBuilder: (_, _) => const SizedBox(width: 8),
-                    itemBuilder: (context, index) {
-                      final photo = photos[index];
-                      return GestureDetector(
-                        onTap: () async {
-                          Navigator.pop(sheetContext);
-                          await Navigator.of(this.context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => PhotoCommentsPage(album: _album, photo: photo),
+        return StatefulBuilder(
+          builder: (context, setSheet) {
+            Future<void> addMore() async {
+              final source = await pickImageSource(this.context);
+              if (source == null) return;
+              await _addPhotos(day, source: source);
+              if (!this.context.mounted) return;
+              setSheet(() => photos = _onDay(day));
+            }
+
+            return DraggableScrollableSheet(
+              expand: false,
+              initialChildSize: 0.58,
+              minChildSize: 0.36,
+              maxChildSize: 0.94,
+              builder: (context, scroll) {
+                return ListView(
+                  controller: scroll,
+                  padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.paddingOf(sheetContext).bottom),
+                  children: [
+                    Text('${day.month}月${day.day}日', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+                    const SizedBox(height: 4),
+                    Text(
+                      photos.isEmpty ? 'まだ写真がありません' : '${photos.length}枚  ·  同じ日に何枚でも追加できます',
+                      style: TextStyle(color: NexusColors.textMuted),
+                    ),
+                    const SizedBox(height: 12),
+                    if (photos.isNotEmpty)
+                      GridView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: photos.length,
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3,
+                          mainAxisSpacing: 8,
+                          crossAxisSpacing: 8,
+                        ),
+                        itemBuilder: (context, index) {
+                          final photo = photos[index];
+                          return GestureDetector(
+                            onTap: () async {
+                              Navigator.pop(sheetContext);
+                              await Navigator.of(this.context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => PhotoCommentsPage(album: _album, photo: photo),
+                                ),
+                              );
+                            },
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: NexusImage(src: photo.src),
                             ),
                           );
                         },
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: NexusImage(src: photo.src, width: 120, height: 160),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(sheetContext);
-                        _pickSource(day);
-                      },
+                      ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: addMore,
                       icon: const Icon(Icons.add_photo_alternate_outlined),
                       label: const Text('写真を追加'),
                     ),
-                  ),
-                ],
-              ),
-            ],
-          ),
+                  ],
+                );
+              },
+            );
+          },
         );
       },
     );

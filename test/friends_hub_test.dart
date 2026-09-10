@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image/image.dart' as img;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:nexus/app/app.dart';
 import 'package:nexus/cloud/friend_models.dart';
 import 'package:nexus/cloud/local_backend.dart';
+import 'package:nexus/core/image_compress.dart';
 import 'package:nexus/data/app_store.dart';
 import 'package:nexus/screens/friends/chat_page.dart';
 import 'package:nexus/screens/friends/circle_detail_page.dart';
@@ -132,12 +134,17 @@ void main() {
       day: DateTime(2026, 8, 10),
       dataB64: 'Zm9v',
     );
+    await cloud.addMemoryPhoto(
+      albumId: album.id,
+      day: DateTime(2026, 8, 10),
+      dataB64: 'YmFy',
+    );
     final photos = await cloud.listMemoryPhotos(album.id);
-    expect(photos, hasLength(1));
-    expect(photos.single.day.day, 10);
-    expect(photos.single.src, contains('base64'));
-    await cloud.addPhotoComment(albumId: album.id, photoId: photos.single.id, body: '最高');
-    expect((await cloud.listPhotoComments(albumId: album.id, photoId: photos.single.id)).single.body, '最高');
+    expect(photos, hasLength(2));
+    expect(photos.every((photo) => photo.day.day == 10), isTrue);
+    expect(photos.first.src, contains('base64'));
+    await cloud.addPhotoComment(albumId: album.id, photoId: photos.first.id, body: '最高');
+    expect((await cloud.listPhotoComments(albumId: album.id, photoId: photos.first.id)).single.body, '最高');
     await cloud.updateAlbum(album.copyWith(title: '夏の記録'));
     expect((await cloud.listAlbums()).single.title, '夏の記録');
   });
@@ -183,6 +190,24 @@ void main() {
     await cloud.sendMessage(groupId, body: '集合ね');
     expect((await cloud.listMessages(groupId)).single.body, '集合ね');
     expect(bob.uid, isNot(alice.uid));
+  });
+
+  test('大きな写真は拒否せず自動で小さくする', () {
+    final canvas = img.Image(width: 2400, height: 1800);
+    for (var y = 0; y < canvas.height; y++) {
+      for (var x = 0; x < canvas.width; x++) {
+        final on = (x + y) % 2 == 0;
+        canvas.setPixelRgb(x, y, on ? 255 : 0, on ? 0 : 255, x % 255);
+      }
+    }
+    final raw = img.encodeJpg(canvas, quality: 100);
+    expect(raw.length, greaterThan(220 * 1024));
+    final packed = compressForFirestore(raw);
+    expect(packed.bytes.length, lessThanOrEqualTo(220 * 1024));
+    expect(packed.bytes.length, lessThan(raw.length));
+    expect(packed.mime, 'image/jpeg');
+    final avatar = compressForFirestore(raw, avatar: true);
+    expect(avatar.bytes.length, lessThanOrEqualTo(80 * 1024));
   });
 
   test('共有予定は同じsourceなら二重に入らない', () {
@@ -265,6 +290,6 @@ void main() {
     await tester.tap(find.text('夏の思い出'));
     await tester.pumpAndSettle();
     expect(find.byType(MemoryAlbumPage), findsOneWidget);
-    expect(find.text('写真を追加するには日付をタップ'), findsOneWidget);
+    expect(find.text('日付をタップして、同じ日に何枚でも写真を追加できます'), findsOneWidget);
   });
 }

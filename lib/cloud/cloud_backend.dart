@@ -42,7 +42,9 @@ abstract class CloudBackend {
     String? photoUrl,
   });
 
-  Future<String> uploadMedia(List<int> bytes, {String mime = 'image/jpeg'});
+  Future<String> uploadMedia(List<int> bytes, {String mime = 'image/jpeg', bool avatar = false});
+
+  Future<String> readMedia(String src);
 
   Future<void> deleteAccount({required String password});
 

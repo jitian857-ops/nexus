@@ -26,6 +26,7 @@ class NexusCloud extends ChangeNotifier {
   String lastError = '';
   String lastNotice = '';
   String? localIssuedCode;
+  final _mediaCache = <String, String>{};
 
   CloudBackend get backend => _backend;
 
@@ -271,8 +272,26 @@ class NexusCloud extends ChangeNotifier {
     );
   }
 
-  Future<String> uploadMedia(List<int> bytes, {String mime = 'image/jpeg'}) {
-    return _run(() => _backend.uploadMedia(bytes, mime: mime));
+  Future<String> uploadMedia(List<int> bytes, {String mime = 'image/jpeg', bool avatar = false}) {
+    return _run(() => _backend.uploadMedia(bytes, mime: mime, avatar: avatar));
+  }
+
+  Future<String> resolveMedia(String src) async {
+    if (src.isEmpty ||
+        src.startsWith('data:') ||
+        src.startsWith('http://') ||
+        src.startsWith('https://')) {
+      return src;
+    }
+    final cached = _mediaCache[src];
+    if (cached != null) return cached;
+    try {
+      final resolved = await _backend.readMedia(src);
+      _mediaCache[src] = resolved;
+      return resolved;
+    } catch (_) {
+      return src;
+    }
   }
 
   Future<void> deleteAccount({required String password}) {

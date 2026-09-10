@@ -42,23 +42,54 @@ class NexusImage extends StatelessWidget {
         child: ColoredBox(color: NexusColors.surface),
       );
     }
-    if (src.startsWith('data:')) {
-      final bytes = decodeDataUrl(src);
+    final cloud = CloudScope.maybeOf(context);
+    if (cloud == null ||
+        src.startsWith('data:') ||
+        src.startsWith('http://') ||
+        src.startsWith('https://')) {
+      return _pixels(src);
+    }
+    return FutureBuilder<String>(
+      future: cloud.resolveMedia(src),
+      builder: (context, snapshot) {
+        final resolved = snapshot.data;
+        if (resolved == null || resolved.isEmpty) {
+          return SizedBox(
+            width: width,
+            height: height,
+            child: ColoredBox(color: NexusColors.surface),
+          );
+        }
+        return _pixels(resolved);
+      },
+    );
+  }
+
+  Widget _pixels(String value) {
+    if (value.startsWith('data:')) {
+      final bytes = decodeDataUrl(value);
       if (bytes == null) {
         return SizedBox(width: width, height: height, child: const Center(child: Text('画像なし')));
       }
       return Image.memory(bytes, width: width, height: height, fit: fit);
     }
-    return Image.network(
-      src,
-      width: width,
-      height: height,
-      fit: fit,
-      errorBuilder: (_, _, _) => SizedBox(
+    if (value.startsWith('http://') || value.startsWith('https://')) {
+      return Image.network(
+        value,
         width: width,
         height: height,
-        child: const Center(child: Icon(Icons.broken_image_outlined)),
-      ),
+        fit: fit,
+        errorBuilder: (_, _, _) => SizedBox(
+          width: width,
+          height: height,
+          child: const Center(child: Icon(Icons.broken_image_outlined)),
+        ),
+      );
+    }
+    return SizedBox(
+      width: width,
+      height: height,
+      child: ColoredBox(color: NexusColors.surface),
     );
   }
 }
@@ -127,20 +158,48 @@ Future<ImageSource?> pickImageSource(BuildContext context) {
   );
 }
 
-Future<String?> pickAndUploadMedia(BuildContext context, {ImageSource? source}) async {
+Future<String?> pickAndUploadMedia(
+  BuildContext context, {
+  ImageSource? source,
+  bool avatar = false,
+}) async {
+  final urls = await pickAndUploadMediaList(context, source: source, avatar: avatar, multiple: false);
+  if (urls.isEmpty) return null;
+  return urls.first;
+}
+
+Future<List<String>> pickAndUploadMediaList(
+  BuildContext context, {
+  ImageSource? source,
+  bool avatar = false,
+  bool multiple = true,
+}) async {
   final pickedSource = source ?? await pickImageSource(context);
-  if (pickedSource == null || !context.mounted) return null;
-  final file = await ImagePicker().pickImage(source: pickedSource);
-  if (file == null || !context.mounted) return null;
-  final bytes = await file.readAsBytes();
-  if (bytes.isEmpty || !context.mounted) return null;
-  try {
-    return await CloudScope.of(context).uploadMedia(
-      bytes,
-      mime: file.mimeType ?? 'image/jpeg',
-    );
-  } catch (error) {
-    if (context.mounted) showNexusToast(context, cloudErrorMessage(error));
-    return null;
+  if (pickedSource == null || !context.mounted) return const [];
+  final files = <XFile>[];
+  if (multiple && !avatar && pickedSource == ImageSource.gallery) {
+    files.addAll(await ImagePicker().pickMultiImage());
+  } else {
+    final file = await ImagePicker().pickImage(source: pickedSource);
+    if (file != null) files.add(file);
   }
+  if (files.isEmpty || !context.mounted) return const [];
+  final urls = <String>[];
+  final cloud = CloudScope.of(context);
+  for (final file in files) {
+    try {
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty) continue;
+      urls.add(
+        await cloud.uploadMedia(
+          bytes,
+          mime: file.mimeType ?? 'image/jpeg',
+          avatar: avatar,
+        ),
+      );
+    } catch (error) {
+      if (context.mounted) showNexusToast(context, cloudErrorMessage(error));
+    }
+  }
+  return urls;
 }

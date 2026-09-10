@@ -252,8 +252,8 @@ class LifeScreen extends StatelessWidget {
         return StatefulBuilder(
           builder: (context, setSheet) {
             Future<void> addImage(ImageSource source) async {
-              final url = await pickAndUploadMedia(context, source: source);
-              if (url != null) setSheet(() => images = [...images, url]);
+              final urls = await pickAndUploadMediaList(context, source: source);
+              if (urls.isNotEmpty) setSheet(() => images = [...images, ...urls]);
             }
 
             return Column(

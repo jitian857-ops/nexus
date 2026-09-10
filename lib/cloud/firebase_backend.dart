@@ -1,10 +1,9 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 
+import '../core/image_compress.dart';
 import 'cloud_backend.dart';
 import 'cloud_models.dart';
 import 'friend_models.dart';
@@ -370,17 +369,38 @@ class FirebaseBackend implements CloudBackend {
   }
 
   @override
-  Future<String> uploadMedia(List<int> bytes, {String mime = 'image/jpeg'}) async {
+  Future<String> uploadMedia(List<int> bytes, {String mime = 'image/jpeg', bool avatar = false}) async {
     final me = _uid();
     if (bytes.isEmpty) throw CloudException('写真を選べませんでした');
+    final packed = compressForFirestore(bytes, avatar: avatar, mime: mime);
     try {
-      final id = _db.collection('_').doc().id;
-      final ref = FirebaseStorage.instance.ref('media/$me/$id');
-      await ref.putData(Uint8List.fromList(bytes), SettableMetadata(contentType: mime));
-      return await ref.getDownloadURL();
+      final ref = _db.collection('media').doc();
+      await ref.set({
+        'owner_id': me,
+        'mime': packed.mime,
+        'data_b64': base64Encode(packed.bytes),
+        'created_at': DateTime.now().toIso8601String(),
+      });
+      return 'nexus-media:${ref.id}';
     } catch (error) {
       throw CloudException(cloudErrorMessage(error));
     }
+  }
+
+  @override
+  Future<String> readMedia(String src) async {
+    if (src.startsWith('data:') || src.startsWith('http://') || src.startsWith('https://')) {
+      return src;
+    }
+    const prefix = 'nexus-media:';
+    if (!src.startsWith(prefix)) return src;
+    final snap = await _safeGet(_db.collection('media').doc(src.substring(prefix.length)));
+    final data = snap?.data();
+    if (data == null) return src;
+    final b64 = data['data_b64'] as String? ?? '';
+    final mime = data['mime'] as String? ?? 'image/jpeg';
+    if (b64.isEmpty) return src;
+    return 'data:$mime;base64,$b64';
   }
 
   @override

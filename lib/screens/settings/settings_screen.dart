@@ -366,7 +366,7 @@ class SettingsScreen extends StatelessWidget {
         return StatefulBuilder(
           builder: (context, setSheet) {
             Future<void> setPhoto(ImageSource source) async {
-              final url = await pickAndUploadMedia(context, source: source);
+              final url = await pickAndUploadMedia(context, source: source, avatar: true);
               if (url != null) setSheet(() => photoUrl = url);
             }
 

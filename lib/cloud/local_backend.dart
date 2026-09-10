@@ -9,6 +9,7 @@ import 'cloud_models.dart';
 import 'friend_models.dart';
 import 'password.dart';
 import 'share_access.dart';
+import '../core/image_compress.dart';
 
 class LocalBackend implements CloudBackend {
   LocalBackend();
@@ -296,13 +297,27 @@ class LocalBackend implements CloudBackend {
   }
 
   @override
-  Future<String> uploadMedia(List<int> bytes, {String mime = 'image/jpeg'}) async {
+  Future<String> uploadMedia(List<int> bytes, {String mime = 'image/jpeg', bool avatar = false}) async {
     if (bytes.isEmpty) throw CloudException('写真を選べませんでした');
+    final packed = compressForFirestore(bytes, avatar: avatar, mime: mime);
     final id = _id();
-    final url = 'data:$mime;base64,${base64Encode(bytes)}';
+    final url = 'data:${packed.mime};base64,${base64Encode(packed.bytes)}';
     _map('media')[id] = url;
     await _persist();
     return url;
+  }
+
+  @override
+  Future<String> readMedia(String src) async {
+    if (src.startsWith('data:') || src.startsWith('http://') || src.startsWith('https://')) {
+      return src;
+    }
+    const prefix = 'nexus-media:';
+    if (src.startsWith(prefix)) {
+      final stored = _map('media')[src.substring(prefix.length)];
+      if (stored is String && stored.isNotEmpty) return stored;
+    }
+    return src;
   }
 
   @override
