@@ -13,6 +13,7 @@ import 'package:nexus/domain/review_scheduler.dart';
 import 'package:nexus/screens/auth/login_page.dart';
 import 'package:nexus/screens/life/schedule_bulk_share_page.dart';
 import 'package:nexus/screens/study/focus_timer_page.dart';
+import 'package:nexus/screens/money/money_ledgers.dart';
 import 'package:nexus/screens/settings/app_customize_page.dart';
 import 'package:nexus/screens/settings/settings_screen.dart';
 import 'package:nexus/widgets/nexus_nav_bar.dart';
@@ -70,12 +71,16 @@ void main() {
     await tester.tap(find.text('収入 ¥0'));
     await tester.pumpAndSettle();
     expect(find.textContaining('の収入'), findsWidgets);
+    expect(find.byKey(const Key('money-search-range')), findsOneWidget);
+    expect(find.descendant(of: find.byType(IncomeLedgerPage), matching: find.text('収入を追加')), findsNothing);
     await tester.tap(find.byIcon(Icons.close_rounded).first);
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('支出 ¥0'));
     await tester.pumpAndSettle();
     expect(find.textContaining('の支出'), findsWidgets);
+    expect(find.byKey(const Key('money-search-range')), findsOneWidget);
+    expect(find.descendant(of: find.byType(ExpenseLedgerPage), matching: find.text('カードを追加')), findsNothing);
     await tester.tap(find.byIcon(Icons.close_rounded).first);
     await tester.pumpAndSettle();
 
@@ -118,6 +123,26 @@ void main() {
     expect(find.text('保管庫'), findsNothing);
     expect(find.text('動きを減らす'), findsNothing);
     expect(find.text('セキュリティ'), findsNothing);
+  });
+
+  testWidgets('ログアウトしたらログイン画面に戻る', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await pumpSignedInApp(tester);
+    await tester.tap(find.byKey(const Key('open-settings')));
+    await tester.pumpAndSettle();
+    expect(find.text('設定'), findsWidgets);
+    await tester.tap(find.text('ログアウト'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'ログアウト'));
+    await tester.pumpAndSettle();
+    expect(find.byType(LoginPage), findsOneWidget);
+    expect(find.text('おかえりなさい'), findsOneWidget);
+    expect(find.text('設定'), findsNothing);
+    expect(find.text('今日の予定'), findsNothing);
   });
 
   testWidgets('ログインと新規登録の画面がある', (tester) async {
@@ -267,7 +292,8 @@ void main() {
     expect(find.text('フレンドに共有'), findsOneWidget);
     expect(find.text('この予定を共有'), findsNothing);
     expect(find.widgetWithText(ActionChip, 'タグを追加'), findsOneWidget);
-    expect(tester.widget<FilterChip>(find.widgetWithText(FilterChip, 'その他')).selected, isFalse);
+    expect(find.widgetWithText(ActionChip, 'その他'), findsOneWidget);
+    expect(find.byType(FilterChip), findsNothing);
 
     await tester.tap(find.text('2026年9月5日 (土)').first);
     await tester.pumpAndSettle();

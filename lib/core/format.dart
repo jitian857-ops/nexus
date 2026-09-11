@@ -50,6 +50,42 @@ String scheduleRangeLabel({required DateTime start, DateTime? end, bool allDay =
   return '${jpDate(start)} ${hm(start)}$endText';
 }
 
+String compactDayStamp(DateTime day, [DateTime? now]) {
+  final n = now ?? DateTime.now();
+  if (day.year != n.year) return '${day.year}/${day.month}/${day.day}';
+  return '${day.month}/${day.day}';
+}
+
+String compactScheduleStamp({
+  required DateTime start,
+  DateTime? end,
+  bool allDay = false,
+  DateTime? now,
+}) {
+  final startDay = compactDayStamp(start, now);
+  if (allDay) {
+    if (end == null || sameDay(start, end)) return '$startDay 終日';
+    return '$startDay〜${compactDayStamp(end, now)} 終日';
+  }
+  if (end == null || sameDay(start, end)) {
+    if (end != null && (end.hour != start.hour || end.minute != start.minute)) {
+      return '$startDay ${hm(start)}–${hm(end)}';
+    }
+    return '$startDay ${hm(start)}';
+  }
+  return '$startDay ${hm(start)}〜${compactDayStamp(end, now)} ${hm(end)}';
+}
+
+String dayRangeLabel(DateTime from, DateTime to) {
+  final start = dateOnly(from);
+  final end = dateOnly(to);
+  if (sameDay(start, end)) return jpDate(start);
+  if (start.year == end.year) {
+    return '${start.year}年${start.month}月${start.day}日〜${end.month}月${end.day}日';
+  }
+  return '${jpDate(start)}〜${jpDate(end)}';
+}
+
 String mmss(int seconds) {
   final s = seconds < 0 ? 0 : seconds;
   final hours = s ~/ 3600;
@@ -156,6 +192,15 @@ String daysLeftLabel(DateTime due, DateTime today) {
 DateTime dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 
 DateTime monthStart(DateTime d) => DateTime(d.year, d.month, 1);
+
+DateTime monthEnd(DateTime d) => DateTime(d.year, d.month + 1, 0);
+
+bool inClosedDayRange(DateTime day, DateTime from, DateTime to) {
+  final d = dateOnly(day);
+  final start = dateOnly(from);
+  final end = dateOnly(to);
+  return !d.isBefore(start) && !d.isAfter(end);
+}
 
 String monthKey(DateTime d) => '${d.year}-${two(d.month)}';
 

@@ -22,7 +22,8 @@ class GlassCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final radius = BorderRadius.circular(NexusColors.cardRadius);
     final light = NexusColors.isLight;
-    return DecoratedBox(
+    return RepaintBoundary(
+      child: DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: radius,
         boxShadow: [
@@ -110,6 +111,7 @@ class GlassCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
       ),
     );
   }

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../app/theme.dart';
 
-class ProgressRing extends StatelessWidget {
+class ProgressRing extends StatefulWidget {
   const ProgressRing({
     super.key,
     required this.progress,
@@ -23,23 +23,38 @@ class ProgressRing extends StatelessWidget {
   final bool animate;
 
   @override
+  State<ProgressRing> createState() => _ProgressRingState();
+}
+
+class _ProgressRingState extends State<ProgressRing> {
+  var _from = 0.0;
+
+  @override
+  void didUpdateWidget(covariant ProgressRing oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.progress != widget.progress) {
+      _from = oldWidget.progress.clamp(0.0, 1.0);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final target = progress.clamp(0.0, 1.0);
-    final ringColors = colors ?? [NexusColors.cyan, NexusColors.purple, NexusColors.cyan];
+    final target = widget.progress.clamp(0.0, 1.0);
+    final ringColors = widget.colors ?? [NexusColors.cyan, NexusColors.purple, NexusColors.cyan];
     Widget ring(double value) {
       return SizedBox(
-        width: size,
-        height: size,
+        width: widget.size,
+        height: widget.size,
         child: CustomPaint(
-          painter: _RingPainter(progress: value, stroke: stroke, colors: ringColors),
-          child: Center(child: child),
+          painter: _RingPainter(progress: value, stroke: widget.stroke, colors: ringColors),
+          child: Center(child: widget.child),
         ),
       );
     }
 
-    if (!animate) return ring(target);
+    if (!widget.animate) return ring(target);
     return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: target),
+      tween: Tween(begin: _from, end: target),
       duration: Duration(milliseconds: target >= 0.999 ? 720 : 480),
       curve: Curves.easeOutCubic,
       builder: (context, value, _) => ring(value),

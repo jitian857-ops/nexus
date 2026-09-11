@@ -22,6 +22,7 @@ class ScheduleEditSheet extends StatefulWidget {
 
 class _ScheduleEditSheetState extends State<ScheduleEditSheet> {
   late final TextEditingController _title;
+  late final TextEditingController _note;
   late DateTime _startDay;
   late DateTime _endDay;
   late TimeOfDay _startTime;
@@ -37,6 +38,7 @@ class _ScheduleEditSheetState extends State<ScheduleEditSheet> {
     final item = widget.initial;
     final fallback = dateOnly(widget.day ?? DateTime.now());
     _title = TextEditingController(text: item?.title ?? '');
+    _note = TextEditingController(text: item?.note ?? '');
     _startDay = item != null ? dateOnly(item.startAt) : fallback;
     _endDay = item != null ? dateOnly(item.endAt ?? item.startAt) : fallback;
     _startTime = item != null
@@ -70,6 +72,7 @@ class _ScheduleEditSheetState extends State<ScheduleEditSheet> {
   @override
   void dispose() {
     _title.dispose();
+    _note.dispose();
     super.dispose();
   }
 
@@ -150,6 +153,14 @@ class _ScheduleEditSheetState extends State<ScheduleEditSheet> {
             decoration: _input('タイトル'),
           ),
           const SizedBox(height: 10),
+          TextField(
+            controller: _note,
+            minLines: 2,
+            maxLines: 4,
+            style: TextStyle(color: NexusColors.text),
+            decoration: _input('メモ'),
+          ),
+          const SizedBox(height: 10),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: Text('終日', style: TextStyle(color: NexusColors.text, fontWeight: FontWeight.w600)),
@@ -178,25 +189,16 @@ class _ScheduleEditSheetState extends State<ScheduleEditSheet> {
             spacing: 8,
             runSpacing: 8,
             children: [
-              for (final preset in kScheduleTagPresets)
-                FilterChip(
-                  label: Text(preset),
-                  selected: _tags.contains(preset),
-                  onSelected: (on) {
-                    setState(() {
-                      if (on) {
-                        _tags = [..._tags, preset];
-                      } else {
-                        _tags = [..._tags]..remove(preset);
-                      }
-                    });
-                  },
-                ),
               for (final tag in _tags)
-                if (!kScheduleTagPresets.contains(tag))
-                  InputChip(
-                    label: Text(tag),
-                    onDeleted: () => setState(() => _tags = [..._tags]..remove(tag)),
+                InputChip(
+                  label: Text(tag),
+                  onDeleted: () => setState(() => _tags = [..._tags]..remove(tag)),
+                ),
+              for (final preset in kScheduleTagPresets)
+                if (!_tags.contains(preset))
+                  ActionChip(
+                    label: Text(preset),
+                    onPressed: () => setState(() => _tags = [..._tags, preset]),
                   ),
               ActionChip(
                 avatar: Icon(Icons.add_rounded, size: 16, color: NexusColors.cyan),
@@ -238,6 +240,7 @@ class _ScheduleEditSheetState extends State<ScheduleEditSheet> {
                   endAt: end,
                   allDay: _allDay,
                   tags: _tags,
+                  note: _note.text.trim(),
                   shareWith: _shareWith,
                 ),
               );
@@ -264,6 +267,7 @@ class _ScheduleSave {
     required this.endAt,
     required this.allDay,
     required this.tags,
+    required this.note,
     required this.shareWith,
   });
 
@@ -272,6 +276,7 @@ class _ScheduleSave {
   final DateTime endAt;
   final bool allDay;
   final List<String> tags;
+  final String note;
   final List<String> shareWith;
 }
 
@@ -327,7 +332,8 @@ Map<String, dynamic> scheduleSharePayload(ScheduleItem saved) {
     'start_at': saved.startAt.toIso8601String(),
     'end_at': saved.endAt?.toIso8601String(),
     'all_day': saved.allDay,
-    'note': saved.tags.join('、'),
+    'memo': saved.note,
+    'note': saved.note,
     'tags': saved.tags,
   };
 }
@@ -359,6 +365,7 @@ Future<void> openScheduleEditor(
         endAt: result.endAt,
         allDay: result.allDay,
         tags: result.tags,
+        note: result.note,
       );
       saved = store.schedules.last;
     } else {
@@ -368,6 +375,7 @@ Future<void> openScheduleEditor(
         endAt: result.endAt,
         allDay: result.allDay,
         tags: result.tags,
+        note: result.note,
       );
       store.updateSchedule(saved);
     }

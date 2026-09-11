@@ -53,7 +53,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
       if (!mounted) return;
       setState(() {
         _friends = friends;
-        _diaries = diaries;
+        _diaries = diaries.where((item) => item.diaryShareVisible()).toList();
         _pending = pending.where((item) => item.type == SharedKind.schedule).toList();
         _circles = circles;
         _albums = albums;
@@ -171,7 +171,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
             if (_pending.isEmpty)
               Text('届いた予定はまだありません', style: TextStyle(color: NexusColors.textMuted))
             else
-              for (final item in _pending) _PendingScheduleCard(item: item, onChanged: _reload),
+              for (final item in _pending) _SharedScheduleCard(item: item, onChanged: _reload),
             const SizedBox(height: 18),
             Row(
               children: [
@@ -416,80 +416,120 @@ class _StoriesRow extends StatelessWidget {
   }
 }
 
-class _PendingScheduleCard extends StatelessWidget {
-  const _PendingScheduleCard({required this.item, required this.onChanged});
+class _SharedScheduleCard extends StatefulWidget {
+  const _SharedScheduleCard({required this.item, required this.onChanged});
 
   final SharedItem item;
   final Future<void> Function() onChanged;
 
   @override
+  State<_SharedScheduleCard> createState() => _SharedScheduleCardState();
+}
+
+class _SharedScheduleCardState extends State<_SharedScheduleCard> {
+  var _expanded = false;
+
+  @override
   Widget build(BuildContext context) {
     final cloud = CloudScope.of(context);
+    final item = widget.item;
+    final start = item.startAt;
+    final when = start == null
+        ? ''
+        : compactScheduleStamp(start: start, end: item.endAt, allDay: item.allDay);
+    final from = item.owner?.displayName ?? '友だち';
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: GlassCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('承認待ちの予定', style: TextStyle(color: NexusColors.gold, fontSize: 11, fontWeight: FontWeight.w700)),
-            const SizedBox(height: 4),
-            Text(item.title, style: const TextStyle(fontWeight: FontWeight.w700)),
-            Text('from ${item.owner?.displayName ?? ''}', style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
-            if (item.startAt != null) ...[
-              const SizedBox(height: 4),
-              Text(
-                scheduleRangeLabel(start: item.startAt!, end: item.endAt, allDay: item.allDay),
-                style: const TextStyle(fontWeight: FontWeight.w600),
+            InkWell(
+              onTap: () => setState(() => _expanded = !_expanded),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (when.isNotEmpty)
+                          Text(
+                            when,
+                            style: TextStyle(
+                              color: NexusColors.cyan,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                            ),
+                          ),
+                        Text(
+                          item.title.isEmpty ? '共有された予定' : item.title,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        from,
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (_expanded) ...[
+              if (item.memo.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(item.memo, style: TextStyle(color: NexusColors.textMuted, fontSize: 13, height: 1.4)),
+              ],
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  FilledButton(
+                    onPressed: cloud.busy
+                        ? null
+                        : () async {
+                            try {
+                              if (start != null) {
+                                AppScope.of(context).addSchedule(
+                                  title: item.title.isEmpty ? '共有された予定' : item.title,
+                                  startAt: start,
+                                  endAt: item.endAt,
+                                  allDay: item.allDay,
+                                  tags: item.tags,
+                                  note: item.memo,
+                                  source: 'shared:${item.id}',
+                                );
+                              }
+                              await cloud.respondShare(item.aclId, accept: true);
+                              if (context.mounted) await widget.onChanged();
+                            } catch (error) {
+                              if (context.mounted) showNexusToast(context, cloudErrorMessage(error));
+                            }
+                          },
+                    child: const Text('承認'),
+                  ),
+                  const SizedBox(width: 8),
+                  OutlinedButton(
+                    onPressed: cloud.busy
+                        ? null
+                        : () async {
+                            try {
+                              await cloud.respondShare(item.aclId, accept: false);
+                              if (context.mounted) await widget.onChanged();
+                            } catch (error) {
+                              if (context.mounted) showNexusToast(context, cloudErrorMessage(error));
+                            }
+                          },
+                    child: const Text('拒否'),
+                  ),
+                ],
               ),
             ],
-            if (item.body.isNotEmpty)
-              Text(item.body, style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                FilledButton(
-                  onPressed: cloud.busy
-                      ? null
-                      : () async {
-                          try {
-                            final start = item.startAt;
-                            if (start != null) {
-                              AppScope.of(context).addSchedule(
-                                title: item.title.isEmpty ? '共有された予定' : item.title,
-                                startAt: start,
-                                endAt: item.endAt,
-                                allDay: item.allDay,
-                                tags: [
-                                  for (final tag in (item.payload['tags'] as List? ?? const []))
-                                    if (tag is String) tag,
-                                ],
-                                source: 'shared:${item.id}',
-                              );
-                            }
-                            await cloud.respondShare(item.aclId, accept: true);
-                            if (context.mounted) await onChanged();
-                          } catch (error) {
-                            if (context.mounted) showNexusToast(context, cloudErrorMessage(error));
-                          }
-                        },
-                  child: const Text('承認'),
-                ),
-                const SizedBox(width: 8),
-                OutlinedButton(
-                  onPressed: cloud.busy
-                      ? null
-                      : () async {
-                          try {
-                            await cloud.respondShare(item.aclId, accept: false);
-                            if (context.mounted) await onChanged();
-                          } catch (error) {
-                            if (context.mounted) showNexusToast(context, cloudErrorMessage(error));
-                          }
-                        },
-                  child: const Text('拒否'),
-                ),
-              ],
-            ),
           ],
         ),
       ),

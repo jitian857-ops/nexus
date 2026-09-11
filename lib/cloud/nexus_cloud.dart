@@ -168,11 +168,9 @@ class NexusCloud extends ChangeNotifier {
     try {
       final result = await task();
       await _refreshMailBadge();
-      notifyListeners();
       return result;
     } catch (error) {
       lastError = cloudErrorMessage(error);
-      notifyListeners();
       rethrow;
     } finally {
       busy = false;
@@ -460,8 +458,11 @@ class NexusCloud extends ChangeNotifier {
     required String circleId,
     required String title,
     required List<String> options,
+    DateTime? deadline,
   }) {
-    return _run(() => _backend.createPoll(circleId: circleId, title: title, options: options));
+    return _run(
+      () => _backend.createPoll(circleId: circleId, title: title, options: options, deadline: deadline),
+    );
   }
 
   Future<void> votePoll(String pollId, int optionIndex) {
@@ -475,6 +476,10 @@ class NexusCloud extends ChangeNotifier {
   }
 
   Future<void> toggleWant(String wantId) => _run(() => _backend.toggleWant(wantId));
+
+  Future<void> answerWant(String wantId, {required bool yes}) {
+    return _run(() => _backend.answerWant(wantId, yes: yes));
+  }
 
   Future<List<CircleWant>> listWants(String circleId) => _backend.listWants(circleId);
 

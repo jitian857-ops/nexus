@@ -348,10 +348,26 @@ class AppStore extends ChangeNotifier {
     return list;
   }
 
+  List<List<double>>? _stackedHoursCache;
+  Object? _stackedHoursKey;
+  List<double>? _dayHoursCache;
+  Object? _dayHoursKey;
+
   List<List<double>> weekStackedHours([DateTime? week]) {
     final monday = weekMonday(week ?? studyWeek);
+    final key = (
+      monday.millisecondsSinceEpoch,
+      sessions.length,
+      sessions.isEmpty ? '' : sessions.last.id,
+      subjects.length,
+    );
+    if (_stackedHoursKey == key && _stackedHoursCache != null) return _stackedHoursCache!;
     final series = weekChartSubjects(week);
-    if (series.isEmpty) return const [];
+    if (series.isEmpty) {
+      _stackedHoursKey = key;
+      _stackedHoursCache = const [];
+      return _stackedHoursCache!;
+    }
     final stacks = List.generate(7, (_) => List<double>.filled(series.length, 0));
     final indexOf = {for (var i = 0; i < series.length; i++) series[i].id: i};
     final otherIndex = indexOf[otherSubjectId] ?? -1;
@@ -362,17 +378,27 @@ class AppStore extends ChangeNotifier {
       if (si < 0) continue;
       stacks[idx][si] += session.minutes / 60.0;
     }
+    _stackedHoursKey = key;
+    _stackedHoursCache = stacks;
     return stacks;
   }
 
   List<double> weekDayHours([DateTime? week]) {
     final monday = weekMonday(week ?? focusedDate);
+    final key = (
+      monday.millisecondsSinceEpoch,
+      sessions.length,
+      sessions.isEmpty ? '' : sessions.last.id,
+    );
+    if (_dayHoursKey == key && _dayHoursCache != null) return _dayHoursCache!;
     final hours = List<double>.filled(7, 0);
     for (final session in sessions) {
       final idx = dateOnly(session.at).difference(monday).inDays;
       if (idx < 0 || idx > 6) continue;
       hours[idx] += session.minutes / 60.0;
     }
+    _dayHoursKey = key;
+    _dayHoursCache = hours;
     return hours;
   }
 
@@ -440,6 +466,7 @@ class AppStore extends ChangeNotifier {
       final today = dateOnly(DateTime.now());
       studyWeek = today;
       moneyMonth = today;
+      lifeDate = today;
     }
     tabIndex = next;
     notifyListeners();
@@ -524,6 +551,7 @@ class AppStore extends ChangeNotifier {
     DateTime? endAt,
     bool allDay = false,
     List<String> tags = const [],
+    String note = '',
     String category = 'life',
     String source = 'user',
   }) {
@@ -538,6 +566,7 @@ class AppStore extends ChangeNotifier {
         endAt: endAt,
         allDay: allDay,
         tags: tags,
+        note: note,
         category: category,
         source: source,
       ),
@@ -1241,6 +1270,20 @@ class AppStore extends ChangeNotifier {
     ];
   }
 
+  List<IncomeEntry> incomesInRange(DateTime from, DateTime to) {
+    return [
+      for (final item in incomeHistory)
+        if (_incomeInRange(item, from, to)) item,
+    ];
+  }
+
+  bool _incomeInRange(IncomeEntry item, DateTime from, DateTime to) {
+    if (inClosedDayRange(item.depositedAt, from, to)) return true;
+    final useStart = DateTime(item.useYear, item.useMonth, 1);
+    final useEnd = DateTime(item.useYear, item.useMonth + 1, 0);
+    return !useStart.isBefore(dateOnly(from)) && !useEnd.isAfter(dateOnly(to));
+  }
+
   List<MoneyCard> spendCardsInMonth(DateTime month) {
     return [
       for (final card in spendHistory)
@@ -1248,21 +1291,42 @@ class AppStore extends ChangeNotifier {
     ];
   }
 
+  List<MoneyCard> spendCardsInRange(DateTime from, DateTime to) {
+    return [
+      for (final card in spendHistory)
+        if (inClosedDayRange(card.at, from, to)) card,
+    ];
+  }
+
   List<String> expenseTagsInMonth(DateTime month) {
+    return expenseTagsInRange(monthStart(month), monthEnd(month));
+  }
+
+  List<String> expenseTagsInRange(DateTime from, DateTime to) {
     final tags = <String>{};
-    for (final card in spendCardsInMonth(month)) {
+    for (final card in spendCardsInRange(from, to)) {
       final tag = card.tag.trim();
       if (tag.isNotEmpty) tags.add(tag);
     }
     for (final box in boxes) {
-      if (!box.isSavings && !_boxInMonth(box, month)) continue;
-      for (final tag in box.tags) {
-        final text = tag.trim();
-        if (text.isNotEmpty) tags.add(text);
+      if (box.isSavings || _boxOverlapsRange(box, from, to)) {
+        for (final tag in box.tags) {
+          final text = tag.trim();
+          if (text.isNotEmpty) tags.add(text);
+        }
       }
     }
     final list = tags.toList()..sort();
     return list;
+  }
+
+  bool _boxOverlapsRange(BudgetBox box, DateTime from, DateTime to) {
+    if (box.isSavings) return true;
+    final month = box.month;
+    if (month == null) return _boxInMonth(box, from);
+    final start = monthStart(month);
+    final end = monthEnd(month);
+    return !end.isBefore(dateOnly(from)) && !start.isAfter(dateOnly(to));
   }
 
   BudgetBox addBudgetBox({
@@ -1488,11 +1552,12 @@ class AppStore extends ChangeNotifier {
       if (occupation.isEmpty) occupation = cloud.session!.occupation;
     }
     _canSave = true;
-    _saveUserData();
+    _flushUserData();
     notifyListeners();
   }
 
   void detachCloud() {
+    _flushUserData(pushCloud: false);
     _attachToken++;
     _cloudPush?.cancel();
     _cloudPush = null;
@@ -1739,15 +1804,27 @@ class AppStore extends ChangeNotifier {
     if (!_canSave) return;
     final started = _session;
     if (!started.isBound) return;
+    _cloudPush?.cancel();
+    _cloudPush = Timer(const Duration(milliseconds: 400), () {
+      if (!_isCurrent(started) || !_canSave) return;
+      _writeUserData(started);
+    });
+  }
+
+  void _flushUserData({bool pushCloud = true}) {
+    _cloudPush?.cancel();
+    _cloudPush = null;
+    if (!_canSave) return;
+    final started = _session;
+    if (!started.isBound) return;
+    _writeUserData(started, pushCloud: pushCloud);
+  }
+
+  void _writeUserData(SessionIdentity started, {bool pushCloud = true}) {
     final destUid = started.uid;
     final bundle = toCloudMap();
     NexusPrefs.saveBundle(destUid, bundle);
-    _cloudPush?.cancel();
-    final cloud = _cloud;
-    _cloudPush = Timer(const Duration(milliseconds: 400), () {
-      if (!_isCurrent(started)) return;
-      cloud?.pushLive(bundle);
-    });
+    if (pushCloud) _cloud?.pushLive(bundle);
   }
 
   void _resetUserState() {
@@ -1899,6 +1976,7 @@ class AppStore extends ChangeNotifier {
 
   @override
   void dispose() {
+    _flushUserData();
     _cloudPush?.cancel();
     super.dispose();
   }
@@ -1913,6 +1991,12 @@ class AppScope extends InheritedNotifier<AppStore> {
 
   static AppStore of(BuildContext context) {
     final scope = context.dependOnInheritedWidgetOfExactType<AppScope>();
+    assert(scope != null, 'AppScope が見つかりません');
+    return scope!.notifier!;
+  }
+
+  static AppStore read(BuildContext context) {
+    final scope = context.getInheritedWidgetOfExactType<AppScope>();
     assert(scope != null, 'AppScope が見つかりません');
     return scope!.notifier!;
   }

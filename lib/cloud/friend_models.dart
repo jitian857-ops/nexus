@@ -103,6 +103,19 @@ class SharedItem {
   DateTime? get endAt => DateTime.tryParse(payload['end_at'] as String? ?? '');
 
   bool get allDay => payload['all_day'] as bool? ?? false;
+
+  String get memo => payload['memo'] as String? ?? '';
+
+  List<String> get tags => [
+        for (final tag in (payload['tags'] as List? ?? const []))
+          if (tag is String && tag.trim().isNotEmpty) tag,
+      ];
+
+  bool diaryShareVisible([DateTime? now]) {
+    if (type != SharedKind.diary) return true;
+    final n = now ?? DateTime.now();
+    return n.difference(updatedAt) < const Duration(hours: 24);
+  }
 }
 
 class FriendNotice {
@@ -181,6 +194,8 @@ class FriendCircle {
   }
 }
 
+enum PollStage { voting, results, archived }
+
 class CirclePoll {
   const CirclePoll({
     required this.id,
@@ -189,6 +204,7 @@ class CirclePoll {
     required this.options,
     required this.votes,
     required this.createdAt,
+    this.deadline,
   });
   final String id;
   final String circleId;
@@ -196,6 +212,7 @@ class CirclePoll {
   final List<String> options;
   final Map<String, int> votes;
   final DateTime createdAt;
+  final DateTime? deadline;
 
   List<int> get counts {
     final list = List<int>.filled(options.length, 0);
@@ -203,6 +220,36 @@ class CirclePoll {
       if (index >= 0 && index < list.length) list[index]++;
     }
     return list;
+  }
+
+  int? remainingDays([DateTime? now]) {
+    if (deadline == null) return null;
+    final n = now ?? DateTime.now();
+    final today = DateTime(n.year, n.month, n.day);
+    final end = DateTime(deadline!.year, deadline!.month, deadline!.day);
+    return end.difference(today).inDays;
+  }
+
+  PollStage stage([DateTime? now]) {
+    final days = remainingDays(now);
+    if (days == null) return PollStage.voting;
+    if (days >= 0) return PollStage.voting;
+    if (days >= -7) return PollStage.results;
+    return PollStage.archived;
+  }
+
+  String remainingLabel([DateTime? now]) {
+    switch (stage(now)) {
+      case PollStage.voting:
+        final days = remainingDays(now);
+        if (days == null) return '';
+        if (days == 0) return '今日まで';
+        return 'あと$days日';
+      case PollStage.results:
+        return '結果';
+      case PollStage.archived:
+        return '終了';
+    }
   }
 }
 
@@ -213,12 +260,20 @@ class CircleWant {
     required this.title,
     required this.done,
     required this.creatorId,
+    this.answers = const {},
   });
   final String id;
   final String circleId;
   final String title;
   final bool done;
   final String creatorId;
+  final Map<String, bool> answers;
+
+  int get yesCount => answers.values.where((value) => value).length;
+
+  int get noCount => answers.values.where((value) => !value).length;
+
+  String get scoreLabel => '$yesCount:$noCount';
 }
 
 class MemoryAlbum {

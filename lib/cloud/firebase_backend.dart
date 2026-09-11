@@ -372,7 +372,7 @@ class FirebaseBackend implements CloudBackend {
   Future<String> uploadMedia(List<int> bytes, {String mime = 'image/jpeg', bool avatar = false}) async {
     final me = _uid();
     if (bytes.isEmpty) throw CloudException('写真を選べませんでした');
-    final packed = compressForFirestore(bytes, avatar: avatar, mime: mime);
+    final packed = await compressForFirestoreAsync(bytes, avatar: avatar, mime: mime);
     try {
       final ref = _db.collection('media').doc();
       await ref.set({
@@ -1075,6 +1075,18 @@ class FirebaseBackend implements CloudBackend {
       final kind = sharedKindFrom(data['type'] as String? ?? 'diary');
       if (type != null && kind != type) continue;
       final ownerId = data['owner_id'] as String? ?? '';
+      final updatedAt = DateTime.tryParse(data['updated_at'] as String? ?? '') ?? DateTime.now();
+      if (kind == SharedKind.diary &&
+          !SharedItem(
+            id: snap?.id ?? itemId,
+            ownerId: ownerId,
+            type: kind,
+            sourceLocalId: data['source_local_id'] as String? ?? '',
+            payload: const {},
+            updatedAt: updatedAt,
+          ).diaryShareVisible()) {
+        continue;
+      }
       if (!ShareAccess.viewerCanRead(
         viewerId: me,
         ownerId: ownerId,
@@ -1246,9 +1258,11 @@ class FirebaseBackend implements CloudBackend {
     required String circleId,
     required String title,
     required List<String> options,
+    DateTime? deadline,
   }) async {
     final cleaned = [for (final o in options) if (o.trim().isNotEmpty) o.trim()];
     if (title.trim().isEmpty || cleaned.length < 2) throw CloudException('日程の候補を2つ以上入れてください');
+    final due = deadline == null ? null : DateTime(deadline.year, deadline.month, deadline.day);
     final ref = _db.collection('circles').doc(circleId).collection('polls').doc();
     await ref.set({
       'circle_id': circleId,
@@ -1256,6 +1270,7 @@ class FirebaseBackend implements CloudBackend {
       'options': cleaned,
       'votes': <String, dynamic>{},
       'created_at': DateTime.now().toIso8601String(),
+      'deadline': due?.toIso8601String(),
     });
     return CirclePoll(
       id: ref.id,
@@ -1264,6 +1279,25 @@ class FirebaseBackend implements CloudBackend {
       options: cleaned,
       votes: const {},
       createdAt: DateTime.now(),
+      deadline: due,
+    );
+  }
+
+  CirclePoll _pollFrom(String circleId, String id, Map<String, dynamic> data) {
+    return CirclePoll(
+      id: id,
+      circleId: circleId,
+      title: data['title'] as String? ?? '',
+      options: [
+        for (final o in (data['options'] as List? ?? const []))
+          if (o is String) o,
+      ],
+      votes: {
+        for (final e in (data['votes'] as Map? ?? {}).entries)
+          e.key.toString(): (e.value as num?)?.toInt() ?? 0,
+      },
+      createdAt: DateTime.tryParse(data['created_at'] as String? ?? '') ?? DateTime.now(),
+      deadline: DateTime.tryParse(data['deadline'] as String? ?? data['deadline_at'] as String? ?? ''),
     );
   }
 
@@ -1274,6 +1308,8 @@ class FirebaseBackend implements CloudBackend {
     for (final circle in circles) {
       final snap = await _safeGet(_db.collection('circles').doc(circle.id).collection('polls').doc(pollId));
       if (snap == null || !snap.exists) continue;
+      final poll = _pollFrom(circle.id, snap.id, snap.data() ?? {});
+      if (poll.stage() != PollStage.voting) throw CloudException('投票期間が終了しています');
       final votes = Map<String, dynamic>.from(snap.data()?['votes'] as Map? ?? {});
       votes[me] = optionIndex;
       await snap.reference.set({'votes': votes}, SetOptions(merge: true));
@@ -1287,21 +1323,7 @@ class FirebaseBackend implements CloudBackend {
     try {
       final snap = await _db.collection('circles').doc(circleId).collection('polls').get();
       final list = [
-        for (final doc in snap.docs)
-          CirclePoll(
-            id: doc.id,
-            circleId: circleId,
-            title: doc.data()['title'] as String? ?? '',
-            options: [
-              for (final o in (doc.data()['options'] as List? ?? const []))
-                if (o is String) o,
-            ],
-            votes: {
-              for (final e in (doc.data()['votes'] as Map? ?? {}).entries)
-                e.key.toString(): (e.value as num?)?.toInt() ?? 0,
-            },
-            createdAt: DateTime.tryParse(doc.data()['created_at'] as String? ?? '') ?? DateTime.now(),
-          ),
+        for (final doc in snap.docs) _pollFrom(circleId, doc.id, doc.data()),
       ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
       return list;
     } catch (error) {
@@ -1322,7 +1344,24 @@ class FirebaseBackend implements CloudBackend {
       'done': false,
       'creator_id': me,
     });
-    return CircleWant(id: ref.id, circleId: circleId, title: text, done: false, creatorId: me);
+    return CircleWant(
+      id: ref.id,
+      circleId: circleId,
+      title: text,
+      done: false,
+      creatorId: me,
+    );
+  }
+
+  Map<String, bool> _wantAnswers(Map<String, dynamic>? data) {
+    final answers = <String, bool>{};
+    final raw = data?['answers'];
+    if (raw is Map) {
+      for (final e in raw.entries) {
+        answers[e.key.toString()] = e.value == true;
+      }
+    }
+    return answers;
   }
 
   @override
@@ -1332,6 +1371,24 @@ class FirebaseBackend implements CloudBackend {
       final snap = await _safeGet(_db.collection('circles').doc(circle.id).collection('wants').doc(wantId));
       if (snap == null || !snap.exists) continue;
       await snap.reference.set({'done': !(snap.data()?['done'] as bool? ?? false)}, SetOptions(merge: true));
+      return;
+    }
+  }
+
+  @override
+  Future<void> answerWant(String wantId, {required bool yes}) async {
+    final me = _uid();
+    final circles = await listCircles();
+    for (final circle in circles) {
+      final snap = await _safeGet(_db.collection('circles').doc(circle.id).collection('wants').doc(wantId));
+      if (snap == null || !snap.exists) continue;
+      final answers = Map<String, dynamic>.from(snap.data()?['answers'] as Map? ?? {});
+      if (answers[me] == yes) {
+        answers.remove(me);
+      } else {
+        answers[me] = yes;
+      }
+      await snap.reference.set({'answers': answers}, SetOptions(merge: true));
       return;
     }
   }
@@ -1348,6 +1405,7 @@ class FirebaseBackend implements CloudBackend {
             title: doc.data()['title'] as String? ?? '',
             done: doc.data()['done'] as bool? ?? false,
             creatorId: doc.data()['creator_id'] as String? ?? '',
+            answers: _wantAnswers(doc.data()),
           ),
       ];
     } catch (error) {

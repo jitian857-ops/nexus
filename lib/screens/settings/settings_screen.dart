@@ -239,6 +239,8 @@ class SettingsScreen extends StatelessWidget {
                             if (!await confirmLogout(context)) return;
                             await cloud.signOut();
                             store.detachCloud();
+                            if (!context.mounted) return;
+                            Navigator.of(context, rootNavigator: true).popUntil((route) => route.isFirst);
                           },
                         ),
                       ],

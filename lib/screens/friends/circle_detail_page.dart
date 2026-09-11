@@ -4,6 +4,7 @@ import '../../app/theme.dart';
 import '../../cloud/cloud_models.dart';
 import '../../cloud/friend_models.dart';
 import '../../cloud/nexus_cloud.dart';
+import '../../core/format.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/ui_bits.dart';
 
@@ -170,40 +171,17 @@ class _CircleDetailPageState extends State<CircleDetailPage> {
   }
 
   Future<void> _createPoll() async {
-    final title = TextEditingController();
-    final o1 = TextEditingController();
-    final o2 = TextEditingController();
-    final o3 = TextEditingController();
-    final created = await showDialog<bool>(
+    final draft = await showDialog<({String title, List<String> options, DateTime deadline})>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('日程投票'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: title, decoration: const InputDecoration(labelText: '何の予定？')),
-            TextField(controller: o1, decoration: const InputDecoration(labelText: '候補1')),
-            TextField(controller: o2, decoration: const InputDecoration(labelText: '候補2')),
-            TextField(controller: o3, decoration: const InputDecoration(labelText: '候補3（任意）')),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('やめる')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('作る')),
-        ],
-      ),
+      builder: (context) => const _CreatePollDialog(),
     );
-    if (created != true || !mounted) return;
-    final options = [o1.text, o2.text, o3.text].map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
-    if (title.text.trim().isEmpty || options.length < 2) {
-      showNexusToast(context, 'タイトルと候補を2つ以上入れてください');
-      return;
-    }
+    if (draft == null || !mounted) return;
     try {
       await CloudScope.of(context).createPoll(
         circleId: _circle.id,
-        title: title.text.trim(),
-        options: options,
+        title: draft.title,
+        options: draft.options,
+        deadline: draft.deadline,
       );
       await _reload();
     } catch (error) {
@@ -214,6 +192,14 @@ class _CircleDetailPageState extends State<CircleDetailPage> {
   @override
   Widget build(BuildContext context) {
     final cloud = CloudScope.of(context);
+    final current = [
+      for (final poll in _polls)
+        if (poll.stage() != PollStage.archived) poll,
+    ];
+    final past = [
+      for (final poll in _polls)
+        if (poll.stage() == PollStage.archived) poll,
+    ];
     return Scaffold(
       appBar: AppBar(
         title: Text(_circle.name),
@@ -244,43 +230,17 @@ class _CircleDetailPageState extends State<CircleDetailPage> {
                     TextButton(onPressed: _createPoll, child: const Text('投票を作る')),
                   ],
                 ),
-                if (_polls.isEmpty)
+                if (current.isEmpty && past.isEmpty)
                   Text('まだ投票はありません', style: TextStyle(color: NexusColors.textMuted))
                 else
-                  for (final poll in _polls)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: GlassCard(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(poll.title, style: const TextStyle(fontWeight: FontWeight.w700)),
-                            const SizedBox(height: 8),
-                            for (var i = 0; i < poll.options.length; i++)
-                              ListTile(
-                                dense: true,
-                                contentPadding: EdgeInsets.zero,
-                                title: Text(poll.options[i]),
-                                subtitle: Text('${poll.votes.values.where((v) => v == i).length}票'),
-                                trailing: FilledButton.tonal(
-                                  onPressed: cloud.busy
-                                      ? null
-                                      : () async {
-                                          try {
-                                            await cloud.votePoll(poll.id, i);
-                                            await _reload();
-                                          } catch (error) {
-                                            if (!context.mounted) return;
-                                            showNexusToast(context, cloudErrorMessage(error));
-                                          }
-                                        },
-                                  child: const Text('投票'),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
+                  for (final poll in current)
+                    _PollCard(poll: poll, onChanged: _reload),
+                if (past.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const Text('過去の投票', style: TextStyle(fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 8),
+                  for (final poll in past) _PollCard(poll: poll, onChanged: _reload),
+                ],
                 const SizedBox(height: 16),
                 const Text('やりたいことリスト', style: TextStyle(fontWeight: FontWeight.w800)),
                 const SizedBox(height: 8),
@@ -298,26 +258,287 @@ class _CircleDetailPageState extends State<CircleDetailPage> {
                 ),
                 const SizedBox(height: 8),
                 for (final want in _wants)
-                  CheckboxListTile(
-                    value: want.done,
-                    title: Text(
-                      want.title,
-                      style: TextStyle(decoration: want.done ? TextDecoration.lineThrough : null),
+                  _WantTile(want: want, busy: cloud.busy, onChanged: _reload),
+              ],
+            ),
+    );
+  }
+}
+
+class _CreatePollDialog extends StatefulWidget {
+  const _CreatePollDialog();
+
+  @override
+  State<_CreatePollDialog> createState() => _CreatePollDialogState();
+}
+
+class _CreatePollDialogState extends State<_CreatePollDialog> {
+  final _title = TextEditingController();
+  final _options = [TextEditingController(), TextEditingController()];
+  late DateTime _deadline;
+
+  @override
+  void initState() {
+    super.initState();
+    _deadline = dateOnly(DateTime.now()).add(const Duration(days: 7));
+  }
+
+  @override
+  void dispose() {
+    _title.dispose();
+    for (final option in _options) {
+      option.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('日程投票'),
+      content: SizedBox(
+        width: 360,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: _title, decoration: const InputDecoration(labelText: '何の予定？')),
+              for (var i = 0; i < _options.length; i++)
+                TextField(
+                  controller: _options[i],
+                  decoration: InputDecoration(labelText: '候補${i + 1}'),
+                ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: _options.length >= 12
+                      ? null
+                      : () => setState(() => _options.add(TextEditingController())),
+                  icon: const Icon(Icons.add),
+                  label: const Text('候補を追加'),
+                ),
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('期限'),
+                subtitle: Text(jpDate(_deadline)),
+                trailing: const Icon(Icons.event_outlined),
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: _deadline,
+                    firstDate: dateOnly(DateTime.now()),
+                    lastDate: DateTime.now().add(const Duration(days: 365)),
+                  );
+                  if (picked != null) setState(() => _deadline = dateOnly(picked));
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('やめる')),
+        FilledButton(
+          onPressed: () {
+            final options = [
+              for (final option in _options)
+                if (option.text.trim().isNotEmpty) option.text.trim(),
+            ];
+            if (_title.text.trim().isEmpty || options.length < 2) {
+              showNexusToast(context, 'タイトルと候補を2つ以上入れてください');
+              return;
+            }
+            Navigator.pop(context, (title: _title.text.trim(), options: options, deadline: _deadline));
+          },
+          child: const Text('作る'),
+        ),
+      ],
+    );
+  }
+}
+
+class _PollCard extends StatefulWidget {
+  const _PollCard({required this.poll, required this.onChanged});
+
+  final CirclePoll poll;
+  final Future<void> Function() onChanged;
+
+  @override
+  State<_PollCard> createState() => _PollCardState();
+}
+
+class _PollCardState extends State<_PollCard> {
+  var _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final cloud = CloudScope.of(context);
+    final poll = widget.poll;
+    final open = poll.stage() == PollStage.voting;
+    final label = poll.remainingLabel();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: GlassCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            InkWell(
+              onTap: () => setState(() => _expanded = !_expanded),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(poll.title, style: const TextStyle(fontWeight: FontWeight.w700)),
+                  ),
+                  if (label.isNotEmpty)
+                    Text(
+                      label,
+                      style: TextStyle(
+                        color: open ? NexusColors.gold : NexusColors.textMuted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
-                    onChanged: cloud.busy
+                ],
+              ),
+            ),
+            if (_expanded) ...[
+              const SizedBox(height: 8),
+              for (var i = 0; i < poll.options.length; i++)
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(poll.options[i]),
+                  subtitle: Text('${poll.counts[i]}票'),
+                  trailing: open
+                      ? FilledButton.tonal(
+                          onPressed: cloud.busy
+                              ? null
+                              : () async {
+                                  try {
+                                    await cloud.votePoll(poll.id, i);
+                                    await widget.onChanged();
+                                  } catch (error) {
+                                    if (!context.mounted) return;
+                                    showNexusToast(context, cloudErrorMessage(error));
+                                  }
+                                },
+                          child: const Text('投票'),
+                        )
+                      : null,
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WantTile extends StatelessWidget {
+  const _WantTile({required this.want, required this.busy, required this.onChanged});
+
+  final CircleWant want;
+  final bool busy;
+  final Future<void> Function() onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final cloud = CloudScope.of(context);
+    final me = cloud.uid;
+    final mine = want.answers[me];
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Column(
+            children: [
+              Text(want.scoreLabel, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  _ChoiceChip(
+                    label: 'Yes',
+                    selected: mine == true,
+                    onTap: busy
                         ? null
-                        : (_) async {
+                        : () async {
                             try {
-                              await cloud.toggleWant(want.id);
-                              await _reload();
+                              await cloud.answerWant(want.id, yes: true);
+                              await onChanged();
                             } catch (error) {
                               if (!context.mounted) return;
                               showNexusToast(context, cloudErrorMessage(error));
                             }
                           },
                   ),
-              ],
+                  const SizedBox(width: 4),
+                  _ChoiceChip(
+                    label: 'No',
+                    selected: mine == false,
+                    onTap: busy
+                        ? null
+                        : () async {
+                            try {
+                              await cloud.answerWant(want.id, yes: false);
+                              await onChanged();
+                            } catch (error) {
+                              if (!context.mounted) return;
+                              showNexusToast(context, cloudErrorMessage(error));
+                            }
+                          },
+                  ),
+                ],
+              ),
+            ],
+          ),
+          Checkbox(
+            value: want.done,
+            onChanged: busy
+                ? null
+                : (_) async {
+                    try {
+                      await cloud.toggleWant(want.id);
+                      await onChanged();
+                    } catch (error) {
+                      if (!context.mounted) return;
+                      showNexusToast(context, cloudErrorMessage(error));
+                    }
+                  },
+          ),
+          Expanded(
+            child: Text(
+              want.title,
+              style: TextStyle(decoration: want.done ? TextDecoration.lineThrough : null),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChoiceChip extends StatelessWidget {
+  const _ChoiceChip({required this.label, required this.selected, required this.onTap});
+
+  final String label;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          color: selected ? NexusColors.cyan.withValues(alpha: 0.22) : NexusColors.surface,
+        ),
+        child: Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+      ),
     );
   }
 }

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../app/theme.dart';
@@ -127,8 +128,17 @@ class _StudyWeekChartPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _StudyWeekChartPainter oldDelegate) {
-    return oldDelegate.dayHours != dayHours ||
-        oldDelegate.stacks != stacks ||
-        oldDelegate.colors != colors;
+    return !listEquals(oldDelegate.dayHours, dayHours) ||
+        !_sameStacks(oldDelegate.stacks, stacks) ||
+        !listEquals(oldDelegate.colors, colors);
+  }
+
+  bool _sameStacks(List<List<double>>? a, List<List<double>>? b) {
+    if (identical(a, b)) return true;
+    if (a == null || b == null || a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (!listEquals(a[i], b[i])) return false;
+    }
+    return true;
   }
 }

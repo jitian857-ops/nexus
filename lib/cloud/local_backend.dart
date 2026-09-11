@@ -299,7 +299,7 @@ class LocalBackend implements CloudBackend {
   @override
   Future<String> uploadMedia(List<int> bytes, {String mime = 'image/jpeg', bool avatar = false}) async {
     if (bytes.isEmpty) throw CloudException('写真を選べませんでした');
-    final packed = compressForFirestore(bytes, avatar: avatar, mime: mime);
+    final packed = await compressForFirestoreAsync(bytes, avatar: avatar, mime: mime);
     final id = _id();
     final url = 'data:${packed.mime};base64,${base64Encode(packed.bytes)}';
     _map('media')[id] = url;
@@ -944,6 +944,18 @@ class LocalBackend implements CloudBackend {
       final kind = sharedKindFrom(row['type'] as String? ?? 'diary');
       if (type != null && kind != type) continue;
       final ownerId = row['ownerId'] as String? ?? '';
+      final updatedAt = DateTime.tryParse(row['updatedAt'] as String? ?? '') ?? DateTime.now();
+      if (kind == SharedKind.diary &&
+          !SharedItem(
+            id: itemId,
+            ownerId: ownerId,
+            type: kind,
+            sourceLocalId: row['sourceLocalId'] as String? ?? '',
+            payload: const {},
+            updatedAt: updatedAt,
+          ).diaryShareVisible()) {
+        continue;
+      }
       if (!ShareAccess.viewerCanRead(
         viewerId: me,
         ownerId: ownerId,
@@ -975,6 +987,19 @@ class LocalBackend implements CloudBackend {
     items.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     if (items.length <= limit) return items;
     return items.sublist(0, limit);
+  }
+
+  @visibleForTesting
+  void debugBackdateShare({required String sourceLocalId, required DateTime updatedAt}) {
+    final items = _map('sharedItems');
+    for (final key in [...items.keys]) {
+      final raw = items[key];
+      if (raw is! Map) continue;
+      final row = Map<String, dynamic>.from(raw);
+      if (row['sourceLocalId'] != sourceLocalId) continue;
+      row['updatedAt'] = updatedAt.toIso8601String();
+      items[key] = row;
+    }
   }
 
   @override
@@ -1123,6 +1148,7 @@ class LocalBackend implements CloudBackend {
     required String circleId,
     required String title,
     required List<String> options,
+    DateTime? deadline,
   }) async {
     final me = _me();
     final circle = _circleOf(circleId);
@@ -1132,6 +1158,7 @@ class LocalBackend implements CloudBackend {
     final cleaned = [for (final o in options) if (o.trim().isNotEmpty) o.trim()];
     if (title.trim().isEmpty || cleaned.length < 2) throw CloudException('日程の候補を2つ以上入れてください');
     final id = _id();
+    final due = deadline == null ? null : DateTime(deadline.year, deadline.month, deadline.day);
     _map('circlePolls')[id] = {
       'id': id,
       'circleId': circleId,
@@ -1139,6 +1166,7 @@ class LocalBackend implements CloudBackend {
       'options': cleaned,
       'votes': <String, dynamic>{},
       'createdAt': DateTime.now().toIso8601String(),
+      'deadline': due?.toIso8601String(),
     };
     await _persist();
     return _pollOf(id);
@@ -1163,6 +1191,7 @@ class LocalBackend implements CloudBackend {
       ],
       votes: votes,
       createdAt: DateTime.tryParse(row['createdAt'] as String? ?? '') ?? DateTime.now(),
+      deadline: DateTime.tryParse(row['deadline'] as String? ?? ''),
     );
   }
 
@@ -1170,6 +1199,7 @@ class LocalBackend implements CloudBackend {
   Future<void> votePoll(String pollId, int optionIndex) async {
     final me = _me();
     final poll = _pollOf(pollId);
+    if (poll.stage() != PollStage.voting) throw CloudException('投票期間が終了しています');
     if (optionIndex < 0 || optionIndex >= poll.options.length) return;
     final circle = _circleOf(poll.circleId);
     if (!circle.memberIds.contains(me) && circle.ownerId != me) {
@@ -1211,12 +1241,20 @@ class LocalBackend implements CloudBackend {
 
   CircleWant _wantOf(String id) {
     final row = Map<String, dynamic>.from(_map('circleWants')[id] as Map? ?? {});
+    final answers = <String, bool>{};
+    final raw = row['answers'];
+    if (raw is Map) {
+      for (final e in raw.entries) {
+        answers[e.key.toString()] = e.value == true;
+      }
+    }
     return CircleWant(
       id: id,
       circleId: row['circleId'] as String? ?? '',
       title: row['title'] as String? ?? '',
       done: row['done'] as bool? ?? false,
       creatorId: row['creatorId'] as String? ?? '',
+      answers: answers,
     );
   }
 
@@ -1225,6 +1263,22 @@ class LocalBackend implements CloudBackend {
     final row = _map('circleWants')[wantId];
     if (row is! Map) return;
     row['done'] = !(row['done'] as bool? ?? false);
+    _map('circleWants')[wantId] = Map<String, dynamic>.from(row);
+    await _persist();
+  }
+
+  @override
+  Future<void> answerWant(String wantId, {required bool yes}) async {
+    final me = _me();
+    final row = _map('circleWants')[wantId];
+    if (row is! Map) return;
+    final answers = Map<String, dynamic>.from(row['answers'] as Map? ?? {});
+    if (answers[me] == yes) {
+      answers.remove(me);
+    } else {
+      answers[me] = yes;
+    }
+    row['answers'] = answers;
     _map('circleWants')[wantId] = Map<String, dynamic>.from(row);
     await _persist();
   }

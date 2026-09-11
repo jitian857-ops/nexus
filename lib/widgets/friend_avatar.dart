@@ -19,7 +19,32 @@ Uint8List? decodeDataUrl(String src) {
   }
 }
 
-class NexusImage extends StatelessWidget {
+const _maxDataUrlCache = 48;
+final Map<String, Uint8List> _dataUrlBytes = {};
+final List<String> _dataUrlOrder = [];
+
+Uint8List? cachedDecodeDataUrl(String src) {
+  final hit = _dataUrlBytes[src];
+  if (hit != null) {
+    _dataUrlOrder.remove(src);
+    _dataUrlOrder.add(src);
+    return hit;
+  }
+  final bytes = decodeDataUrl(src);
+  if (bytes == null) return null;
+  _dataUrlBytes[src] = bytes;
+  _dataUrlOrder.add(src);
+  while (_dataUrlOrder.length > _maxDataUrlCache) {
+    _dataUrlBytes.remove(_dataUrlOrder.removeAt(0));
+  }
+  return bytes;
+}
+
+int imageCachePx(BuildContext context, double logical) {
+  return (logical * MediaQuery.devicePixelRatioOf(context)).round().clamp(1, 4096);
+}
+
+class NexusImage extends StatefulWidget {
   const NexusImage({
     super.key,
     required this.src,
@@ -34,61 +59,119 @@ class NexusImage extends StatelessWidget {
   final BoxFit fit;
 
   @override
-  Widget build(BuildContext context) {
-    if (src.isEmpty) {
-      return SizedBox(
-        width: width,
-        height: height,
-        child: ColoredBox(color: NexusColors.surface),
-      );
+  State<NexusImage> createState() => _NexusImageState();
+}
+
+class _NexusImageState extends State<NexusImage> {
+  Future<String>? _resolve;
+  String? _resolveSrc;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _ensureResolve();
+  }
+
+  @override
+  void didUpdateWidget(covariant NexusImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.src != widget.src) {
+      _resolve = null;
+      _resolveSrc = null;
+      _ensureResolve();
     }
-    final cloud = CloudScope.maybeOf(context);
-    if (cloud == null ||
+  }
+
+  void _ensureResolve() {
+    final src = widget.src;
+    if (src.isEmpty ||
         src.startsWith('data:') ||
         src.startsWith('http://') ||
         src.startsWith('https://')) {
-      return _pixels(src);
+      return;
     }
+    final cloud = CloudScope.maybeOf(context);
+    if (cloud == null) return;
+    if (_resolveSrc == src && _resolve != null) return;
+    _resolveSrc = src;
+    _resolve = cloud.resolveMedia(src);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.src.isEmpty) {
+      return SizedBox(
+        width: widget.width,
+        height: widget.height,
+        child: ColoredBox(color: NexusColors.surface),
+      );
+    }
+    if (widget.src.startsWith('data:') ||
+        widget.src.startsWith('http://') ||
+        widget.src.startsWith('https://')) {
+      return _pixels(context, widget.src);
+    }
+    final pending = _resolve;
+    if (pending == null) return _pixels(context, widget.src);
     return FutureBuilder<String>(
-      future: cloud.resolveMedia(src),
+      future: pending,
       builder: (context, snapshot) {
         final resolved = snapshot.data;
         if (resolved == null || resolved.isEmpty) {
           return SizedBox(
-            width: width,
-            height: height,
+            width: widget.width,
+            height: widget.height,
             child: ColoredBox(color: NexusColors.surface),
           );
         }
-        return _pixels(resolved);
+        return _pixels(context, resolved);
       },
     );
   }
 
-  Widget _pixels(String value) {
+  Widget _pixels(BuildContext context, String value) {
+    final cacheW = widget.width == null ? null : imageCachePx(context, widget.width!);
+    final cacheH = widget.height == null ? null : imageCachePx(context, widget.height!);
     if (value.startsWith('data:')) {
-      final bytes = decodeDataUrl(value);
+      final bytes = cachedDecodeDataUrl(value);
       if (bytes == null) {
-        return SizedBox(width: width, height: height, child: const Center(child: Text('画像なし')));
+        return SizedBox(
+          width: widget.width,
+          height: widget.height,
+          child: const Center(child: Text('画像なし')),
+        );
       }
-      return Image.memory(bytes, width: width, height: height, fit: fit);
+      return Image.memory(
+        bytes,
+        width: widget.width,
+        height: widget.height,
+        fit: widget.fit,
+        cacheWidth: cacheW,
+        cacheHeight: cacheH,
+        gaplessPlayback: true,
+        filterQuality: FilterQuality.medium,
+      );
     }
     if (value.startsWith('http://') || value.startsWith('https://')) {
       return Image.network(
         value,
-        width: width,
-        height: height,
-        fit: fit,
+        width: widget.width,
+        height: widget.height,
+        fit: widget.fit,
+        cacheWidth: cacheW,
+        cacheHeight: cacheH,
+        gaplessPlayback: true,
+        filterQuality: FilterQuality.medium,
         errorBuilder: (_, _, _) => SizedBox(
-          width: width,
-          height: height,
+          width: widget.width,
+          height: widget.height,
           child: const Center(child: Icon(Icons.broken_image_outlined)),
         ),
       );
     }
     return SizedBox(
-      width: width,
-      height: height,
+      width: widget.width,
+      height: widget.height,
       child: ColoredBox(color: NexusColors.surface),
     );
   }

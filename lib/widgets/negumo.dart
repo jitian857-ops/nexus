@@ -108,7 +108,9 @@ class _NegumoMascotState extends State<NegumoMascot> with SingleTickerProviderSt
                 child: Image.asset(
                   _frame,
                   fit: BoxFit.contain,
-                  filterQuality: FilterQuality.high,
+                  cacheWidth: (widget.size * MediaQuery.devicePixelRatioOf(context)).round().clamp(1, 4096),
+                  cacheHeight: (widget.size * MediaQuery.devicePixelRatioOf(context)).round().clamp(1, 4096),
+                  filterQuality: FilterQuality.medium,
                   gaplessPlayback: true,
                   errorBuilder: (_, _, _) => const SizedBox.shrink(),
                 ),

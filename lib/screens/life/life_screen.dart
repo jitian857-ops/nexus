@@ -145,6 +145,13 @@ class LifeScreen extends StatelessWidget {
                                               item.tags.join(' · '),
                                               style: TextStyle(color: NexusColors.textMuted, fontSize: 11),
                                             ),
+                                          if (item.note.isNotEmpty)
+                                            Text(
+                                              item.note,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(color: NexusColors.textMuted, fontSize: 11),
+                                            ),
                                         ],
                                       ),
                                     ),
@@ -444,9 +451,9 @@ Future<void> _openHabitForm(BuildContext context, AppStore store, {Habit? existi
               ),
               if (existing != null) ...[
                 const SizedBox(height: 8),
-                TextButton(
+                OutlinedButton(
                   onPressed: () => Navigator.pop(context, 'delete'),
-                  child: Text('削除', style: TextStyle(color: NexusColors.expense)),
+                  child: Text('この習慣を削除', style: TextStyle(color: NexusColors.expense)),
                 ),
               ],
             ],
@@ -756,45 +763,64 @@ class _HabitRowState extends State<_HabitRow> {
   Widget build(BuildContext context) {
     final habit = widget.habit;
     final day = widget.store.lifeDate;
-    return InkWell(
-      onTap: () {
-        final turningOn = !habit.doneOn(day);
-        widget.store.toggleHabit(habit.id, day);
-        if (turningOn) {
-          nexusHaptic();
-          _flash();
-        }
-      },
-      onLongPress: () => _openHabitForm(context, widget.store, existing: habit),
-      borderRadius: BorderRadius.circular(10),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 280),
-        curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
-          color: _lit ? NexusColors.gold.withValues(alpha: 0.12) : Colors.transparent,
-        ),
-        child: Row(
+    return Row(
           children: [
-            Icon(habit.icon, size: 16, color: habit.color),
-            const SizedBox(width: 8),
             Expanded(
-              child: Text(habit.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-            ),
-            AnimatedDefaultTextStyle(
-              duration: const Duration(milliseconds: 280),
-              style: TextStyle(
-                color: _lit ? NexusColors.gold : habit.color,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
+              child: InkWell(
+                onTap: () {
+                  final turningOn = !habit.doneOn(day);
+                  widget.store.toggleHabit(habit.id, day);
+                  if (turningOn) {
+                    nexusHaptic();
+                    _flash();
+                  }
+                },
+                onLongPress: () => _openHabitForm(context, widget.store, existing: habit),
+                borderRadius: BorderRadius.circular(10),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 280),
+                  curve: Curves.easeOutCubic,
+                  padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    color: _lit ? NexusColors.gold.withValues(alpha: 0.12) : Colors.transparent,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(habit.icon, size: 16, color: habit.color),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          habit.name,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      AnimatedDefaultTextStyle(
+                        duration: const Duration(milliseconds: 280),
+                        style: TextStyle(
+                          color: _lit ? NexusColors.gold : habit.color,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        child: Text('${habit.currentStreak(day)}日連続'),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              child: Text('${habit.currentStreak(day)}日連続'),
+            ),
+            IconButton(
+              key: Key('habit-edit-${habit.id}'),
+              tooltip: '編集',
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+              onPressed: () => _openHabitForm(context, widget.store, existing: habit),
+              icon: Icon(Icons.edit_outlined, size: 16, color: NexusColors.textMuted),
             ),
           ],
-        ),
-      ),
-    );
+        );
   }
 }
 

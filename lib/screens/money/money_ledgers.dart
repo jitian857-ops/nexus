@@ -4,6 +4,7 @@ import '../../app/theme.dart';
 import '../../core/format.dart';
 import '../../data/app_store.dart';
 import '../../data/models.dart';
+import '../../widgets/datetime_pills.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/ui_bits.dart';
 import 'money_forms.dart';
@@ -29,6 +30,19 @@ class IncomeLedgerPage extends StatefulWidget {
 
 class _IncomeLedgerPageState extends State<IncomeLedgerPage> {
   final _query = TextEditingController();
+  var _ready = false;
+  late DateTime _from;
+  late DateTime _to;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_ready) return;
+    _ready = true;
+    final month = AppScope.of(context).moneyMonth;
+    _from = monthStart(month);
+    _to = monthEnd(month);
+  }
 
   @override
   void dispose() {
@@ -39,10 +53,9 @@ class _IncomeLedgerPageState extends State<IncomeLedgerPage> {
   @override
   Widget build(BuildContext context) {
     final store = AppScope.of(context);
-    final month = store.moneyMonth;
     final q = _query.text;
     final list = [
-      for (final item in store.incomesInMonth(month))
+      for (final item in store.incomesInRange(_from, _to))
         if (queryMatches(q, [
           item.name,
           item.memo,
@@ -68,11 +81,22 @@ class _IncomeLedgerPageState extends State<IncomeLedgerPage> {
                 ),
                 Expanded(
                   child: Text(
-                    '${jpMonth(store.moneyMonth)}の収入',
-                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
+                    '${dayRangeLabel(_from, _to)}の収入',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                   ),
                 ),
-                AddChip(label: '収入を追加', onTap: () => openIncomeForm(context, store)),
+                _RangeChip(
+                  onTap: () async {
+                    final next = await pickSearchRange(context, from: _from, to: _to);
+                    if (next == null || !mounted) return;
+                    setState(() {
+                      _from = next.$1;
+                      _to = next.$2;
+                    });
+                  },
+                ),
               ],
             ),
             const SizedBox(height: 8),
@@ -86,7 +110,7 @@ class _IncomeLedgerPageState extends State<IncomeLedgerPage> {
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 24),
                 child: Text(
-                  store.incomesInMonth(store.moneyMonth).isEmpty ? 'この月の収入はまだありません' : '一致する収入がありません',
+                  store.incomesInRange(_from, _to).isEmpty ? 'この期間の収入はまだありません' : '一致する収入がありません',
                   style: TextStyle(color: NexusColors.textMuted),
                 ),
               )
@@ -144,6 +168,19 @@ class ExpenseLedgerPage extends StatefulWidget {
 class _ExpenseLedgerPageState extends State<ExpenseLedgerPage> {
   final _query = TextEditingController();
   String? _tag;
+  var _ready = false;
+  late DateTime _from;
+  late DateTime _to;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_ready) return;
+    _ready = true;
+    final month = AppScope.of(context).moneyMonth;
+    _from = monthStart(month);
+    _to = monthEnd(month);
+  }
 
   @override
   void dispose() {
@@ -154,10 +191,9 @@ class _ExpenseLedgerPageState extends State<ExpenseLedgerPage> {
   @override
   Widget build(BuildContext context) {
     final store = AppScope.of(context);
-    final month = store.moneyMonth;
     final q = _query.text;
-    final tags = store.expenseTagsInMonth(month);
-    final spend = store.spendCardsInMonth(month);
+    final tags = store.expenseTagsInRange(_from, _to);
+    final spend = store.spendCardsInRange(_from, _to);
     final list = [
       for (final card in spend)
         if ((_tag == null || card.tag == _tag) &&
@@ -187,11 +223,23 @@ class _ExpenseLedgerPageState extends State<ExpenseLedgerPage> {
                 ),
                 Expanded(
                   child: Text(
-                    '${jpMonth(store.moneyMonth)}の支出',
-                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
+                    '${dayRangeLabel(_from, _to)}の支出',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                   ),
                 ),
-                AddChip(label: 'カードを追加', onTap: () => openAddCard(context, store)),
+                _RangeChip(
+                  onTap: () async {
+                    final next = await pickSearchRange(context, from: _from, to: _to);
+                    if (next == null || !mounted) return;
+                    setState(() {
+                      _from = next.$1;
+                      _to = next.$2;
+                      _tag = null;
+                    });
+                  },
+                ),
               ],
             ),
             const SizedBox(height: 8),
@@ -229,7 +277,7 @@ class _ExpenseLedgerPageState extends State<ExpenseLedgerPage> {
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 24),
                 child: Text(
-                  spend.isEmpty ? 'この月の支出カードはまだありません' : '一致する支出がありません',
+                  spend.isEmpty ? 'この期間の支出カードはまだありません' : '一致する支出がありません',
                   style: TextStyle(color: NexusColors.textMuted),
                 ),
               )
@@ -280,6 +328,21 @@ class _ExpenseLedgerPageState extends State<ExpenseLedgerPage> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _RangeChip extends StatelessWidget {
+  const _RangeChip({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return AddChip(
+      key: const Key('money-search-range'),
+      label: '検索範囲',
+      onTap: onTap,
     );
   }
 }
@@ -344,6 +407,68 @@ class _CloseMark extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<(DateTime, DateTime)?> pickSearchRange(
+  BuildContext context, {
+  required DateTime from,
+  required DateTime to,
+}) {
+  var start = dateOnly(from);
+  var end = dateOnly(to);
+  return showNexusSheet<(DateTime, DateTime)>(
+    context: context,
+    useRootNavigator: true,
+    builder: (sheet) {
+      return StatefulBuilder(
+        builder: (sheet, setSheet) {
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('検索範囲', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 4),
+              Text('1日単位で開始と終了を選べます', style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
+              const SizedBox(height: 12),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('開始'),
+                subtitle: Text(jpDate(start)),
+                trailing: const Icon(Icons.event_outlined),
+                onTap: () async {
+                  final picked = await showDateReelSheet(sheet, initial: start);
+                  if (picked == null) return;
+                  setSheet(() {
+                    start = dateOnly(picked);
+                    if (end.isBefore(start)) end = start;
+                  });
+                },
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('終了'),
+                subtitle: Text(jpDate(end)),
+                trailing: const Icon(Icons.event_outlined),
+                onTap: () async {
+                  final picked = await showDateReelSheet(sheet, initial: end);
+                  if (picked == null) return;
+                  setSheet(() {
+                    end = dateOnly(picked);
+                    if (end.isBefore(start)) start = end;
+                  });
+                },
+              ),
+              const SizedBox(height: 8),
+              FilledButton(
+                onPressed: () => Navigator.pop(sheet, (start, end)),
+                child: const Text('この範囲で見る'),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
 }
 
 Future<void> _confirmDeleteIncome(BuildContext context, AppStore store, IncomeEntry item) async {

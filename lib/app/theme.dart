@@ -463,10 +463,19 @@ class NexusTheme {
       ),
     );
 
-    final textTheme = GoogleFonts.notoSansJpTextTheme(base.textTheme).apply(
-      bodyColor: palette.textSecondary,
-      displayColor: palette.text,
-    );
+    final textTheme = () {
+      try {
+        return GoogleFonts.notoSansJpTextTheme(base.textTheme).apply(
+          bodyColor: palette.textSecondary,
+          displayColor: palette.text,
+        );
+      } catch (_) {
+        return base.textTheme.apply(
+          bodyColor: palette.textSecondary,
+          displayColor: palette.text,
+        );
+      }
+    }();
 
     return base.copyWith(
       textTheme: textTheme,

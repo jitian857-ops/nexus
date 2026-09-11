@@ -56,7 +56,8 @@ class GradientTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ShaderMask(
+    return RepaintBoundary(
+      child: ShaderMask(
       shaderCallback: (rect) {
         return LinearGradient(
           colors: [
@@ -74,6 +75,7 @@ class GradientTitle extends StatelessWidget {
           color: Colors.white,
           letterSpacing: 1.8,
         ),
+      ),
       ),
     );
   }

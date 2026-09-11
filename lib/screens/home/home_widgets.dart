@@ -6,6 +6,7 @@ import '../../data/app_store.dart';
 import '../../widgets/count_up_yen.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/nexus_nav_bar.dart';
+import '../../widgets/live_timer.dart';
 import '../../widgets/progress_ring.dart';
 import '../../widgets/study_week_chart.dart';
 import '../../widgets/ui_bits.dart';
@@ -24,8 +25,6 @@ class HomeWidgetCarousel extends StatelessWidget {
           children: [
             Expanded(
               child: _GoalCard(
-                progress: store.goalProgress,
-                remainingLabel: remainingStudyLabel(store.remainingStudyMinutes()),
                 goalLabel: studyGoalLabel(store.dailyStudyGoalMinutes),
                 onTap: () => _openStudyGoalEditor(context, store),
               ),
@@ -90,20 +89,15 @@ class WidgetLabel extends StatelessWidget {
 
 class _GoalCard extends StatelessWidget {
   const _GoalCard({
-    required this.progress,
-    required this.remainingLabel,
     required this.goalLabel,
     required this.onTap,
   });
 
-  final double progress;
-  final String remainingLabel;
   final String goalLabel;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final done = remainingLabel == '達成';
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(NexusColors.cardRadius),
@@ -115,29 +109,36 @@ class _GoalCard extends StatelessWidget {
             const WidgetLabel(code: 'W01', title: '今日の目標'),
             Expanded(
               child: Center(
-                child: ProgressRing(
-                  progress: progress,
-                  size: 96,
-                  stroke: 8,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        done ? '達成' : '残り',
-                        style: TextStyle(color: NexusColors.textMuted, fontSize: 10),
+                child: LiveTimerBuilder(
+                  builder: (context, store) {
+                    final remainingLabel = remainingStudyLabel(store.remainingStudyMinutes());
+                    final done = remainingLabel == '達成';
+                    return ProgressRing(
+                      progress: store.goalProgress,
+                      animate: !store.timerRunning,
+                      size: 96,
+                      stroke: 8,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            done ? '達成' : '残り',
+                            style: TextStyle(color: NexusColors.textMuted, fontSize: 10),
+                          ),
+                          Text(
+                            done ? '' : remainingLabel,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: NexusColors.text,
+                              fontSize: remainingLabel.length >= 6 ? 13 : 16,
+                              fontWeight: FontWeight.w600,
+                              height: 1.1,
+                            ),
+                          ),
+                        ],
                       ),
-                      Text(
-                        done ? '' : remainingLabel,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: NexusColors.text,
-                          fontSize: remainingLabel.length >= 6 ? 13 : 16,
-                          fontWeight: FontWeight.w600,
-                          height: 1.1,
-                        ),
-                      ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
               ),
             ),
@@ -231,16 +232,18 @@ class _StudyTimeCard extends StatelessWidget {
           children: [
             const WidgetLabel(code: 'W04', title: '今週の学習時間'),
             const SizedBox(height: 2),
-            ShaderMask(
-              shaderCallback: (rect) =>
-                  LinearGradient(colors: NexusColors.accentSweep).createShader(rect),
-              child: Text(
-                formatStudyHours(hours),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
-                  height: 1.1,
+            RepaintBoundary(
+              child: ShaderMask(
+                shaderCallback: (rect) =>
+                    LinearGradient(colors: NexusColors.accentSweep).createShader(rect),
+                child: Text(
+                  formatStudyHours(hours),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 28,
+                    fontWeight: FontWeight.w700,
+                    height: 1.1,
+                  ),
                 ),
               ),
             ),

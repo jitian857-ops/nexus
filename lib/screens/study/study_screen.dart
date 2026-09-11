@@ -1,5 +1,4 @@
-﻿import 'dart:async';
-import 'dart:typed_data';
+﻿import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -11,54 +10,17 @@ import '../../data/models.dart';
 import '../../data/nexus_icons.dart';
 import '../../domain/money_calc.dart';
 import '../../widgets/duration_picker.dart';
+import '../../widgets/friend_avatar.dart';
 import '../../widgets/glass_card.dart';
+import '../../widgets/live_timer.dart';
 import '../../widgets/period_slide.dart';
 import '../../widgets/progress_ring.dart';
 import '../../widgets/study_week_chart.dart';
 import '../../widgets/ui_bits.dart';
 import 'focus_timer_page.dart';
 
-class StudyScreen extends StatefulWidget {
+class StudyScreen extends StatelessWidget {
   const StudyScreen({super.key});
-
-  @override
-  State<StudyScreen> createState() => _StudyScreenState();
-}
-
-class _StudyScreenState extends State<StudyScreen> {
-  Timer? _tick;
-  AppStore? _store;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final store = AppScope.of(context);
-    if (_store != store) {
-      _store?.removeListener(_syncTick);
-      _store = store;
-      _store!.addListener(_syncTick);
-      _syncTick();
-    }
-  }
-
-  void _syncTick() {
-    final running = _store?.timerRunning ?? false;
-    if (running && _tick == null) {
-      _tick = Timer.periodic(const Duration(seconds: 1), (_) {
-        if (mounted) setState(() {});
-      });
-    } else if (!running && _tick != null) {
-      _tick?.cancel();
-      _tick = null;
-    }
-  }
-
-  @override
-  void dispose() {
-    _store?.removeListener(_syncTick);
-    _tick?.cancel();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -519,17 +481,23 @@ class _TimerCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      ShaderMask(
-                        shaderCallback: (rect) =>
-                            LinearGradient(colors: NexusColors.accentSweep)
-                                .createShader(rect),
-                        child: Text(
-                          mmss(store.timerRemainingSeconds()),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 40,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1,
+                      RepaintBoundary(
+                        child: ShaderMask(
+                          shaderCallback: (rect) =>
+                              LinearGradient(colors: NexusColors.accentSweep)
+                                  .createShader(rect),
+                          child: LiveTimerBuilder(
+                            builder: (context, store) {
+                              return Text(
+                                mmss(store.timerRemainingSeconds()),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 40,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 1,
+                                ),
+                              );
+                            },
                           ),
                         ),
                       ),
@@ -778,6 +746,7 @@ class _ExamRing extends StatelessWidget {
       children: [
         ProgressRing(
           progress: exam.countdownProgress(today),
+          animate: false,
           size: 78,
           stroke: 6,
           child: Text(
@@ -849,6 +818,10 @@ class _ProblemRow extends StatelessWidget {
                   width: 52,
                   height: 52,
                   fit: BoxFit.cover,
+                  cacheWidth: imageCachePx(context, 52),
+                  cacheHeight: imageCachePx(context, 52),
+                  gaplessPlayback: true,
+                  filterQuality: FilterQuality.medium,
                 ),
               ),
               const SizedBox(width: 10),
@@ -1579,7 +1552,14 @@ Future<void> _recordProblem(BuildContext context, AppStore store) async {
               const SizedBox(height: 12),
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: Image.memory(photo, height: 140, fit: BoxFit.cover),
+                child: Image.memory(
+                  photo,
+                  height: 140,
+                  fit: BoxFit.cover,
+                  cacheHeight: imageCachePx(context, 140),
+                  gaplessPlayback: true,
+                  filterQuality: FilterQuality.medium,
+                ),
               ),
               const SizedBox(height: 12),
               DropdownButton<String>(
@@ -1646,7 +1626,14 @@ Future<void> _openReview(BuildContext context, AppStore store) async {
           if (problem.photoBytes != null) ...[
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: Image.memory(problem.photoBytes!, height: 160, fit: BoxFit.cover),
+              child: Image.memory(
+                problem.photoBytes!,
+                height: 160,
+                fit: BoxFit.cover,
+                cacheHeight: imageCachePx(context, 160),
+                gaplessPlayback: true,
+                filterQuality: FilterQuality.medium,
+              ),
             ),
             const SizedBox(height: 12),
           ],

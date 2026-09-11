@@ -95,6 +95,7 @@ class ScheduleItem {
     this.category = 'life',
     this.source = 'user',
     this.tags = const [],
+    this.note = '',
   });
 
   final String id;
@@ -106,6 +107,7 @@ class ScheduleItem {
   final String category;
   final String source;
   final List<String> tags;
+  final String note;
 
   DateTime get spanStart => dateOnly(startAt);
 
@@ -123,7 +125,7 @@ class ScheduleItem {
     DateTime? to,
   }) {
     if (tag != null && tag.isNotEmpty && !tags.contains(tag)) return false;
-    if (!queryMatches(query, [title, ...tags])) return false;
+    if (!queryMatches(query, [title, note, ...tags])) return false;
     final fromDay = from == null ? null : dateOnly(from);
     final toDay = to == null ? null : dateOnly(to);
     if (fromDay != null && spanEnd.isBefore(fromDay)) return false;
@@ -156,6 +158,7 @@ class ScheduleItem {
     String? category,
     String? source,
     List<String>? tags,
+    String? note,
   }) {
     return ScheduleItem(
       id: id,
@@ -167,6 +170,7 @@ class ScheduleItem {
       category: category ?? this.category,
       source: source ?? this.source,
       tags: tags ?? this.tags,
+      note: note ?? this.note,
     );
   }
 
@@ -180,6 +184,7 @@ class ScheduleItem {
         'category': category,
         'source': source,
         'tags': tags,
+        'note': note,
       };
 
   factory ScheduleItem.fromJson(Map<String, dynamic> json) {
@@ -196,6 +201,7 @@ class ScheduleItem {
         for (final tag in (json['tags'] as List? ?? const []))
           if (tag is String && tag.trim().isNotEmpty) tag,
       ],
+      note: json['note'] as String? ?? json['memo'] as String? ?? '',
     );
   }
 }

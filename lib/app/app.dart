@@ -17,6 +17,7 @@ class NexusApp extends StatefulWidget {
 class _NexusAppState extends State<NexusApp> {
   final AppStore _store = AppStore.seed();
   final NexusCloud _cloud = NexusCloud();
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   SessionIdentity? _bound;
 
   @override
@@ -36,6 +37,9 @@ class _NexusAppState extends State<NexusApp> {
     } else if (_bound != null) {
       _bound = null;
       _store.detachCloud();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _navigatorKey.currentState?.popUntil((route) => route.isFirst);
+      });
     }
     if (mounted) setState(() {});
   }
@@ -54,16 +58,17 @@ class _NexusAppState extends State<NexusApp> {
       cloud: _cloud,
       child: AppScope(
         store: _store,
-        child: _ThemedMaterialApp(store: _store),
+        child: _ThemedMaterialApp(store: _store, navigatorKey: _navigatorKey),
       ),
     );
   }
 }
 
 class _ThemedMaterialApp extends StatefulWidget {
-  const _ThemedMaterialApp({required this.store});
+  const _ThemedMaterialApp({required this.store, required this.navigatorKey});
 
   final AppStore store;
+  final GlobalKey<NavigatorState> navigatorKey;
 
   @override
   State<_ThemedMaterialApp> createState() => _ThemedMaterialAppState();
@@ -106,6 +111,7 @@ class _ThemedMaterialAppState extends State<_ThemedMaterialApp> {
     );
     return MaterialApp(
       title: 'NEXUS',
+      navigatorKey: widget.navigatorKey,
       debugShowCheckedModeBanner: false,
       theme: NexusTheme.of(palette),
       builder: (context, child) {

@@ -1,3 +1,4 @@
+import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:image/image.dart' as img;
@@ -45,6 +46,27 @@ CompressedImage compressForFirestore(
     out = Uint8List.fromList(img.encodeJpg(image, quality: quality));
   }
   return CompressedImage(bytes: out, mime: 'image/jpeg');
+}
+
+Future<CompressedImage> compressForFirestoreAsync(
+  List<int> raw, {
+  bool avatar = false,
+  String mime = 'image/jpeg',
+}) async {
+  final copy = Uint8List.fromList(raw);
+  final maxBytes = avatar ? 80 * 1024 : 220 * 1024;
+  if (copy.isEmpty || copy.length <= maxBytes) {
+    return CompressedImage(bytes: copy, mime: mime);
+  }
+  try {
+    final result = await Isolate.run(() {
+      final packed = compressForFirestore(copy, avatar: avatar, mime: mime);
+      return (packed.bytes, packed.mime);
+    });
+    return CompressedImage(bytes: result.$1, mime: result.$2);
+  } catch (_) {
+    return compressForFirestore(copy, avatar: avatar, mime: mime);
+  }
 }
 
 img.Image _fit(img.Image source, int maxSide) {

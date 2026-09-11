@@ -1,6 +1,4 @@
-﻿import 'dart:async';
-
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import '../../app/theme.dart';
 import '../../core/format.dart';
@@ -13,47 +11,8 @@ import '../../widgets/ui_bits.dart';
 import 'home_header.dart';
 import 'home_widgets.dart';
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
-
-  @override
-  State<HomeScreen> createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends State<HomeScreen> {
-  Timer? _tick;
-  AppStore? _store;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final store = AppScope.of(context);
-    if (_store != store) {
-      _store?.removeListener(_syncTick);
-      _store = store;
-      _store!.addListener(_syncTick);
-      _syncTick();
-    }
-  }
-
-  void _syncTick() {
-    final running = _store?.timerRunning ?? false;
-    if (running && _tick == null) {
-      _tick = Timer.periodic(const Duration(seconds: 1), (_) {
-        if (mounted) setState(() {});
-      });
-    } else if (!running && _tick != null) {
-      _tick?.cancel();
-      _tick = null;
-    }
-  }
-
-  @override
-  void dispose() {
-    _store?.removeListener(_syncTick);
-    _tick?.cancel();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -389,6 +348,16 @@ class _ScheduleCard extends StatelessWidget {
                                     if (item.tags.isNotEmpty)
                                       Text(
                                         item.tags.join(' · '),
+                                        style: TextStyle(
+                                          color: NexusColors.textMuted,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    if (item.note.isNotEmpty)
+                                      Text(
+                                        item.note,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                         style: TextStyle(
                                           color: NexusColors.textMuted,
                                           fontSize: 11,

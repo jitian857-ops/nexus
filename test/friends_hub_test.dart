@@ -5,6 +5,7 @@ import 'package:image/image.dart' as img;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:nexus/app/app.dart';
+import 'package:nexus/cloud/cloud_models.dart';
 import 'package:nexus/cloud/friend_models.dart';
 import 'package:nexus/cloud/local_backend.dart';
 import 'package:nexus/core/image_compress.dart';
@@ -107,6 +108,43 @@ void main() {
     expect(alice.uid, isNot(bob.uid));
   });
 
+  test('日記の共有は24時間で見えなくなる', () async {
+    final cloud = LocalBackend();
+    await cloud.init();
+    await cloud.signUp(
+      email: 'alice@example.com',
+      password: 'secret123',
+      displayName: 'アリス',
+      occupation: '',
+    );
+    final aliceCode = (await cloud.ensureFriendCode()).friendCode;
+    await cloud.signOut();
+    await cloud.signUp(
+      email: 'bob@example.com',
+      password: 'secret123',
+      displayName: 'ボブ',
+      occupation: '',
+    );
+    await cloud.sendFriendRequest((await cloud.lookupFriend(aliceCode))!.uid);
+    await cloud.signOut();
+    await cloud.signIn(email: 'alice@example.com', password: 'secret123');
+    await cloud.respondFriendRequest((await cloud.incomingFriendRequests()).single.id, accept: true);
+    await cloud.shareItem(
+      type: SharedKind.diary,
+      sourceLocalId: 'd-expire',
+      payload: {'title': '今日', 'body': '晴れ'},
+      viewerIds: [(await cloud.listFriends()).single.uid],
+    );
+    await cloud.signOut();
+    await cloud.signIn(email: 'bob@example.com', password: 'secret123');
+    expect((await cloud.listSharedWithMe(type: SharedKind.diary)).single.body, '晴れ');
+    cloud.debugBackdateShare(
+      sourceLocalId: 'd-expire',
+      updatedAt: DateTime.now().subtract(const Duration(hours: 25)),
+    );
+    expect(await cloud.listSharedWithMe(type: SharedKind.diary), isEmpty);
+  });
+
   test('サークルの投票・やりたいことと思い出アルバムができる', () async {
     final cloud = LocalBackend();
     await cloud.init();
@@ -120,11 +158,36 @@ void main() {
     final poll = await cloud.createPoll(
       circleId: circle.id,
       title: 'いつ集まる？',
-      options: const ['土曜', '日曜'],
+      options: const ['土曜', '日曜', '祝日'],
+      deadline: DateTime(2026, 9, 20),
     );
+    expect(poll.options, hasLength(3));
+    expect(poll.remainingDays(DateTime(2026, 9, 17)), 3);
+    expect(poll.remainingLabel(DateTime(2026, 9, 17)), 'あと3日');
+    expect(poll.stage(DateTime(2026, 9, 20)), PollStage.voting);
+    expect(poll.stage(DateTime(2026, 9, 21)), PollStage.results);
+    expect(poll.stage(DateTime(2026, 9, 28)), PollStage.archived);
     await cloud.votePoll(poll.id, 1);
-    expect((await cloud.listPolls(circle.id)).single.counts, [0, 1]);
+    expect(
+      (await cloud.listPolls(circle.id)).firstWhere((item) => item.title == 'いつ集まる？').counts,
+      [0, 1, 0],
+    );
+    final expired = await cloud.createPoll(
+      circleId: circle.id,
+      title: '終わった',
+      options: const ['A', 'B'],
+      deadline: DateTime(2026, 1, 1),
+    );
+    expect(expired.stage(), PollStage.archived);
+    expect(
+      () => cloud.votePoll(expired.id, 0),
+      throwsA(isA<CloudException>()),
+    );
     final want = await cloud.addWant(circleId: circle.id, title: 'カフェに行く');
+    await cloud.answerWant(want.id, yes: true);
+    expect((await cloud.listWants(circle.id)).single.scoreLabel, '1:0');
+    await cloud.answerWant(want.id, yes: false);
+    expect((await cloud.listWants(circle.id)).single.scoreLabel, '0:1');
     await cloud.toggleWant(want.id);
     expect((await cloud.listWants(circle.id)).single.done, isTrue);
 
@@ -273,6 +336,8 @@ void main() {
     await tester.tap(find.descendant(of: dialog, matching: find.text('作る')));
     await tester.pumpAndSettle();
     expect(find.text('いつ集まる？'), findsOneWidget);
+    await tester.tap(find.text('いつ集まる？'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('投票').first);
     await tester.pumpAndSettle();
     await tester.pageBack();

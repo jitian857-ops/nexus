@@ -127,6 +127,7 @@ abstract class CloudBackend {
     required String circleId,
     required String title,
     required List<String> options,
+    DateTime? deadline,
   });
 
   Future<void> votePoll(String pollId, int optionIndex);
@@ -136,6 +137,8 @@ abstract class CloudBackend {
   Future<CircleWant> addWant({required String circleId, required String title});
 
   Future<void> toggleWant(String wantId);
+
+  Future<void> answerWant(String wantId, {required bool yes});
 
   Future<List<CircleWant>> listWants(String circleId);
 

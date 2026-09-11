@@ -241,6 +241,15 @@ void main() {
     expect(event.matchesFilters(query: '数学'), isFalse);
     expect(event.matchesFilters(from: DateTime(2026, 9, 11), to: DateTime(2026, 9, 11)), isTrue);
     expect(study.matchesFilters(from: DateTime(2026, 9, 10), to: DateTime(2026, 9, 12)), isFalse);
+    expect(
+      ScheduleItem(
+        id: 'c',
+        title: '映画',
+        startAt: DateTime(2026, 9, 8, 19),
+        note: '東口で集合',
+      ).matchesFilters(query: '東口'),
+      isTrue,
+    );
   });
 
   test('新しい教科は一覧にすぐ追加される', () {
@@ -715,6 +724,46 @@ void main() {
     expect(store.lifeDate, today);
   });
 
+  test('タブを変えるとLifeの日付は今日に戻る', () {
+    final store = AppStore.seed();
+    final today = dateOnly(DateTime.now());
+    store.setLifeDate(today.subtract(const Duration(days: 4)));
+    expect(store.lifeDate, isNot(today));
+    store.goTo(NexusTab.money);
+    expect(store.lifeDate, today);
+    store.setLifeDate(today.subtract(const Duration(days: 2)));
+    store.goTo(NexusTab.friends);
+    expect(store.lifeDate, today);
+    store.setLifeDate(today.subtract(const Duration(days: 1)));
+    store.goTo(NexusTab.home);
+    expect(store.lifeDate, today);
+    store.setLifeDate(today.subtract(const Duration(days: 3)));
+    store.goTo(NexusTab.study);
+    expect(store.lifeDate, today);
+  });
+
+  test('予定の日時は今年なら年を省略する', () {
+    expect(
+      compactScheduleStamp(start: DateTime(2026, 9, 12, 18), now: DateTime(2026, 9, 11)),
+      '9/12 18:00',
+    );
+    expect(
+      compactScheduleStamp(start: DateTime(2027, 1, 3, 9), allDay: true, now: DateTime(2026, 9, 11)),
+      '2027/1/3 終日',
+    );
+  });
+
+  test('予定にメモを残せる', () {
+    final store = AppStore.seed();
+    store.addSchedule(
+      title: '映画',
+      startAt: DateTime(2026, 9, 12, 19),
+      note: '東口で集合',
+      tags: const ['用事'],
+    );
+    expect(store.schedules.single.note, '東口で集合');
+  });
+
   test('収入は更新と削除ができる', () {
     final store = AppStore.seed();
     store.incomes.clear();
@@ -818,6 +867,19 @@ void main() {
     store.moneyMonth = september;
     expect(store.incomesInMonth(september).map((e) => e.name), ['9月の給料']);
     expect(store.spendCardsInMonth(september).map((c) => c.title), ['9月の外食']);
+    expect(
+      store.spendCardsInRange(DateTime(2026, 9, 3), DateTime(2026, 9, 3)).map((c) => c.title),
+      ['9月の外食'],
+    );
+    expect(store.spendCardsInRange(DateTime(2026, 9, 4), DateTime(2026, 9, 4)), isEmpty);
+    expect(
+      store.incomesInRange(DateTime(2026, 8, 1), DateTime(2026, 8, 31)).map((e) => e.name),
+      ['8月の給料'],
+    );
+    expect(
+      store.incomesInRange(DateTime(2026, 8, 25), DateTime(2026, 8, 25)).map((e) => e.name),
+      ['8月の給料'],
+    );
   });
 
   test('習慣は更新と削除ができる', () {
