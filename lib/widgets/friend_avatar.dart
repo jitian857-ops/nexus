@@ -51,12 +51,14 @@ class NexusImage extends StatefulWidget {
     this.width,
     this.height,
     this.fit = BoxFit.cover,
+    this.placeholder,
   });
 
   final String src;
   final double? width;
   final double? height;
   final BoxFit fit;
+  final Widget? placeholder;
 
   @override
   State<NexusImage> createState() => _NexusImageState();
@@ -100,11 +102,7 @@ class _NexusImageState extends State<NexusImage> {
   @override
   Widget build(BuildContext context) {
     if (widget.src.isEmpty) {
-      return SizedBox(
-        width: widget.width,
-        height: widget.height,
-        child: ColoredBox(color: NexusColors.surface),
-      );
+      return _blank();
     }
     if (widget.src.startsWith('data:') ||
         widget.src.startsWith('http://') ||
@@ -118,15 +116,20 @@ class _NexusImageState extends State<NexusImage> {
       builder: (context, snapshot) {
         final resolved = snapshot.data;
         if (resolved == null || resolved.isEmpty) {
-          return SizedBox(
-            width: widget.width,
-            height: widget.height,
-            child: ColoredBox(color: NexusColors.surface),
-          );
+          return _blank();
         }
         return _pixels(context, resolved);
       },
     );
+  }
+
+  Widget _blank() {
+    return widget.placeholder ??
+        SizedBox(
+          width: widget.width,
+          height: widget.height,
+          child: ColoredBox(color: NexusColors.surface),
+        );
   }
 
   Widget _pixels(BuildContext context, String value) {
@@ -192,18 +195,36 @@ class FriendAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final size = radius * 2;
+    final fallback = Center(
+      child: Text(
+        _initial(name),
+        style: TextStyle(
+          fontWeight: FontWeight.w800,
+          fontSize: radius * 0.85,
+          color: NexusColors.text,
+        ),
+      ),
+    );
     final child = photoUrl.isEmpty
-        ? Center(
-            child: Text(
-              _initial(name),
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: radius * 0.85,
-                color: NexusColors.text,
+        ? fallback
+        : ClipOval(
+            child: SizedBox(
+              width: size,
+              height: size,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  fallback,
+                  NexusImage(
+                    src: photoUrl,
+                    width: size,
+                    height: size,
+                    placeholder: const SizedBox.shrink(),
+                  ),
+                ],
               ),
             ),
-          )
-        : ClipOval(child: NexusImage(src: photoUrl, width: size, height: size));
+          );
     return CircleAvatar(
       radius: radius,
       backgroundColor: NexusColors.surface,

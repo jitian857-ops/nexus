@@ -43,22 +43,39 @@ class _FriendAddPageState extends State<FriendAddPage> {
 
   Future<void> _reload() async {
     final cloud = CloudScope.of(context);
-    setState(() {
-      _loading = true;
-      _error = '';
-    });
+    if (_me == null && mounted) {
+      setState(() {
+        _loading = true;
+        _error = '';
+      });
+    }
     try {
       final me = await cloud.ensureFriendCode();
-      final incoming = await _loadList(cloud.incomingFriendRequests);
-      final outgoing = await _loadList(cloud.outgoingFriendRequests);
-      final friends = await _loadList(cloud.listFriends);
       if (!mounted) return;
       setState(() {
         _me = me;
+        _loading = false;
+        _error = '';
+      });
+      late List<FriendRequestItem> incoming;
+      late List<FriendRequestItem> outgoing;
+      late List<FriendProfile> friends;
+      await Future.wait([
+        () async {
+          incoming = await _loadList(cloud.incomingFriendRequests);
+        }(),
+        () async {
+          outgoing = await _loadList(cloud.outgoingFriendRequests);
+        }(),
+        () async {
+          friends = await _loadList(cloud.listFriends);
+        }(),
+      ]);
+      if (!mounted) return;
+      setState(() {
         _incoming = incoming;
         _outgoing = outgoing;
         _friends = friends;
-        _loading = false;
       });
     } catch (error) {
       if (!mounted) return;
@@ -111,12 +128,12 @@ class _FriendAddPageState extends State<FriendAddPage> {
                 ),
               ],
             ),
-            if (_loading)
+            if (_loading && _me == null)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 24),
                 child: Center(child: CircularProgressIndicator()),
               )
-            else if (_error.isNotEmpty)
+            else if (_error.isNotEmpty && _me == null)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 child: Column(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/app_store.dart';
 import '../tutorial/tutorial_overlay.dart';
+import '../cloud/nexus_cloud.dart';
 import '../widgets/nexus_nav_bar.dart';
 import '../app/theme.dart';
 import 'home/home_screen.dart';
@@ -73,6 +74,9 @@ class _ShellTabsState extends State<_ShellTabs> {
     super.initState();
     _index = widget.store.tabIndex;
     widget.store.addListener(_onStore);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) CloudScope.of(context).prefetchFriendHub();
+    });
   }
 
   @override

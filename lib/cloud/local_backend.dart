@@ -741,6 +741,9 @@ class LocalBackend implements CloudBackend {
   }
 
   @override
+  void invalidateFriendCaches() {}
+
+  @override
   Future<List<FriendProfile>> listFriends() async {
     final me = _me();
     final friends = <FriendProfile>[];
@@ -856,6 +859,7 @@ class LocalBackend implements CloudBackend {
         'viewerId': viewer,
         'ownerId': me,
         'status': shareStatusForNew(type),
+        'type': type.name,
         'createdAt': DateTime.now().toIso8601String(),
       };
       await _notify(

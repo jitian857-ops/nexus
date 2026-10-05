@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:nexus/app/app.dart';
 import 'package:nexus/cloud/cloud_models.dart';
+import 'package:nexus/cloud/friend_hub.dart';
 import 'package:nexus/cloud/friend_models.dart';
 import 'package:nexus/cloud/local_backend.dart';
 import 'package:nexus/core/image_compress.dart';
@@ -97,6 +98,10 @@ void main() {
     expect(await cloud.listSharedWithMe(type: SharedKind.schedule), isEmpty);
     final pending = await cloud.listSharedWithMe(pendingOnly: true);
     expect(pending.single.title, '勉強会');
+    final hub = await fetchFriendHub(cloud);
+    expect(hub.diaries.single.body, '晴れ');
+    expect(hub.pendingSchedules.single.title, '勉強会');
+    expect(hub.friends, isNotEmpty);
     await cloud.respondShare(pending.single.aclId, accept: true);
     expect((await cloud.listSharedWithMe(type: SharedKind.schedule)).single.title, '勉強会');
 
@@ -106,6 +111,53 @@ void main() {
     expect((await cloud.listReactions(diary.id)).single.emoji, '🔥');
     expect((await cloud.listReplies(diary.id)).single.body, 'いいね');
     expect(alice.uid, isNot(bob.uid));
+  });
+
+  test('予定がたくさんあっても日記はFriendハブに残る', () async {
+    final cloud = LocalBackend();
+    await cloud.init();
+    await cloud.signUp(
+      email: 'alice@example.com',
+      password: 'secret123',
+      displayName: 'アリス',
+      occupation: '',
+    );
+    final aliceCode = (await cloud.ensureFriendCode()).friendCode;
+    await cloud.signOut();
+    final bob = await cloud.signUp(
+      email: 'bob@example.com',
+      password: 'secret123',
+      displayName: 'ボブ',
+      occupation: '',
+    );
+    await cloud.sendFriendRequest((await cloud.lookupFriend(aliceCode))!.uid);
+    await cloud.signOut();
+    await cloud.signIn(email: 'alice@example.com', password: 'secret123');
+    await cloud.respondFriendRequest((await cloud.incomingFriendRequests()).single.id, accept: true);
+    for (var i = 0; i < 40; i++) {
+      await cloud.shareItem(
+        type: SharedKind.schedule,
+        sourceLocalId: 's$i',
+        payload: {'title': '予定$i', 'start_at': DateTime(2026, 9, 12, 18).toIso8601String()},
+        viewerIds: [bob.uid],
+      );
+    }
+    await cloud.shareItem(
+      type: SharedKind.diary,
+      sourceLocalId: 'd-keep',
+      payload: {'title': '今日', 'body': '残る'},
+      viewerIds: [bob.uid],
+    );
+    await cloud.signOut();
+    await cloud.signIn(email: 'bob@example.com', password: 'secret123');
+    final pending = await cloud.listSharedWithMe(type: SharedKind.schedule, pendingOnly: true, limit: 40);
+    expect(pending, hasLength(40));
+    for (final item in pending) {
+      await cloud.respondShare(item.aclId, accept: true);
+    }
+    final hub = await fetchFriendHub(cloud);
+    expect(hub.diaries.single.body, '残る');
+    expect(hub.pendingSchedules, isEmpty);
   });
 
   test('日記の共有は24時間で見えなくなる', () async {

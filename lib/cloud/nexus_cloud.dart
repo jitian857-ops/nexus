@@ -9,6 +9,7 @@ import '../config/firebase_options.dart';
 import 'cloud_backend.dart';
 import 'cloud_models.dart';
 import 'firebase_backend.dart';
+import 'friend_hub.dart';
 import 'friend_models.dart';
 import 'local_backend.dart';
 
@@ -27,6 +28,12 @@ class NexusCloud extends ChangeNotifier {
   String lastNotice = '';
   String? localIssuedCode;
   final _mediaCache = <String, String>{};
+  final _mediaInflight = <String, Future<String>>{};
+  FriendHubSnapshot? _friendHub;
+  Future<FriendHubSnapshot>? _friendHubInflight;
+  DateTime? _friendHubAt;
+  var _friendHubEpoch = 0;
+  static const _friendHubTtl = Duration(seconds: 20);
 
   CloudBackend get backend => _backend;
 
@@ -65,6 +72,40 @@ class NexusCloud extends ChangeNotifier {
 
   void _bumpGeneration() {
     _generation++;
+    _invalidateFriendHub();
+    _mediaCache.clear();
+    _mediaInflight.clear();
+  }
+
+  void _invalidateFriendHub() {
+    _friendHubEpoch++;
+    _friendHub = null;
+    _friendHubAt = null;
+    _friendHubInflight = null;
+  }
+
+  FriendHubSnapshot? get peekFriendHub => _friendHub;
+
+  bool get friendHubIsFresh {
+    if (_friendHub == null || _friendHubAt == null) return false;
+    return DateTime.now().difference(_friendHubAt!) < _friendHubTtl;
+  }
+
+  void prefetchFriendHub() {
+    if (!ready || uid.isEmpty) return;
+    loadFriendHub();
+  }
+
+  void prefetchMedia(Iterable<String> srcs) {
+    for (final src in srcs) {
+      if (src.isEmpty ||
+          src.startsWith('data:') ||
+          src.startsWith('http://') ||
+          src.startsWith('https://')) {
+        continue;
+      }
+      resolveMedia(src);
+    }
   }
 
   Future<void> boot() async {
@@ -99,6 +140,7 @@ class NexusCloud extends ChangeNotifier {
     await _refreshMailBadge();
     ready = true;
     notifyListeners();
+    prefetchFriendHub();
   }
 
   Future<void> enterTestSession() async {
@@ -117,6 +159,7 @@ class NexusCloud extends ChangeNotifier {
     );
     _backend = local;
     _bumpGeneration();
+    prefetchFriendHub();
   }
 
   Future<bool> _guestFlagOn() async {
@@ -152,6 +195,7 @@ class NexusCloud extends ChangeNotifier {
     _backend = local;
     await _setGuestFlag(true);
     _bumpGeneration();
+    prefetchFriendHub();
   }
 
   Future<void> enterGuestSession() {
@@ -164,6 +208,7 @@ class NexusCloud extends ChangeNotifier {
   Future<T> _run<T>(Future<T> Function() task) async {
     busy = true;
     lastError = '';
+    _invalidateFriendHub();
     notifyListeners();
     try {
       final result = await task();
@@ -199,6 +244,7 @@ class NexusCloud extends ChangeNotifier {
       }
       _bumpGeneration();
       lastNotice = '認証メールを送りました';
+      prefetchFriendHub();
     });
   }
 
@@ -206,6 +252,7 @@ class NexusCloud extends ChangeNotifier {
     return _run(() async {
       await _backend.signIn(email: email, password: password);
       _bumpGeneration();
+      prefetchFriendHub();
     });
   }
 
@@ -283,13 +330,17 @@ class NexusCloud extends ChangeNotifier {
     }
     final cached = _mediaCache[src];
     if (cached != null) return cached;
-    try {
-      final resolved = await _backend.readMedia(src);
-      _mediaCache[src] = resolved;
-      return resolved;
-    } catch (_) {
-      return src;
-    }
+    return _mediaInflight.putIfAbsent(src, () async {
+      try {
+        final resolved = await _backend.readMedia(src);
+        _mediaCache[src] = resolved;
+        return resolved;
+      } catch (_) {
+        return src;
+      } finally {
+        _mediaInflight.remove(src);
+      }
+    });
   }
 
   Future<void> deleteAccount({required String password}) {
@@ -383,6 +434,33 @@ class NexusCloud extends ChangeNotifier {
   Future<List<FriendRequestItem>> outgoingFriendRequests() => _backend.outgoingFriendRequests();
 
   Future<List<FriendProfile>> listFriends() => _backend.listFriends();
+
+  Future<FriendHubSnapshot> loadFriendHub({bool force = false}) async {
+    if (!force && friendHubIsFresh) return _friendHub!;
+    if (!force && _friendHubInflight != null) return _friendHubInflight!;
+    if (force) {
+      _backend.invalidateFriendCaches();
+    }
+    final epoch = _friendHubEpoch;
+    final future = fetchFriendHub(_backend);
+    _friendHubInflight = future;
+    try {
+      final hub = await future;
+      if (epoch == _friendHubEpoch) {
+        _friendHub = hub;
+        _friendHubAt = DateTime.now();
+        prefetchMedia([
+          for (final friend in hub.friends) friend.photoUrl,
+          for (final item in hub.diaries) item.owner?.photoUrl ?? '',
+        ]);
+      }
+      return hub;
+    } finally {
+      if (identical(_friendHubInflight, future)) {
+        _friendHubInflight = null;
+      }
+    }
+  }
 
   Future<void> removeFriend(String uid) => _run(() => _backend.removeFriend(uid));
 

@@ -22,9 +22,83 @@ class FirebaseBackend implements CloudBackend {
   bool get usesFirebase => true;
 
   CloudSession? _session;
+  final _profiles = <String, FriendProfile>{};
+  final _profileInflight = <String, Future<FriendProfile>>{};
+  final _friendshipCache = <String, _FriendshipInfo>{};
+  final _friendshipInflight = <String, Future<_FriendshipInfo>>{};
+  final _blockCache = <String, bool>{};
+  final _blockInflight = <String, Future<bool>>{};
+  List<QueryDocumentSnapshot<Map<String, dynamic>>>? _aclCache;
+  String? _aclCacheUid;
+  DateTime? _aclCacheAt;
+  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>>? _aclInflight;
+  List<FriendProfile>? _friendsListCache;
+  String? _friendsListUid;
+  DateTime? _friendsListAt;
+  Future<List<FriendProfile>>? _friendsListInflight;
+  Map<String, _FriendshipInfo>? _myFriendsMap;
+  String? _myFriendsUid;
+  DateTime? _myFriendsAt;
+  Future<Map<String, _FriendshipInfo>>? _myFriendsInflight;
+  Set<String>? _blockedOthers;
+  String? _blockedOthersUid;
+  DateTime? _blockedOthersAt;
+  Future<Set<String>>? _blockedOthersInflight;
+  List<SharedItem>? _inboxCache;
+  String? _inboxUid;
+  DateTime? _inboxAt;
+  Future<List<SharedItem>>? _inboxInflight;
+  final _itemCache = <String, DocumentSnapshot<Map<String, dynamic>>?>{};
+  final _itemInflight = <String, Future<DocumentSnapshot<Map<String, dynamic>>?>>{};
+  static const _socialTtl = Duration(seconds: 30);
 
   @override
   CloudSession? get currentSession => _session;
+
+  void _clearSocialCache() {
+    _profiles.clear();
+    _profileInflight.clear();
+    _friendshipCache.clear();
+    _friendshipInflight.clear();
+    _blockCache.clear();
+    _blockInflight.clear();
+    invalidateFriendCaches();
+  }
+
+  @override
+  void invalidateFriendCaches() {
+    _friendsListCache = null;
+    _friendsListUid = null;
+    _friendsListAt = null;
+    _friendsListInflight = null;
+    _myFriendsMap = null;
+    _myFriendsUid = null;
+    _myFriendsAt = null;
+    _myFriendsInflight = null;
+    _blockedOthers = null;
+    _blockedOthersUid = null;
+    _blockedOthersAt = null;
+    _blockedOthersInflight = null;
+    _invalidateInbox();
+  }
+
+  void _invalidateInbox() {
+    _aclCache = null;
+    _aclCacheUid = null;
+    _aclCacheAt = null;
+    _aclInflight = null;
+    _inboxCache = null;
+    _inboxUid = null;
+    _inboxAt = null;
+    _inboxInflight = null;
+    _itemCache.clear();
+    _itemInflight.clear();
+  }
+
+  bool _cacheFresh(DateTime? at) {
+    if (at == null) return false;
+    return DateTime.now().difference(at) < _socialTtl;
+  }
 
   DocumentReference<Map<String, dynamic>> _user(String uid) => _db.collection('users').doc(uid);
 
@@ -249,12 +323,15 @@ class FirebaseBackend implements CloudBackend {
       },
       SetOptions(merge: true),
     );
+    _profiles.remove(user.uid);
+    _profileInflight.remove(user.uid);
   }
 
   @override
   Future<void> signOut() async {
     await _auth.signOut();
     _session = null;
+    _clearSocialCache();
   }
 
   @override
@@ -394,7 +471,7 @@ class FirebaseBackend implements CloudBackend {
     }
     const prefix = 'nexus-media:';
     if (!src.startsWith(prefix)) return src;
-    final snap = await _safeGet(_db.collection('media').doc(src.substring(prefix.length)));
+    final snap = await _safeGet(_db.collection('media').doc(src.substring(prefix.length)), preferCache: true);
     final data = snap?.data();
     if (data == null) return src;
     final b64 = data['data_b64'] as String? ?? '';
@@ -418,6 +495,7 @@ class FirebaseBackend implements CloudBackend {
       await _user(uid).delete();
       await user.delete();
       _session = null;
+      _clearSocialCache();
     } catch (error) {
       throw CloudException(cloudErrorMessage(error));
     }
@@ -544,23 +622,36 @@ class FirebaseBackend implements CloudBackend {
 
   DocumentReference<Map<String, dynamic>> _profile(String uid) => _db.collection('profiles').doc(uid);
 
-  Future<FriendProfile> _readProfile(String uid) async {
-    try {
-      final snap = await _profile(uid).get();
-      final data = snap.data() ?? {};
-      return FriendProfile(
-        uid: uid,
-        displayName: data['displayName'] as String? ?? 'ユーザー',
-        friendCode: data['friendCode'] as String? ?? '',
-        occupation: data['occupation'] as String? ?? '',
-        photoUrl: data['photoUrl'] as String? ?? data['photo_url'] as String? ?? '',
-      );
-    } catch (error) {
-      if (_denied(error)) {
-        return FriendProfile(uid: uid, displayName: 'ユーザー', friendCode: '', occupation: '');
-      }
-      rethrow;
+  Future<FriendProfile> _readProfile(String uid) {
+    if (uid.isEmpty) {
+      return Future.value(const FriendProfile(uid: '', displayName: 'ユーザー', friendCode: ''));
     }
+    final hit = _profiles[uid];
+    if (hit != null) return Future.value(hit);
+    return _profileInflight.putIfAbsent(uid, () async {
+      try {
+        final snap = await _safeGet(_profile(uid), preferCache: true);
+        final data = snap?.data() ?? {};
+        final profile = FriendProfile(
+          uid: uid,
+          displayName: data['displayName'] as String? ?? 'ユーザー',
+          friendCode: data['friendCode'] as String? ?? '',
+          occupation: data['occupation'] as String? ?? '',
+          photoUrl: data['photoUrl'] as String? ?? data['photo_url'] as String? ?? '',
+        );
+        _profiles[uid] = profile;
+        return profile;
+      } catch (error) {
+        if (_denied(error)) {
+          final fallback = FriendProfile(uid: uid, displayName: 'ユーザー', friendCode: '', occupation: '');
+          _profiles[uid] = fallback;
+          return fallback;
+        }
+        rethrow;
+      } finally {
+        _profileInflight.remove(uid);
+      }
+    });
   }
 
   bool _denied(Object error) {
@@ -580,9 +671,16 @@ class FirebaseBackend implements CloudBackend {
   }
 
   Future<DocumentSnapshot<Map<String, dynamic>>?> _safeGet(
-    DocumentReference<Map<String, dynamic>> ref,
-  ) async {
+    DocumentReference<Map<String, dynamic>> ref, {
+    bool preferCache = false,
+  }) async {
     try {
+      if (preferCache) {
+        try {
+          final cached = await ref.get(const GetOptions(source: Source.cache));
+          if (cached.exists) return cached;
+        } catch (_) {}
+      }
       return await ref.get();
     } catch (error) {
       if (_denied(error)) return null;
@@ -598,36 +696,171 @@ class FirebaseBackend implements CloudBackend {
     }
   }
 
-  Future<bool> _blockedPair(String a, String b) async {
-    try {
-      final one = await _db.collection('blocks').doc('${a}_$b').get();
-      if (one.exists) return true;
-      final two = await _db.collection('blocks').doc('${b}_$a').get();
-      return two.exists;
-    } catch (error) {
-      if (_denied(error)) return false;
-      rethrow;
+  Future<Set<String>> _blockedAgainst(String me) {
+    if (_blockedOthers != null && _blockedOthersUid == me && _cacheFresh(_blockedOthersAt)) {
+      return Future.value(_blockedOthers!);
     }
+    final pending = _blockedOthersInflight;
+    if (pending != null && _blockedOthersUid == me) return pending;
+    _blockedOthersUid = me;
+    final future = () async {
+      final parts = await Future.wait([
+        _safeQuery(_db.collection('blocks').where('blocker_id', isEqualTo: me)),
+        _safeQuery(_db.collection('blocks').where('blocked_id', isEqualTo: me)),
+      ]);
+      final set = <String>{};
+      for (final doc in parts[0]) {
+        final other = doc.data()['blocked_id'] as String? ?? '';
+        if (other.isEmpty) continue;
+        set.add(other);
+        _blockCache[_pairKey(me, other)] = true;
+      }
+      for (final doc in parts[1]) {
+        final other = doc.data()['blocker_id'] as String? ?? '';
+        if (other.isEmpty) continue;
+        set.add(other);
+        _blockCache[_pairKey(me, other)] = true;
+      }
+      _blockedOthers = set;
+      _blockedOthersUid = me;
+      _blockedOthersAt = DateTime.now();
+      return set;
+    }();
+    _blockedOthersInflight = future;
+    return future.whenComplete(() {
+      if (identical(_blockedOthersInflight, future)) {
+        _blockedOthersInflight = null;
+      }
+    });
   }
 
-  Future<bool> _areFriends(String a, String b) async {
-    try {
-      final snap = await _db.collection('friendships').doc(_pairKey(a, b)).get();
-      return snap.exists;
-    } catch (error) {
-      if (_denied(error)) return false;
-      rethrow;
+  Future<bool> _blockedPair(String a, String b) {
+    final key = _pairKey(a, b);
+    final hit = _blockCache[key];
+    if (hit != null) return Future.value(hit);
+    if (_blockedOthers != null && (a == _blockedOthersUid || b == _blockedOthersUid)) {
+      final me = _blockedOthersUid!;
+      final other = a == me ? b : a;
+      final blocked = _blockedOthers!.contains(other);
+      _blockCache[key] = blocked;
+      return Future.value(blocked);
     }
+    return _blockInflight.putIfAbsent(key, () async {
+      try {
+        final snaps = await Future.wait([
+          _db.collection('blocks').doc('${a}_$b').get(),
+          _db.collection('blocks').doc('${b}_$a').get(),
+        ]);
+        final blocked = snaps[0].exists || snaps[1].exists;
+        _blockCache[key] = blocked;
+        return blocked;
+      } catch (error) {
+        if (_denied(error)) {
+          _blockCache[key] = false;
+          return false;
+        }
+        rethrow;
+      } finally {
+        _blockInflight.remove(key);
+      }
+    });
   }
 
-  Future<DateTime?> _friendshipStartedAt(String a, String b) async {
-    try {
-      final snap = await _db.collection('friendships').doc(_pairKey(a, b)).get();
-      return DateTime.tryParse(snap.data()?['created_at'] as String? ?? '');
-    } catch (error) {
-      if (_denied(error)) return null;
-      rethrow;
+  Future<Map<String, _FriendshipInfo>> _myFriendships(String me) {
+    if (_myFriendsMap != null && _myFriendsUid == me && _cacheFresh(_myFriendsAt)) {
+      return Future.value(_myFriendsMap!);
     }
+    final pending = _myFriendsInflight;
+    if (pending != null && _myFriendsUid == me) return pending;
+    _myFriendsUid = me;
+    final future = () async {
+      final parts = await Future.wait([
+        _safeQuery(_db.collection('friendships').where('user_a', isEqualTo: me)),
+        _safeQuery(_db.collection('friendships').where('user_b', isEqualTo: me)),
+      ]);
+      final map = <String, _FriendshipInfo>{};
+      for (final doc in [...parts[0], ...parts[1]]) {
+        final ua = doc.data()['user_a'] as String? ?? '';
+        final ub = doc.data()['user_b'] as String? ?? '';
+        final other = ua == me ? ub : ua;
+        if (other.isEmpty) continue;
+        final info = _FriendshipInfo(
+          exists: true,
+          startedAt: DateTime.tryParse(doc.data()['created_at'] as String? ?? ''),
+        );
+        map[other] = info;
+        _friendshipCache[_pairKey(me, other)] = info;
+      }
+      _myFriendsMap = map;
+      _myFriendsUid = me;
+      _myFriendsAt = DateTime.now();
+      return map;
+    }();
+    _myFriendsInflight = future;
+    return future.whenComplete(() {
+      if (identical(_myFriendsInflight, future)) {
+        _myFriendsInflight = null;
+      }
+    });
+  }
+
+  Future<_FriendshipInfo> _friendshipInfo(String a, String b) {
+    final key = _pairKey(a, b);
+    final hit = _friendshipCache[key];
+    if (hit != null) return Future.value(hit);
+    if (_myFriendsMap != null && a == _myFriendsUid) {
+      final info = _myFriendsMap![b] ?? const _FriendshipInfo(exists: false);
+      _friendshipCache[key] = info;
+      return Future.value(info);
+    }
+    if (_myFriendsMap != null && b == _myFriendsUid) {
+      final info = _myFriendsMap![a] ?? const _FriendshipInfo(exists: false);
+      _friendshipCache[key] = info;
+      return Future.value(info);
+    }
+    return _friendshipInflight.putIfAbsent(key, () async {
+      try {
+        final snap = await _db.collection('friendships').doc(key).get();
+        final info = _FriendshipInfo(
+          exists: snap.exists,
+          startedAt: DateTime.tryParse(snap.data()?['created_at'] as String? ?? ''),
+        );
+        _friendshipCache[key] = info;
+        return info;
+      } catch (error) {
+        if (_denied(error)) {
+          const info = _FriendshipInfo(exists: false);
+          _friendshipCache[key] = info;
+          return info;
+        }
+        rethrow;
+      } finally {
+        _friendshipInflight.remove(key);
+      }
+    });
+  }
+
+  Future<bool> _areFriends(String a, String b) async => (await _friendshipInfo(a, b)).exists;
+
+  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> _shareAcls(String me) {
+    if (_aclCache != null && _aclCacheUid == me && _cacheFresh(_aclCacheAt)) {
+      return Future.value(_aclCache!);
+    }
+    final pending = _aclInflight;
+    if (pending != null && _aclCacheUid == me) return pending;
+    _aclCacheUid = me;
+    final future = _safeQuery(_db.collection('share_acl').where('viewer_id', isEqualTo: me));
+    _aclInflight = future;
+    return future.then((docs) {
+      _aclCache = docs;
+      _aclCacheUid = me;
+      _aclCacheAt = DateTime.now();
+      return docs;
+    }).whenComplete(() {
+      if (identical(_aclInflight, future)) {
+        _aclInflight = null;
+      }
+    });
   }
 
   String _pairKey(String a, String b) {
@@ -653,6 +886,10 @@ class FirebaseBackend implements CloudBackend {
   @override
   Future<FriendProfile> ensureFriendCode({bool regenerate = false}) async {
     final uid = _uid();
+    if (!regenerate) {
+      final cached = _profiles[uid];
+      if (cached != null && cached.friendCode.isNotEmpty) return cached;
+    }
     Map<String, dynamic>? data;
     try {
       data = (await _profile(uid).get()).data();
@@ -789,6 +1026,9 @@ class FirebaseBackend implements CloudBackend {
         'user_b': b,
         'created_at': DateTime.now().toIso8601String(),
       });
+      _friendshipCache.remove(_pairKey(me, sender));
+      _friendshipInflight.remove(_pairKey(me, sender));
+      invalidateFriendCaches();
       final meProfile = await _readProfile(me);
       await _notify(
         sender,
@@ -813,6 +1053,10 @@ class FirebaseBackend implements CloudBackend {
   }
 
   Future<List<FriendRequestItem>> _fillRequestProfiles(List<FriendRequestItem> items) async {
+    final uids = <String>{
+      for (final item in items) ...[item.senderId, item.receiverId],
+    }..remove('');
+    await Future.wait([for (final uid in uids) _readProfile(uid)]);
     return [
       for (final item in items)
         FriendRequestItem(
@@ -821,8 +1065,8 @@ class FirebaseBackend implements CloudBackend {
           receiverId: item.receiverId,
           status: item.status,
           createdAt: item.createdAt,
-          sender: await _readProfile(item.senderId),
-          receiver: await _readProfile(item.receiverId),
+          sender: _profiles[item.senderId],
+          receiver: _profiles[item.receiverId],
         ),
     ];
   }
@@ -863,26 +1107,39 @@ class FirebaseBackend implements CloudBackend {
   @override
   Future<List<FriendProfile>> listFriends() async {
     final me = _uid();
-    final a = await _safeQuery(_db.collection('friendships').where('user_a', isEqualTo: me));
-    final b = await _safeQuery(_db.collection('friendships').where('user_b', isEqualTo: me));
-    final others = <String>{};
-    for (final doc in [...a, ...b]) {
-      final ua = doc.data()['user_a'] as String? ?? '';
-      final ub = doc.data()['user_b'] as String? ?? '';
-      others.add(ua == me ? ub : ua);
+    if (_friendsListCache != null && _friendsListUid == me && _cacheFresh(_friendsListAt)) {
+      return _friendsListCache!;
     }
-    final list = <FriendProfile>[];
-    for (final uid in others) {
-      if (await _blockedPair(me, uid)) continue;
-      list.add(await _readProfile(uid));
-    }
-    return list;
+    final pending = _friendsListInflight;
+    if (pending != null && _friendsListUid == me) return pending;
+    _friendsListUid = me;
+    final future = () async {
+      final mine = await _myFriendships(me);
+      final blocked = await _blockedAgainst(me);
+      final kept = [
+        for (final uid in mine.keys)
+          if (uid.isNotEmpty && !blocked.contains(uid)) uid,
+      ];
+      await Future.wait([for (final uid in kept) _readProfile(uid)]);
+      final list = [for (final uid in kept) _profiles[uid]!];
+      _friendsListCache = list;
+      _friendsListUid = me;
+      _friendsListAt = DateTime.now();
+      return list;
+    }();
+    _friendsListInflight = future;
+    return future.whenComplete(() {
+      if (identical(_friendsListInflight, future)) {
+        _friendsListInflight = null;
+      }
+    });
   }
 
   @override
   Future<void> removeFriend(String uid) async {
     final me = _uid();
     await _safeDelete(_db.collection('friendships').doc(_pairKey(me, uid)));
+    _clearSocialCache();
     await _revokeAclsBetween(me, uid);
   }
 
@@ -908,6 +1165,7 @@ class FirebaseBackend implements CloudBackend {
       'created_at': DateTime.now().toIso8601String(),
     });
     await _safeDelete(_db.collection('friendships').doc(_pairKey(me, uid)));
+    _clearSocialCache();
     await _revokeAclsBetween(me, uid);
   }
 
@@ -915,9 +1173,12 @@ class FirebaseBackend implements CloudBackend {
   Future<List<FriendProfile>> listBlocked() async {
     final me = _uid();
     final docs = await _safeQuery(_db.collection('blocks').where('blocker_id', isEqualTo: me));
-    return [
-      for (final doc in docs) await _readProfile(doc.data()['blocked_id'] as String? ?? ''),
+    final uids = [
+      for (final doc in docs)
+        if ((doc.data()['blocked_id'] as String? ?? '').isNotEmpty) doc.data()['blocked_id'] as String,
     ];
+    await Future.wait([for (final uid in uids) _readProfile(uid)]);
+    return [for (final uid in uids) _profiles[uid]!];
   }
 
   @override
@@ -940,6 +1201,7 @@ class FirebaseBackend implements CloudBackend {
     required Map<String, dynamic> payload,
     required List<String> viewerIds,
   }) async {
+    _invalidateInbox();
     final me = _uid();
     final friends = {for (final f in await listFriends()) f.uid};
     final viewers = [
@@ -992,6 +1254,7 @@ class FirebaseBackend implements CloudBackend {
         'viewer_id': viewer,
         'owner_id': me,
         'status': shareStatusForNew(type),
+        'type': type.name,
         'created_at': DateTime.now().toIso8601String(),
       });
       await _notify(
@@ -1007,6 +1270,7 @@ class FirebaseBackend implements CloudBackend {
 
   @override
   Future<void> revokeShareBySource(SharedKind type, String sourceLocalId) async {
+    _invalidateInbox();
     final me = _uid();
     final snap = await _safeQuery(_db.collection('shared_items').where('owner_id', isEqualTo: me));
     final acls = await _safeQuery(_db.collection('share_acl').where('owner_id', isEqualTo: me));
@@ -1052,41 +1316,75 @@ class FirebaseBackend implements CloudBackend {
     return null;
   }
 
-  @override
-  Future<List<SharedItem>> listSharedWithMe({
-    SharedKind? type,
-    int limit = 20,
-    bool pendingOnly = false,
-  }) async {
-    final me = _uid();
-    final acls = await _safeQuery(_db.collection('share_acl').where('viewer_id', isEqualTo: me));
-    final items = <SharedItem>[];
-    for (final acl in acls) {
-      final status = shareStatusFrom(acl.data()['status'] as String?);
-      if (pendingOnly) {
-        if (status != ShareStatus.pending) continue;
-      } else if (status != ShareStatus.accepted) {
-        continue;
+  Future<DocumentSnapshot<Map<String, dynamic>>?> _itemById(String id) {
+    if (_itemCache.containsKey(id)) return Future.value(_itemCache[id]);
+    return _itemInflight.putIfAbsent(id, () async {
+      try {
+        final snap = await _safeGet(_db.collection('shared_items').doc(id));
+        _itemCache[id] = snap;
+        return snap;
+      } finally {
+        _itemInflight.remove(id);
       }
+    });
+  }
+
+  Future<List<SharedItem>> _sharedInbox(String me) {
+    if (_inboxCache != null && _inboxUid == me && _cacheFresh(_inboxAt)) {
+      return Future.value(_inboxCache!);
+    }
+    final pending = _inboxInflight;
+    if (pending != null && _inboxUid == me) return pending;
+    _inboxUid = me;
+    final future = _loadSharedInbox(me);
+    _inboxInflight = future;
+    return future.then((items) {
+      _inboxCache = items;
+      _inboxUid = me;
+      _inboxAt = DateTime.now();
+      return items;
+    }).whenComplete(() {
+      if (identical(_inboxInflight, future)) {
+        _inboxInflight = null;
+      }
+    });
+  }
+
+  Future<List<SharedItem>> _loadSharedInbox(String me) async {
+    final acls = [...await _shareAcls(me)];
+    acls.sort((a, b) {
+      final at = DateTime.tryParse(a.data()['created_at'] as String? ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bt = DateTime.tryParse(b.data()['created_at'] as String? ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return bt.compareTo(at);
+    });
+    final window = acls.length <= 80 ? acls : acls.sublist(0, 80);
+    await Future.wait([_myFriendships(me), _blockedAgainst(me)]);
+    final itemIds = <String>{
+      for (final acl in window)
+        if (shareStatusFrom(acl.data()['status'] as String?) != ShareStatus.declined &&
+            (acl.data()['item_id'] as String? ?? '').isNotEmpty)
+          acl.data()['item_id'] as String,
+    };
+    await Future.wait([for (final id in itemIds) _itemById(id)]);
+    final ownerIds = <String>{
+      for (final id in itemIds)
+        _itemCache[id]?.data()?['owner_id'] as String? ?? '',
+    }..remove('');
+    if (ownerIds.isNotEmpty) {
+      await Future.wait([for (final owner in ownerIds) _readProfile(owner)]);
+    }
+
+    final items = <SharedItem>[];
+    for (final acl in window) {
+      final status = shareStatusFrom(acl.data()['status'] as String?);
+      if (status == ShareStatus.declined) continue;
       final itemId = acl.data()['item_id'] as String? ?? '';
-      final snap = await _safeGet(_db.collection('shared_items').doc(itemId));
+      final snap = _itemCache[itemId];
       final data = snap?.data();
       if (data == null) continue;
-      final kind = sharedKindFrom(data['type'] as String? ?? 'diary');
-      if (type != null && kind != type) continue;
+      final kind = sharedKindFrom(data['type'] as String? ?? acl.data()['type'] as String? ?? 'diary');
       final ownerId = data['owner_id'] as String? ?? '';
       final updatedAt = DateTime.tryParse(data['updated_at'] as String? ?? '') ?? DateTime.now();
-      if (kind == SharedKind.diary &&
-          !SharedItem(
-            id: snap?.id ?? itemId,
-            ownerId: ownerId,
-            type: kind,
-            sourceLocalId: data['source_local_id'] as String? ?? '',
-            payload: const {},
-            updatedAt: updatedAt,
-          ).diaryShareVisible()) {
-        continue;
-      }
       if (!ShareAccess.viewerCanRead(
         viewerId: me,
         ownerId: ownerId,
@@ -1094,10 +1392,10 @@ class FirebaseBackend implements CloudBackend {
         aclDocId: acl.id,
         aclItemId: itemId,
         aclViewerId: acl.data()['viewer_id'] as String? ?? '',
-        friends: await _areFriends(me, ownerId),
-        blocked: await _blockedPair(me, ownerId),
+        friends: _friendshipCache[_pairKey(me, ownerId)]?.exists ?? false,
+        blocked: _blockCache[_pairKey(me, ownerId)] ?? false,
         aclGrantedAt: DateTime.tryParse(acl.data()['created_at'] as String? ?? ''),
-        friendshipStartedAt: await _friendshipStartedAt(me, ownerId),
+        friendshipStartedAt: _friendshipCache[_pairKey(me, ownerId)]?.startedAt,
       )) {
         continue;
       }
@@ -1108,19 +1406,38 @@ class FirebaseBackend implements CloudBackend {
           type: kind,
           sourceLocalId: data['source_local_id'] as String? ?? '',
           payload: Map<String, dynamic>.from(data['payload'] as Map? ?? {}),
-          updatedAt: DateTime.tryParse(data['updated_at'] as String? ?? '') ?? DateTime.now(),
-          owner: await _readProfile(ownerId),
+          updatedAt: updatedAt,
+          owner: _profiles[ownerId],
           aclId: acl.id,
           shareStatus: status,
         ),
       );
     }
     items.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    return items;
+  }
+
+  @override
+  Future<List<SharedItem>> listSharedWithMe({
+    SharedKind? type,
+    int limit = 20,
+    bool pendingOnly = false,
+  }) async {
+    final me = _uid();
+    final all = await _sharedInbox(me);
+    final items = [
+      for (final item in all)
+        if ((pendingOnly ? item.shareStatus == ShareStatus.pending : item.shareStatus == ShareStatus.accepted) &&
+            (type == null || item.type == type) &&
+            item.diaryShareVisible())
+          item,
+    ];
     return items.take(limit).toList();
   }
 
   @override
   Future<void> respondShare(String aclId, {required bool accept}) async {
+    _invalidateInbox();
     final me = _uid();
     final ref = _db.collection('share_acl').doc(aclId);
     final snap = await _safeGet(ref);
@@ -1178,6 +1495,10 @@ class FirebaseBackend implements CloudBackend {
   Future<List<ShareReply>> listReplies(String itemId) async {
     try {
       final snap = await _db.collection('shared_items').doc(itemId).collection('replies').get();
+      final authorIds = {
+        for (final doc in snap.docs) doc.data()['author_id'] as String? ?? '',
+      }..remove('');
+      await Future.wait([for (final uid in authorIds) _readProfile(uid)]);
       final items = [
         for (final doc in snap.docs)
           ShareReply(
@@ -1186,7 +1507,7 @@ class FirebaseBackend implements CloudBackend {
             authorId: doc.data()['author_id'] as String? ?? '',
             body: doc.data()['body'] as String? ?? '',
             createdAt: DateTime.tryParse(doc.data()['created_at'] as String? ?? '') ?? DateTime.now(),
-            author: await _readProfile(doc.data()['author_id'] as String? ?? ''),
+            author: _profiles[doc.data()['author_id'] as String? ?? ''],
           ),
       ]..sort((a, b) => a.createdAt.compareTo(b.createdAt));
       return items;
@@ -1244,10 +1565,12 @@ class FirebaseBackend implements CloudBackend {
   @override
   Future<List<FriendCircle>> listCircles() async {
     final me = _uid();
-    final owned = await _safeQuery(_db.collection('circles').where('owner_id', isEqualTo: me));
-    final member = await _safeQuery(_db.collection('circles').where('member_ids', arrayContains: me));
+    final parts = await Future.wait([
+      _safeQuery(_db.collection('circles').where('owner_id', isEqualTo: me)),
+      _safeQuery(_db.collection('circles').where('member_ids', arrayContains: me)),
+    ]);
     final map = <String, FriendCircle>{};
-    for (final doc in [...owned, ...member]) {
+    for (final doc in [...parts[0], ...parts[1]]) {
       map[doc.id] = _circleFrom(doc.id, doc.data());
     }
     return map.values.toList();
@@ -1445,10 +1768,12 @@ class FirebaseBackend implements CloudBackend {
   @override
   Future<List<MemoryAlbum>> listAlbums() async {
     final me = _uid();
-    final owned = await _safeQuery(_db.collection('memory_albums').where('owner_id', isEqualTo: me));
-    final member = await _safeQuery(_db.collection('memory_albums').where('participant_ids', arrayContains: me));
+    final parts = await Future.wait([
+      _safeQuery(_db.collection('memory_albums').where('owner_id', isEqualTo: me)),
+      _safeQuery(_db.collection('memory_albums').where('participant_ids', arrayContains: me)),
+    ]);
     final map = <String, MemoryAlbum>{};
-    for (final doc in [...owned, ...member]) {
+    for (final doc in [...parts[0], ...parts[1]]) {
       map[doc.id] = MemoryAlbum(
         id: doc.id,
         title: doc.data()['title'] as String? ?? '',
@@ -1564,6 +1889,10 @@ class FirebaseBackend implements CloudBackend {
           .doc(photoId)
           .collection('comments')
           .get();
+      final authorIds = {
+        for (final doc in snap.docs) doc.data()['author_id'] as String? ?? '',
+      }..remove('');
+      await Future.wait([for (final uid in authorIds) _readProfile(uid)]);
       final items = [
         for (final doc in snap.docs)
           PhotoComment(
@@ -1572,7 +1901,7 @@ class FirebaseBackend implements CloudBackend {
             authorId: doc.data()['author_id'] as String? ?? '',
             body: doc.data()['body'] as String? ?? '',
             createdAt: DateTime.tryParse(doc.data()['created_at'] as String? ?? '') ?? DateTime.now(),
-            author: await _readProfile(doc.data()['author_id'] as String? ?? ''),
+            author: _profiles[doc.data()['author_id'] as String? ?? ''],
           ),
       ]..sort((a, b) => a.createdAt.compareTo(b.createdAt));
       return items;
@@ -1622,6 +1951,10 @@ class FirebaseBackend implements CloudBackend {
   Future<List<TalkMessage>> listMessages(String chatId) async {
     try {
       final snap = await _db.collection('chats').doc(chatId).collection('messages').get();
+      final authorIds = {
+        for (final doc in snap.docs) doc.data()['author_id'] as String? ?? '',
+      }..remove('');
+      await Future.wait([for (final uid in authorIds) _readProfile(uid)]);
       final items = [
         for (final doc in snap.docs)
           TalkMessage(
@@ -1631,7 +1964,7 @@ class FirebaseBackend implements CloudBackend {
             body: doc.data()['body'] as String? ?? '',
             imageUrl: doc.data()['image_url'] as String? ?? '',
             createdAt: DateTime.tryParse(doc.data()['created_at'] as String? ?? '') ?? DateTime.now(),
-            author: await _readProfile(doc.data()['author_id'] as String? ?? ''),
+            author: _profiles[doc.data()['author_id'] as String? ?? ''],
           ),
       ]..sort((a, b) => a.createdAt.compareTo(b.createdAt));
       return items;
@@ -1676,4 +2009,11 @@ class FirebaseBackend implements CloudBackend {
       );
     } catch (_) {}
   }
+}
+
+class _FriendshipInfo {
+  const _FriendshipInfo({required this.exists, this.startedAt});
+
+  final bool exists;
+  final DateTime? startedAt;
 }

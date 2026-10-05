@@ -444,3 +444,19 @@ FriendRequestStatus requestStatusFrom(String raw) {
     _ => FriendRequestStatus.pending,
   };
 }
+
+class FriendHubSnapshot {
+  const FriendHubSnapshot({
+    this.friends = const [],
+    this.diaries = const [],
+    this.pendingSchedules = const [],
+    this.circles = const [],
+    this.albums = const [],
+  });
+
+  final List<FriendProfile> friends;
+  final List<SharedItem> diaries;
+  final List<SharedItem> pendingSchedules;
+  final List<FriendCircle> circles;
+  final List<MemoryAlbum> albums;
+}

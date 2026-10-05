@@ -80,6 +80,9 @@ abstract class CloudBackend {
 
   Future<List<FriendProfile>> listFriends();
 
+  /// 次の Friend 読み込みをサーバから取り直す。プロフィールのメモリキャッシュは残す。
+  void invalidateFriendCaches() {}
+
   Future<void> removeFriend(String uid);
 
   Future<void> blockUser(String uid);
