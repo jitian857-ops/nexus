@@ -11,10 +11,12 @@ class AppCustomizePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final store = AppScope.of(context);
-    final step = store.settings.reelMinuteStep;
+    return StoreView(
+      visibleOnly: false,
+      builder: (context, store) {
+        final step = store.settings.reelMinuteStep;
 
-    return Scaffold(
+        return Scaffold(
       backgroundColor: NexusColors.background,
       body: PageScaffold(
         child: ListView(
@@ -81,6 +83,8 @@ class AppCustomizePage extends StatelessWidget {
           ],
         ),
       ),
+    );
+      },
     );
   }
 }

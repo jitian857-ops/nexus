@@ -24,11 +24,13 @@ class _BoxDetailPageState extends State<BoxDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final store = AppScope.of(context);
-    final box = store.boxById(widget.boxId);
-    if (box == null) {
-      return const Scaffold(body: Center(child: Text('ボックスが見つかりません')));
-    }
+    return StoreView(
+      visibleOnly: false,
+      builder: (context, store) {
+        final box = store.boxById(widget.boxId);
+        if (box == null) {
+          return const Scaffold(body: Center(child: Text('ボックスが見つかりません')));
+        }
 
     final month = box.month ?? store.moneyMonth;
     var list = store.cardsForBox(box.id, month: box.isSavings ? null : month);
@@ -140,6 +142,8 @@ class _BoxDetailPageState extends State<BoxDetailPage> {
           ],
         ),
       ),
+    );
+      },
     );
   }
 

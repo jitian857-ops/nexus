@@ -16,21 +16,23 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final store = AppScope.of(context);
-
-    return PageScaffold(
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-        children: [
-          const HomeHeader(),
-          const SizedBox(height: 14),
-          const _HeroRow(),
-          const SizedBox(height: 12),
-          _ScheduleCard(store: store),
-          const SizedBox(height: 12),
-          const HomeWidgetCarousel(),
-        ],
-      ),
+    return StoreView(
+      builder: (context, store) {
+        return PageScaffold(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+            children: [
+              const HomeHeader(),
+              const SizedBox(height: 14),
+              const _HeroRow(),
+              const SizedBox(height: 12),
+              _ScheduleCard(store: store),
+              const SizedBox(height: 12),
+              const HomeWidgetCarousel(),
+            ],
+          ),
+        );
+      },
     );
   }
 }

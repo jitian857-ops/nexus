@@ -5,6 +5,7 @@ import '../../core/format.dart';
 import '../../data/app_store.dart';
 import '../../data/models.dart';
 import '../../widgets/ui_bits.dart';
+import '../../widgets/voice_listen_button.dart';
 
 Future<void> openAddIncome(BuildContext context, AppStore store) {
   return openIncomeForm(context, store);
@@ -31,7 +32,10 @@ Future<void> openIncomeForm(BuildContext context, AppStore store, {IncomeEntry? 
                 TextField(
                   controller: name,
                   style: TextStyle(color: NexusColors.text),
-                  decoration: const InputDecoration(labelText: '収入名'),
+                  decoration: InputDecoration(
+                    labelText: '収入名',
+                    suffixIcon: VoiceFillButton(controller: name),
+                  ),
                 ),
                 TextField(
                   controller: amount,
@@ -520,7 +524,10 @@ Future<void> openAddCard(BuildContext context, AppStore store, {String? boxId}) 
                 TextField(
                   controller: title,
                   style: TextStyle(color: NexusColors.text),
-                  decoration: const InputDecoration(labelText: '内容（任意）'),
+                  decoration: InputDecoration(
+                    labelText: '内容（任意）',
+                    suffixIcon: VoiceFillButton(controller: title),
+                  ),
                 ),
                 TextField(
                   controller: amount,
@@ -643,7 +650,10 @@ Future<void> openEditCard(BuildContext context, AppStore store, MoneyCard card) 
                 TextField(
                   controller: title,
                   style: TextStyle(color: NexusColors.text),
-                  decoration: const InputDecoration(labelText: '内容（任意）'),
+                  decoration: InputDecoration(
+                    labelText: '内容（任意）',
+                    suffixIcon: VoiceFillButton(controller: title),
+                  ),
                 ),
                 TextField(
                   controller: amount,

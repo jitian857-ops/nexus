@@ -3,9 +3,20 @@ import 'package:flutter/material.dart';
 import '../../app/theme.dart';
 import '../../data/app_store.dart';
 import '../../data/models.dart';
+import '../../voice/intent_parser.dart';
+import '../../voice/voice_command.dart';
+import '../../voice/voice_context.dart';
+import '../../voice/voice_intent.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/negumo.dart';
 import '../../widgets/ui_bits.dart';
+import '../../widgets/voice_listen_button.dart';
+
+Future<void> openAiScreen(BuildContext context) {
+  return Navigator.of(context, rootNavigator: true).push(
+    MaterialPageRoute<void>(builder: (_) => const AiScreen()),
+  );
+}
 
 class AiScreen extends StatefulWidget {
   const AiScreen({super.key});
@@ -25,15 +36,17 @@ class _AiScreenState extends State<AiScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final store = AppScope.of(context);
-    final memory = [
-      if (store.settings.memoryStudy) '学習',
-      if (store.settings.memorySchedule) '予定',
-      if (store.settings.memoryMoney) 'お金',
-      if (store.settings.memoryLife) '生活',
-    ].join('・');
+    return StoreView(
+      visibleOnly: false,
+      builder: (context, store) {
+        final memory = [
+          if (store.settings.memoryStudy) '学習',
+          if (store.settings.memorySchedule) '予定',
+          if (store.settings.memoryMoney) 'お金',
+          if (store.settings.memoryLife) '生活',
+        ].join('・');
 
-    return PageScaffold(
+        return PageScaffold(
       child: Column(
         children: [
           Expanded(
@@ -150,12 +163,21 @@ class _AiScreenState extends State<AiScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
+                IconButton(
+                  tooltip: '声で話す',
+                  onPressed: () async {
+                    final spoken = await captureVoiceText(context);
+                    if (!context.mounted || spoken == null || spoken.trim().isEmpty) return;
+                    await _submit(store, spoken.trim());
+                  },
+                  icon: Icon(Icons.mic_rounded, color: NexusColors.cyan),
+                ),
                 IconButton.filled(
                   onPressed: () {
                     final text = _input.text.trim();
                     if (text.isEmpty) return;
-                    _send(store, text);
                     _input.clear();
+                    _submit(store, text);
                   },
                   icon: const Icon(Icons.send_rounded),
                 ),
@@ -165,6 +187,17 @@ class _AiScreenState extends State<AiScreen> {
         ],
       ),
     );
+      },
+    );
+  }
+
+  Future<void> _submit(AppStore store, String text) async {
+    final parsed = const IntentParser().parse(text, voiceContextOf(store));
+    if (parsed is VoiceUnknown) {
+      _send(store, text);
+      return;
+    }
+    await applyVoiceTranscript(context, store, text);
   }
 
   void _send(AppStore store, String text) {

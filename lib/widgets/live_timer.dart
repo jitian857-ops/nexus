@@ -22,7 +22,7 @@ class _LiveTimerBuilderState extends State<LiveTimerBuilder> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final store = AppScope.of(context);
+    final store = AppScope.read(context);
     if (_store != store) {
       _store?.removeListener(_onStore);
       _store = store;
@@ -56,6 +56,6 @@ class _LiveTimerBuilderState extends State<LiveTimerBuilder> {
   @override
   Widget build(BuildContext context) {
     _syncTick();
-    return widget.builder(context, AppScope.of(context));
+    return widget.builder(context, AppScope.read(context));
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/app_store.dart';
 import '../tutorial/tutorial_overlay.dart';
 import '../cloud/nexus_cloud.dart';
+import '../voice/voice_command.dart';
 import '../widgets/nexus_nav_bar.dart';
 import '../app/theme.dart';
 import 'home/home_screen.dart';
@@ -27,6 +28,15 @@ class AppShell extends StatelessWidget {
             Padding(
               padding: EdgeInsets.only(bottom: 70 + (bottom > 0 ? bottom : 10)),
               child: _ShellTabs(store: store),
+            ),
+            Positioned(
+              right: 16,
+              bottom: 78 + (bottom > 0 ? bottom : 10),
+              child: Material(
+                color: NexusColors.card,
+                shape: const CircleBorder(),
+                child: const VoiceListenButton(compact: true),
+              ),
             ),
             Positioned(
               left: 0,
@@ -107,9 +117,11 @@ class _ShellTabsState extends State<_ShellTabs> {
       index: _index,
       children: [
         for (var i = 0; i < _tabs.length; i++)
-          TickerMode(
-            enabled: i == _index,
-            child: _tabs[i],
+          RepaintBoundary(
+            child: TickerMode(
+              enabled: i == _index,
+              child: _tabs[i],
+            ),
           ),
       ],
     );

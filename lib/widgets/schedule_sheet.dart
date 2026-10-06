@@ -9,6 +9,7 @@ import '../data/models.dart';
 import '../screens/friends/share_picker.dart';
 import 'datetime_pills.dart';
 import 'ui_bits.dart';
+import 'voice_listen_button.dart';
 
 class ScheduleEditSheet extends StatefulWidget {
   const ScheduleEditSheet({super.key, this.initial, this.day});
@@ -150,7 +151,7 @@ class _ScheduleEditSheetState extends State<ScheduleEditSheet> {
           TextField(
             controller: _title,
             style: TextStyle(color: NexusColors.text),
-            decoration: _input('タイトル'),
+            decoration: _input('タイトル', suffix: VoiceFillButton(controller: _title)),
           ),
           const SizedBox(height: 10),
           TextField(
@@ -311,10 +312,11 @@ Future<String?> _promptScheduleTag(BuildContext context) async {
   return null;
 }
 
-InputDecoration _input(String label) {
+InputDecoration _input(String label, {Widget? suffix}) {
   return InputDecoration(
     labelText: label,
     labelStyle: TextStyle(color: NexusColors.textMuted),
+    suffixIcon: suffix,
     enabledBorder: OutlineInputBorder(
       borderSide: BorderSide(color: NexusColors.border),
       borderRadius: BorderRadius.circular(12),

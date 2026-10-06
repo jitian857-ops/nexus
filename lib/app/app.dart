@@ -28,20 +28,23 @@ class _NexusAppState extends State<NexusApp> {
   }
 
   void _onCloud() {
+    var bindChanged = false;
     if (_cloud.isSignedIn && _cloud.emailVerified) {
       final identity = _cloud.identity;
       if (_bound == null || !_bound!.sameAs(identity)) {
         _bound = identity;
         _store.attachCloud(_cloud);
+        bindChanged = true;
       }
     } else if (_bound != null) {
       _bound = null;
       _store.detachCloud();
+      bindChanged = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _navigatorKey.currentState?.popUntil((route) => route.isFirst);
       });
     }
-    if (mounted) setState(() {});
+    if (bindChanged && mounted) setState(() {});
   }
 
   @override

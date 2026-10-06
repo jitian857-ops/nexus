@@ -62,7 +62,7 @@ class _PeriodSlideState extends State<PeriodSlide> with SingleTickerProviderStat
   bool get _skipMotion {
     if (NexusMotion.inWidgetTest) return true;
     try {
-      return AppScope.of(context).settings.reduceMotion;
+      return AppScope.read(context).settings.reduceMotion;
     } catch (_) {
       return false;
     }

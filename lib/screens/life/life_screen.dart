@@ -22,11 +22,12 @@ class LifeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final store = AppScope.of(context);
-    final day = store.lifeDate;
-    final items = store.schedulesOn(day);
+    return StoreView(
+      builder: (context, store) {
+        final day = store.lifeDate;
+        final items = store.schedulesOn(day);
 
-    return PageScaffold(
+        return PageScaffold(
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
@@ -240,6 +241,8 @@ class LifeScreen extends StatelessWidget {
           ),
         ],
       ),
+    );
+      },
     );
   }
 

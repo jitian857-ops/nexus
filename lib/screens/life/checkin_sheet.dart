@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../app/theme.dart';
 import '../../data/app_store.dart';
-import '../../domain/report_builder.dart';
 import '../../widgets/ui_bits.dart';
+
+const _checkInTags = ['勉強', '運動', '食事', '友人', '休息', '仕事', '趣味', '外出'];
 
 Future<void> openCheckIn(BuildContext context, AppStore store) async {
   var mood = store.mood == 0 ? 3 : store.mood;
@@ -62,7 +63,7 @@ Future<void> openCheckIn(BuildContext context, AppStore store) async {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  for (final tag in kLifeActivityTags)
+                  for (final tag in _checkInTags)
                     FilterChip(
                       label: Text(tag),
                       selected: tags.contains(tag),
@@ -104,7 +105,9 @@ Future<void> openCheckIn(BuildContext context, AppStore store) async {
   );
   if (saved == true) {
     store.setCheckIn(mood: mood, energy: energy, tags: tags, diary: diary.text.trim());
-    if (context.mounted) showStoreToast(context, store);
+    if (context.mounted) {
+      showNexusToast(context, store.lastToast.isEmpty ? '今日を記録しました' : store.lastToast);
+    }
   }
   diary.dispose();
 }

@@ -51,9 +51,9 @@ class _PressScaleState extends State<PressScale> {
       onTapUp: widget.enabled ? (_) => setState(() => _down = false) : null,
       onTapCancel: widget.enabled ? () => setState(() => _down = false) : null,
       onTap: widget.enabled ? widget.onTap : null,
-      child: AnimatedScale(
+        child: AnimatedScale(
         scale: _down ? 0.97 : 1,
-        duration: NexusMotion.fast,
+        duration: NexusMotion.duration(context, NexusMotion.fast),
         curve: Curves.easeOutCubic,
         child: widget.child,
       ),
@@ -75,6 +75,9 @@ class NexusPageTransitionsBuilder extends PageTransitionsBuilder {
     final reduce = NexusMotion.duration(context, const Duration(milliseconds: 1)) == Duration.zero;
     if (reduce) return child;
     final curved = CurvedAnimation(parent: animation, curve: NexusMotion.curve);
-    return FadeTransition(opacity: curved, child: child);
+    return SlideTransition(
+      position: Tween<Offset>(begin: const Offset(0.06, 0), end: Offset.zero).animate(curved),
+      child: child,
+    );
   }
 }

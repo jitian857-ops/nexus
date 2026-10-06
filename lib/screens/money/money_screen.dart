@@ -24,11 +24,12 @@ class _MoneyScreenState extends State<MoneyScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final store = AppScope.of(context);
-    final money = store.money;
-    final remainRatio = money.todayBudget == 0 ? 0.0 : money.spendableToday / money.todayBudget;
+    return StoreView(
+      builder: (context, store) {
+        final money = store.money;
+        final remainRatio = money.todayBudget == 0 ? 0.0 : money.spendableToday / money.todayBudget;
 
-    return PageScaffold(
+        return PageScaffold(
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
@@ -222,6 +223,8 @@ class _MoneyScreenState extends State<MoneyScreen> {
           ),
         ],
       ),
+    );
+      },
     );
   }
 

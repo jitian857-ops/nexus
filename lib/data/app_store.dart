@@ -1982,22 +1982,99 @@ class AppStore extends ChangeNotifier {
   }
 }
 
-class AppScope extends InheritedNotifier<AppStore> {
+class AppScope extends InheritedWidget {
   const AppScope({
     super.key,
-    required AppStore store,
+    required this.store,
     required super.child,
-  }) : super(notifier: store);
+  });
+
+  final AppStore store;
 
   static AppStore of(BuildContext context) {
     final scope = context.dependOnInheritedWidgetOfExactType<AppScope>();
     assert(scope != null, 'AppScope が見つかりません');
-    return scope!.notifier!;
+    return scope!.store;
   }
 
   static AppStore read(BuildContext context) {
     final scope = context.getInheritedWidgetOfExactType<AppScope>();
     assert(scope != null, 'AppScope が見つかりません');
-    return scope!.notifier!;
+    return scope!.store;
+  }
+
+  @override
+  bool updateShouldNotify(AppScope oldWidget) => false;
+}
+
+/// [AppStore] の変更でだけ描き直す。裏側のタブは止める。
+class StoreView extends StatefulWidget {
+  const StoreView({
+    super.key,
+    required this.builder,
+    this.visibleOnly = true,
+  });
+
+  final Widget Function(BuildContext context, AppStore store) builder;
+  final bool visibleOnly;
+
+  @override
+  State<StoreView> createState() => _StoreViewState();
+}
+
+class _StoreViewState extends State<StoreView> {
+  AppStore? _store;
+  var _listening = false;
+  var _built = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final store = AppScope.read(context);
+    if (!identical(_store, store)) {
+      _detach();
+      _store = store;
+    }
+    _syncListen();
+  }
+
+  void _syncListen() {
+    final want = _store != null && (!widget.visibleOnly || TickerMode.valuesOf(context).enabled);
+    if (want && !_listening) {
+      _store!.addListener(_onStore);
+      _listening = true;
+      if (widget.visibleOnly && _built) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() {});
+        });
+      }
+    } else if (!want && _listening) {
+      _store!.removeListener(_onStore);
+      _listening = false;
+    }
+  }
+
+  void _onStore() {
+    if (mounted) setState(() {});
+  }
+
+  void _detach() {
+    if (_listening) {
+      _store?.removeListener(_onStore);
+      _listening = false;
+    }
+  }
+
+  @override
+  void dispose() {
+    _detach();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _built = true;
+    _syncListen();
+    return widget.builder(context, _store!);
   }
 }

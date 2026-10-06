@@ -24,7 +24,7 @@ class _TutorialLayerState extends State<TutorialLayer> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final store = AppScope.of(context);
+    final store = AppScope.read(context);
     if (_store != store) {
       _store?.removeListener(_onStore);
       _store = store;
@@ -46,8 +46,8 @@ class _TutorialLayerState extends State<TutorialLayer> {
 
   Future<void> _consider() async {
     if (!mounted || _busy || _showing != null) return;
-    final store = AppScope.of(context);
-    final cloud = CloudScope.of(context);
+    final store = AppScope.read(context);
+    final cloud = CloudScope.read(context);
     final tab = TutorialDeck.forIndex(store.tabIndex);
     if (tab == null || cloud.uid.isEmpty) return;
     _busy = true;

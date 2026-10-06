@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../app/theme.dart';
 import '../../core/format.dart';
 import '../../data/app_store.dart';
+import '../../voice/voice_command.dart';
+import '../../widgets/quick_add_sheet.dart';
 import '../settings/settings_screen.dart';
 
 class HomeHeader extends StatelessWidget {
@@ -75,6 +77,24 @@ class HomeHeader extends StatelessWidget {
             ),
           ),
         ),
+        const SizedBox(width: 8),
+        InkWell(
+          key: const Key('open-quick-add'),
+          onTap: () => openQuickAdd(context),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: NexusColors.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: NexusColors.border),
+            ),
+            child: Icon(Icons.add_rounded, size: 18, color: NexusColors.cyan),
+          ),
+        ),
+        const SizedBox(width: 8),
+        const VoiceListenButton(),
         const SizedBox(width: 8),
         InkWell(
           key: const Key('open-settings'),

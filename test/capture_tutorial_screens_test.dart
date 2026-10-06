@@ -35,7 +35,7 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
       SharedPreferences.setMockInitialValues({});
 
-      final store = _seededStore();
+      final store = captureSeededStore();
       final cloud = NexusCloud();
       await cloud.enterGuestSession();
 
@@ -46,7 +46,7 @@ void main() {
             store: store,
             child: MaterialApp(
               debugShowCheckedModeBanner: false,
-              theme: _captureTheme(),
+              theme: captureTheme(),
               home: const AppShell(),
             ),
           ),
@@ -92,7 +92,7 @@ void main() {
   );
 }
 
-ThemeData _captureTheme() {
+ThemeData captureTheme() {
   const palette = NexusPalette.whiteMidnight;
   NexusColors.apply(palette);
   final scheme = ColorScheme(
@@ -126,7 +126,7 @@ ThemeData _captureTheme() {
   return base.copyWith(textTheme: textTheme, primaryTextTheme: textTheme);
 }
 
-AppStore _seededStore() {
+AppStore captureSeededStore() {
   final store = AppStore.seed();
   store.updateSettings(store.settings.copyWith(reduceMotion: true));
   store.userName = '蒼井 ユウ';

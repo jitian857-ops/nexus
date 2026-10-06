@@ -65,14 +65,16 @@ class _FocusTimerPageState extends State<FocusTimerPage> {
 
   @override
   Widget build(BuildContext context) {
-    final store = AppScope.of(context);
-    final remaining = store.timerRemainingSeconds();
-    final total = store.timerTotalSeconds == 0 ? 1 : store.timerTotalSeconds;
-    final progress = 1 - remaining / total;
-    final selectedId = store.selectedTimerSubjectId;
-    final subject = selectedId == null ? null : store.subjectById(selectedId);
+    return StoreView(
+      visibleOnly: false,
+      builder: (context, store) {
+        final remaining = store.timerRemainingSeconds();
+        final total = store.timerTotalSeconds == 0 ? 1 : store.timerTotalSeconds;
+        final progress = 1 - remaining / total;
+        final selectedId = store.selectedTimerSubjectId;
+        final subject = selectedId == null ? null : store.subjectById(selectedId);
 
-    return PopScope(
+        return PopScope(
       canPop: !store.timerRunning,
       child: Scaffold(
       backgroundColor: NexusColors.background,
@@ -214,6 +216,8 @@ class _FocusTimerPageState extends State<FocusTimerPage> {
         ),
       ),
     ),
+    );
+      },
     );
   }
 

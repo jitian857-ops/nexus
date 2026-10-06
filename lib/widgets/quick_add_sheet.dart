@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../app/theme.dart';
 import '../data/app_store.dart';
+import '../screens/ai/ai_screen.dart';
 import '../screens/life/checkin_sheet.dart';
 import '../screens/money/money_forms.dart';
 import '../screens/study/focus_timer_page.dart';
+import '../voice/voice_command.dart';
 import 'schedule_sheet.dart';
 import 'ui_bits.dart';
 
@@ -20,6 +22,22 @@ Future<void> openQuickAdd(BuildContext context) {
         const SizedBox(height: 4),
         Text('今日必要なものだけを足す', style: TextStyle(color: NexusColors.textMuted, fontSize: 12)),
         const SizedBox(height: 12),
+        _QuickTile(
+          icon: Icons.mic_rounded,
+          label: '声で追加',
+          onTap: () {
+            Navigator.pop(context);
+            runVoiceCommand(context);
+          },
+        ),
+        _QuickTile(
+          icon: Icons.auto_awesome_rounded,
+          label: 'ネグモ',
+          onTap: () {
+            Navigator.pop(context);
+            openAiScreen(context);
+          },
+        ),
         _QuickTile(
           icon: Icons.event_rounded,
           label: '予定',
@@ -41,7 +59,7 @@ Future<void> openQuickAdd(BuildContext context) {
           label: '支出',
           onTap: () {
             Navigator.pop(context);
-            openQuickSpend(context, store);
+            openAddCard(context, store);
           },
         ),
         _QuickTile(
@@ -75,12 +93,13 @@ class _QuickTile extends StatelessWidget {
           constraints: const BoxConstraints(minHeight: 48),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
-            color: NexusColors.sky.withValues(alpha: 0.55),
+            color: NexusColors.surface,
             borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: NexusColors.border),
           ),
           child: Row(
             children: [
-              AccentIcon(icon),
+              Icon(icon, color: NexusColors.cyan),
               const SizedBox(width: 10),
               Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
             ],

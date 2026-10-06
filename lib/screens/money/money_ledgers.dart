@@ -52,22 +52,24 @@ class _IncomeLedgerPageState extends State<IncomeLedgerPage> {
 
   @override
   Widget build(BuildContext context) {
-    final store = AppScope.of(context);
-    final q = _query.text;
-    final list = [
-      for (final item in store.incomesInRange(_from, _to))
-        if (queryMatches(q, [
-          item.name,
-          item.memo,
-          yen(item.amount),
-          '${item.amount}',
-          '${item.useYear}年${item.useMonth}月',
-          jpDate(item.depositedAt),
-        ]))
-          item,
-    ];
+    return StoreView(
+      visibleOnly: false,
+      builder: (context, store) {
+        final q = _query.text;
+        final list = [
+          for (final item in store.incomesInRange(_from, _to))
+            if (queryMatches(q, [
+              item.name,
+              item.memo,
+              yen(item.amount),
+              '${item.amount}',
+              '${item.useYear}年${item.useMonth}月',
+              jpDate(item.depositedAt),
+            ]))
+              item,
+        ];
 
-    return Scaffold(
+        return Scaffold(
       backgroundColor: NexusColors.background,
       body: PageScaffold(
         child: ListView(
@@ -155,6 +157,8 @@ class _IncomeLedgerPageState extends State<IncomeLedgerPage> {
         ),
       ),
     );
+      },
+    );
   }
 }
 
@@ -190,24 +194,26 @@ class _ExpenseLedgerPageState extends State<ExpenseLedgerPage> {
 
   @override
   Widget build(BuildContext context) {
-    final store = AppScope.of(context);
-    final q = _query.text;
-    final tags = store.expenseTagsInRange(_from, _to);
-    final spend = store.spendCardsInRange(_from, _to);
-    final list = [
-      for (final card in spend)
-        if ((_tag == null || card.tag == _tag) &&
-            queryMatches(q, [
-              card.title,
-              card.tag,
-              card.memo,
-              yen(card.amount),
-              '${card.amount}',
-              store.boxById(card.boxId)?.name ?? '',
-              jpDate(card.at),
-            ]))
-          card,
-    ];
+    return StoreView(
+      visibleOnly: false,
+      builder: (context, store) {
+        final q = _query.text;
+        final tags = store.expenseTagsInRange(_from, _to);
+        final spend = store.spendCardsInRange(_from, _to);
+        final list = [
+          for (final card in spend)
+            if ((_tag == null || card.tag == _tag) &&
+                queryMatches(q, [
+                  card.title,
+                  card.tag,
+                  card.memo,
+                  yen(card.amount),
+                  '${card.amount}',
+                  store.boxById(card.boxId)?.name ?? '',
+                  jpDate(card.at),
+                ]))
+              card,
+        ];
 
     return Scaffold(
       backgroundColor: NexusColors.background,
@@ -328,6 +334,8 @@ class _ExpenseLedgerPageState extends State<ExpenseLedgerPage> {
           ],
         ),
       ),
+    );
+      },
     );
   }
 }

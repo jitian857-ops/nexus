@@ -653,8 +653,18 @@ class CloudScope extends InheritedNotifier<NexusCloud> {
     return context.dependOnInheritedWidgetOfExactType<CloudScope>()?.notifier;
   }
 
+  static NexusCloud? maybeRead(BuildContext context) {
+    return context.getInheritedWidgetOfExactType<CloudScope>()?.notifier;
+  }
+
   static NexusCloud of(BuildContext context) {
     final cloud = maybeOf(context);
+    assert(cloud != null, 'CloudScope が見つかりません');
+    return cloud!;
+  }
+
+  static NexusCloud read(BuildContext context) {
+    final cloud = maybeRead(context);
     assert(cloud != null, 'CloudScope が見つかりません');
     return cloud!;
   }

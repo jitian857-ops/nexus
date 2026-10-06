@@ -133,7 +133,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
   FriendProfile _selfProfile() {
     final store = AppScope.of(context);
     return FriendProfile(
-      uid: CloudScope.of(context).uid,
+      uid: CloudScope.read(context).uid,
       displayName: store.userName,
       friendCode: '',
       photoUrl: store.photoUrl,
@@ -141,7 +141,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
   }
 
   FriendProfile _named(String uid) {
-    if (uid == CloudScope.of(context).uid) return _selfProfile();
+    if (uid == CloudScope.read(context).uid) return _selfProfile();
     for (final friend in _friends) {
       if (friend.uid == uid) return friend;
     }
@@ -150,7 +150,9 @@ class _FriendsScreenState extends State<FriendsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return PageScaffold(
+    return StoreView(
+      builder: (context, _) {
+        return PageScaffold(
       child: RefreshIndicator(
         color: NexusColors.cyan,
         onRefresh: () => _reload(quiet: true, force: true),
@@ -381,6 +383,8 @@ class _FriendsScreenState extends State<FriendsScreen> {
         ],
         ),
       ),
+    );
+      },
     );
   }
 }

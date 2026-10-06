@@ -24,21 +24,21 @@ class StudyScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final store = AppScope.of(context);
-
-    return PageScaffold(
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-        children: [
-          Row(
+    return StoreView(
+      builder: (context, store) {
+        return PageScaffold(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
             children: [
-              const Expanded(child: GradientTitle('Study')),
-              AddChip(
-                label: '学習を追加',
-                onTap: () => openStudySessionForm(context, store),
+              Row(
+                children: [
+                  const Expanded(child: GradientTitle('Study')),
+                  AddChip(
+                    label: '学習を追加',
+                    onTap: () => openStudySessionForm(context, store),
+                  ),
+                ],
               ),
-            ],
-          ),
           const SizedBox(height: 4),
           Text(
             jpDate(store.focusedDate),
@@ -283,6 +283,8 @@ class StudyScreen extends StatelessWidget {
           ),
         ],
       ),
+    );
+      },
     );
   }
 }

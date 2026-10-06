@@ -92,7 +92,7 @@ class _NexusImageState extends State<NexusImage> {
         src.startsWith('https://')) {
       return;
     }
-    final cloud = CloudScope.maybeOf(context);
+    final cloud = CloudScope.maybeRead(context);
     if (cloud == null) return;
     if (_resolveSrc == src && _resolve != null) return;
     _resolveSrc = src;

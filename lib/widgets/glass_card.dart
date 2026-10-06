@@ -24,94 +24,31 @@ class GlassCard extends StatelessWidget {
     final light = NexusColors.isLight;
     return RepaintBoundary(
       child: DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: radius,
-        boxShadow: [
-          BoxShadow(
-            color: light
-                ? Colors.black.withValues(alpha: 0.05)
-                : (glowColor ?? NexusColors.cyan).withValues(alpha: glowColor == null ? 0.05 : 0.16),
-            blurRadius: light || glowColor == null ? 16 : 22,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        elevation: 0,
-        shadowColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
+        decoration: BoxDecoration(
           borderRadius: radius,
-          side: BorderSide(
-            color: borderColor ?? NexusColors.hairline,
-            width: 1,
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: SizedBox(
-          height: height,
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        NexusColors.cardTop,
-                        NexusColors.card,
-                        NexusColors.surface,
-                      ],
-                      stops: const [0, 0.5, 1],
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                top: 0,
-                left: 18,
-                right: 18,
-                child: IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.transparent,
-                          NexusColors.hairline,
-                          Colors.transparent,
-                        ],
-                      ),
-                    ),
-                    child: const SizedBox(height: 1.2),
-                  ),
-                ),
-              ),
-              if (glowColor != null && !light)
-                Positioned(
-                  top: -46,
-                  left: -36,
-                  child: IgnorePointer(
-                    child: Container(
-                      width: 150,
-                      height: 150,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: RadialGradient(
-                          colors: [
-                            glowColor!.withValues(alpha: 0.12),
-                            Colors.transparent,
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              Padding(padding: padding, child: child),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              NexusColors.cardTop,
+              NexusColors.card,
             ],
           ),
+          border: Border.all(color: borderColor ?? NexusColors.hairline),
+          boxShadow: [
+            BoxShadow(
+              color: light
+                  ? Colors.black.withValues(alpha: 0.04)
+                  : (glowColor ?? Colors.black).withValues(alpha: glowColor == null ? 0.22 : 0.18),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
         ),
-      ),
+        child: SizedBox(
+          height: height,
+          child: Padding(padding: padding, child: child),
+        ),
       ),
     );
   }

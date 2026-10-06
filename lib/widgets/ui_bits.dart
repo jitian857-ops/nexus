@@ -56,26 +56,13 @@ class GradientTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RepaintBoundary(
-      child: ShaderMask(
-      shaderCallback: (rect) {
-        return LinearGradient(
-          colors: [
-            NexusColors.cyan,
-            NexusColors.periwinkle,
-            NexusColors.purple,
-          ],
-        ).createShader(rect);
-      },
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: size,
-          fontWeight: FontWeight.w800,
-          color: Colors.white,
-          letterSpacing: 1.8,
-        ),
-      ),
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: size,
+        fontWeight: FontWeight.w800,
+        color: NexusColors.cyan,
+        letterSpacing: 1.8,
       ),
     );
   }

@@ -32,11 +32,13 @@ class SettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final store = AppScope.of(context);
-    final cloud = CloudScope.of(context);
-    final s = store.settings;
+    return StoreView(
+      visibleOnly: false,
+      builder: (context, store) {
+        final cloud = CloudScope.of(context);
+        final s = store.settings;
 
-    return Scaffold(
+        return Scaffold(
       backgroundColor: NexusColors.background,
       body: PageScaffold(
         child: Column(
@@ -354,6 +356,8 @@ class SettingsScreen extends StatelessWidget {
           ],
         ),
       ),
+    );
+      },
     );
   }
 
