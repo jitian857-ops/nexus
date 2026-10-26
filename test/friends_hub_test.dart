@@ -207,18 +207,21 @@ void main() {
       occupation: '',
     );
     final circle = await cloud.createCircle(name: '大学の友だち', memberIds: const []);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final deadline = DateTime(today.year, today.month, today.day + 3);
     final poll = await cloud.createPoll(
       circleId: circle.id,
       title: 'いつ集まる？',
       options: const ['土曜', '日曜', '祝日'],
-      deadline: DateTime(2026, 9, 20),
+      deadline: deadline,
     );
     expect(poll.options, hasLength(3));
-    expect(poll.remainingDays(DateTime(2026, 9, 17)), 3);
-    expect(poll.remainingLabel(DateTime(2026, 9, 17)), 'あと3日');
-    expect(poll.stage(DateTime(2026, 9, 20)), PollStage.voting);
-    expect(poll.stage(DateTime(2026, 9, 21)), PollStage.results);
-    expect(poll.stage(DateTime(2026, 9, 28)), PollStage.archived);
+    expect(poll.remainingDays(today), 3);
+    expect(poll.remainingLabel(today), 'あと3日');
+    expect(poll.stage(deadline), PollStage.voting);
+    expect(poll.stage(DateTime(deadline.year, deadline.month, deadline.day + 1)), PollStage.results);
+    expect(poll.stage(DateTime(deadline.year, deadline.month, deadline.day + 8)), PollStage.archived);
     await cloud.votePoll(poll.id, 1);
     expect(
       (await cloud.listPolls(circle.id)).firstWhere((item) => item.title == 'いつ集まる？').counts,
@@ -228,7 +231,7 @@ void main() {
       circleId: circle.id,
       title: '終わった',
       options: const ['A', 'B'],
-      deadline: DateTime(2026, 1, 1),
+      deadline: DateTime(today.year, today.month, today.day - 10),
     );
     expect(expired.stage(), PollStage.archived);
     expect(

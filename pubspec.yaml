@@ -34,3 +34,8 @@ flutter:
     - assets/branding/nexus_mark.png
     - assets/mascot/
     - assets/tutorial/
+    - assets/fonts/OFL.txt
+  fonts:
+    - family: NotoSansJP
+      fonts:
+        - asset: assets/fonts/NotoSansJP-Variable.ttf
