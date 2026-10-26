@@ -181,7 +181,10 @@ class AppStore extends ChangeNotifier {
   int unassignedSpentFor(DateTime day) {
     return cards.where((c) {
       if (c.kind != MoneyCardKind.spend) return false;
-      if (boxById(c.boxId) != null) return false;
+      final box = boxById(c.boxId);
+      // Savings spending has its own allocation path. A budget box only
+      // accounts for cards in its assigned month; other months are unassigned.
+      if (box != null && (box.isSavings || _boxInMonth(box, day))) return false;
       return c.at.year == day.year && c.at.month == day.month;
     }).fold<int>(0, (sum, c) => sum + c.amount);
   }
