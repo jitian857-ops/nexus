@@ -310,7 +310,7 @@ class FirebaseBackend implements CloudBackend {
       'displayName': displayName,
       'occupation': occupation,
       'updatedAt': FieldValue.serverTimestamp(),
-      if (photoUrl != null) 'photoUrl': photoUrl,
+      'photoUrl': ?photoUrl,
     };
     await _user(user.uid).set(data, SetOptions(merge: true));
     await _db.collection('profiles').doc(user.uid).set(
@@ -319,7 +319,7 @@ class FirebaseBackend implements CloudBackend {
         'displayName': displayName,
         'occupation': occupation,
         'updatedAt': FieldValue.serverTimestamp(),
-        if (photoUrl != null) 'photoUrl': photoUrl,
+        'photoUrl': ?photoUrl,
       },
       SetOptions(merge: true),
     );

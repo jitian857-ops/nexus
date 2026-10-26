@@ -1069,9 +1069,10 @@ class AppStore extends ChangeNotifier {
     _saveUserData();
   }
 
+  // newIndex is the final index after removal, as supplied by onReorderItem.
   void reorderSubjects(int oldIndex, int newIndex) {
     final vis = visibleSubjects;
-    if (newIndex > oldIndex) newIndex -= 1;
+
     if (oldIndex < 0 || oldIndex >= vis.length) return;
     if (newIndex < 0 || newIndex >= vis.length) return;
     final original = [...subjects];
@@ -1090,9 +1091,10 @@ class AppStore extends ChangeNotifier {
     _saveUserData();
   }
 
+  // newIndex is the final index after removal, as supplied by onReorderItem.
   void reorderBoxes(int oldIndex, int newIndex) {
     final vis = visibleBoxes;
-    if (newIndex > oldIndex) newIndex -= 1;
+
     if (oldIndex < 0 || oldIndex >= vis.length) return;
     if (newIndex < 0 || newIndex >= vis.length) return;
     final original = [...boxes];
@@ -1116,7 +1118,7 @@ class AppStore extends ChangeNotifier {
     final next = index + delta;
     if (index < 0 || index >= vis.length) return;
     if (next < 0 || next >= vis.length) return;
-    reorderSubjects(index, delta > 0 ? next + 1 : next);
+    reorderSubjects(index, next);
   }
 
   void shiftBox(int index, int delta) {

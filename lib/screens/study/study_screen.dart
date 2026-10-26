@@ -70,7 +70,7 @@ class StudyScreen extends StatelessWidget {
                 buildDefaultDragHandles: false,
                 padding: EdgeInsets.zero,
                 itemCount: store.visibleSubjects.length,
-                onReorder: store.reorderSubjects,
+                onReorderItem: store.reorderSubjects,
                 proxyDecorator: (child, index, animation) {
                   return AnimatedBuilder(
                     animation: animation,
@@ -1263,6 +1263,7 @@ Future<void> openStudySessionForm(BuildContext context, AppStore store, {StudySe
     return;
   }
   if (saved == false && existing != null) {
+    if (!context.mounted) return;
     final ok = await _confirmDelete(context, title: '学習を削除', body: 'この学習記録を削除します。');
     if (!ok || !context.mounted) return;
     store.deleteStudySession(existing.id);
