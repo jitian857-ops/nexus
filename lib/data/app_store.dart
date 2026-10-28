@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -358,14 +359,17 @@ class AppStore extends ChangeNotifier {
 
   List<List<double>> weekStackedHours([DateTime? week]) {
     final monday = weekMonday(week ?? studyWeek);
+    final series = weekChartSubjects(week);
     final key = (
       monday.millisecondsSinceEpoch,
       sessions.length,
       sessions.isEmpty ? '' : sessions.last.id,
       subjects.length,
+      // Each column must follow the current legend/color order, including
+      // archived subjects with historical sessions and the fallback series.
+      jsonEncode([for (final subject in series) subject.id]),
     );
     if (_stackedHoursKey == key && _stackedHoursCache != null) return _stackedHoursCache!;
-    final series = weekChartSubjects(week);
     if (series.isEmpty) {
       _stackedHoursKey = key;
       _stackedHoursCache = const [];
