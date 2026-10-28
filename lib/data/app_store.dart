@@ -591,9 +591,12 @@ class AppStore extends ChangeNotifier {
   }
 
   void deleteSchedule(String id) {
+    final before = schedules.length;
     schedules.removeWhere((s) => s.id == id);
+    if (schedules.length == before) return;
     lastToast = '予定を削除しました';
     notifyListeners();
+    _saveUserData();
   }
 
   void toggleHabit(String habitId, DateTime day) {
