@@ -442,6 +442,9 @@ class AppStore extends ChangeNotifier {
   }
 
   void _syncStudyTotals() {
+    // Edits can keep the same session count and IDs while changing chart data.
+    _dayHoursKey = null;
+    _stackedHoursKey = null;
     totalStudyHours = sessions.fold<int>(0, (a, s) => a + s.minutes) / 60.0;
     _refreshWeekBars();
   }

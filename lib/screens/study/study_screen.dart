@@ -45,7 +45,7 @@ class StudyScreen extends StatelessWidget {
             style: TextStyle(color: NexusColors.textSecondary, fontSize: 13),
           ),
           const SizedBox(height: 14),
-          const _TotalStudyCard(),
+          _TotalStudyCard(),
           const SizedBox(height: 12),
           SectionRow(
             title: '科目別・今週の勉強時間',
