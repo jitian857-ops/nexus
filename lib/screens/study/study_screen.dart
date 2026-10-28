@@ -88,36 +88,41 @@ class StudyScreen extends StatelessWidget {
                       child: Stack(
                         children: [
                           Positioned.fill(
-                            child: ReorderableTapDragListener(
-                              index: i,
-                              enabled: store.visibleSubjects.length > 1,
+                            child: Semantics(
+                              container: true,
+                              button: true,
                               onTap: () => openSubjectWeek(context, store, s.id),
-                              child: GlassCard(
-                                borderColor: s.color.withValues(alpha: 0.35),
-                                glowColor: s.color,
-                                padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Container(
-                                      width: 30,
-                                      height: 30,
-                                      alignment: Alignment.center,
-                                      decoration: BoxDecoration(
-                                        color: s.color.withValues(alpha: 0.14),
-                                        borderRadius: BorderRadius.circular(9),
+                              child: ReorderableTapDragListener(
+                                index: i,
+                                enabled: store.visibleSubjects.length > 1,
+                                onTap: () => openSubjectWeek(context, store, s.id),
+                                child: GlassCard(
+                                  borderColor: s.color.withValues(alpha: 0.35),
+                                  glowColor: s.color,
+                                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Container(
+                                        width: 30,
+                                        height: 30,
+                                        alignment: Alignment.center,
+                                        decoration: BoxDecoration(
+                                          color: s.color.withValues(alpha: 0.14),
+                                          borderRadius: BorderRadius.circular(9),
+                                        ),
+                                        child: Icon(s.icon, color: s.color, size: 17),
                                       ),
-                                      child: Icon(s.icon, color: s.color, size: 17),
-                                    ),
-                                    const Spacer(),
-                                    Text(s.name, style: const TextStyle(fontWeight: FontWeight.w700)),
-                                    Text(
-                                      formatStudyHours(s.weekHours),
-                                      style: TextStyle(color: s.color, fontWeight: FontWeight.w700),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    _WeekDots(hours: hours, color: s.color),
-                                  ],
+                                      const Spacer(),
+                                      Text(s.name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                                      Text(
+                                        formatStudyHours(s.weekHours),
+                                        style: TextStyle(color: s.color, fontWeight: FontWeight.w700),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      _WeekDots(hours: hours, color: s.color),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
@@ -125,13 +130,18 @@ class StudyScreen extends StatelessWidget {
                           Positioned(
                             top: 4,
                             right: 4,
-                            child: _TinyDelete(
-                              onTap: () async {
-                                final ok = await _confirmDelete(context, title: '教科を削除', body: '「${s.name}」を削除します。');
-                                if (!ok || !context.mounted) return;
-                                store.deleteSubject(s.id);
-                                showNexusToast(context, store.lastToast);
-                              },
+                            child: Semantics(
+                              container: true,
+                              button: true,
+                              label: '${s.name}を削除',
+                              child: _TinyDelete(
+                                onTap: () async {
+                                  final ok = await _confirmDelete(context, title: '教科を削除', body: '「${s.name}」を削除します。');
+                                  if (!ok || !context.mounted) return;
+                                  store.deleteSubject(s.id);
+                                  showNexusToast(context, store.lastToast);
+                                },
+                              ),
                             ),
                           ),
                         ],
