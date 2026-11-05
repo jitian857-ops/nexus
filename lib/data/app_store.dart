@@ -64,6 +64,15 @@ class AppStore extends ChangeNotifier {
   String? dataUid;
   NexusCloud? _cloud;
   Timer? _cloudPush;
+  final Map<String, Future<bool>> _deviceSaveTails = {};
+  final Map<String, Future<bool>> _liveSaveTails = {};
+  int _saveRevision = 0;
+  bool _disposed = false;
+  bool _hasUnsavedChanges = false;
+  bool get hasUnsavedChanges => _hasUnsavedChanges;
+  bool _saveFailed = false;
+  bool get saveFailed => _saveFailed;
+
 
   int income = 0;
   double weekStudyHours = 0;
@@ -109,7 +118,10 @@ class AppStore extends ChangeNotifier {
 
   UserSettings settings = const UserSettings();
   AiProposal? proposal;
-  String lastToast = '';
+  String _lastToast = '';
+  String get lastToast => hasUnsavedChanges && _lastToast.isNotEmpty
+      ? '$_lastToast（未保存）' : _lastToast;
+  set lastToast(String value) => _lastToast = value;
 
   SleepLog? sleepLogOn(DateTime day) {
     final key = dateKey(day);
@@ -1532,6 +1544,8 @@ class AppStore extends ChangeNotifier {
     final started = cloud.identity;
     _cloudPush?.cancel();
     _cloudPush = null;
+    _hasUnsavedChanges = false;
+    _saveFailed = false;
     _resetUserState();
     _cloud = cloud;
     _session = started;
@@ -1551,9 +1565,7 @@ class AppStore extends ChangeNotifier {
       if (token != _attachToken || !_session.sameAs(started)) return;
       if (remote != null && _isRemoteNewer(remote, loaded.data)) {
         _applyOwnedMap(remote, started.uid);
-      } else if (loaded.hasData) {
-        await cloud.pushLive(toCloudMap());
-      } else if (remote != null) {
+      } else if (!loaded.hasData && remote != null) {
         _applyOwnedMap(remote, started.uid);
       }
     } catch (_) {
@@ -1579,6 +1591,8 @@ class AppStore extends ChangeNotifier {
     _cloud = null;
     dataUid = null;
     _session = SessionIdentity.none;
+    _hasUnsavedChanges = false;
+    _saveFailed = false;
     _canSave = false;
     _resetUserState();
     notifyListeners();
@@ -1819,6 +1833,8 @@ class AppStore extends ChangeNotifier {
     if (!_canSave) return;
     final started = _session;
     if (!started.isBound) return;
+    _hasUnsavedChanges = true;
+    _saveRevision++;
     _cloudPush?.cancel();
     _cloudPush = Timer(const Duration(milliseconds: 400), () {
       if (!_isCurrent(started) || !_canSave) return;
@@ -1835,14 +1851,46 @@ class AppStore extends ChangeNotifier {
     _writeUserData(started, pushCloud: pushCloud);
   }
 
-  void _writeUserData(SessionIdentity started, {bool pushCloud = true}) {
-    final destUid = started.uid;
-    final bundle = toCloudMap();
-    NexusPrefs.saveBundle(destUid, bundle);
-    if (pushCloud) _cloud?.pushLive(bundle);
+  Future<void> retrySave() {
+    if (!_canSave || !_session.isBound || _disposed) return Future<void>.value();
+    _cloudPush?.cancel();
+    _cloudPush = null;
+    return _writeUserData(_session);
+  }
+
+  Future<void> _writeUserData(SessionIdentity started, {bool pushCloud = true}) {
+    final token = _attachToken;
+    final revision = _saveRevision;
+    final cloud = _cloud;
+    // Keep ordering per destination AND owner, including across reattachment.
+    // A stalled previous owner must not hold up the current owner.
+    final bundle = jsonDecode(jsonEncode(toCloudMap())) as Map<String, dynamic>;
+    _hasUnsavedChanges = true;
+    final deviceWrite = _deviceSaveTails[started.uid] =
+        (_deviceSaveTails[started.uid] ?? Future<bool>.value(true)).then(
+          (_) => NexusPrefs.saveBundle(started.uid, bundle),
+        );
+    final liveWrite = pushCloud && cloud != null
+        ? _liveSaveTails[started.uid] =
+            (_liveSaveTails[started.uid] ?? Future<bool>.value(true)).then(
+              (_) => cloud.pushLive(bundle),
+            )
+        : Future<bool>.value(true);
+    return Future.wait([deviceWrite, liveWrite]).then((results) {
+      if (_disposed || token != _attachToken || !_isCurrent(started) ||
+          revision != _saveRevision) {
+        return;
+      }
+      _saveFailed = results.any((ok) => !ok);
+      _hasUnsavedChanges = saveFailed;
+      if (!saveFailed) _lastToast = '変更を保存しました';
+      if (saveFailed) lastToast = '変更を保存できませんでした。再試行してください';
+      notifyListeners();
+    });
   }
 
   void _resetUserState() {
+    _lastToast = '';
     subjects.clear();
     sessions.clear();
     exams.clear();
@@ -1992,6 +2040,7 @@ class AppStore extends ChangeNotifier {
   @override
   void dispose() {
     _flushUserData();
+    _disposed = true;
     _cloudPush?.cancel();
     super.dispose();
   }

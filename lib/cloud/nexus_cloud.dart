@@ -357,18 +357,21 @@ class NexusCloud extends ChangeNotifier {
     return backend.pullLive(started.uid);
   }
 
-  Future<void> pushLive(Map<String, dynamic> bundle) async {
+  Future<bool> pushLive(Map<String, dynamic> bundle) async {
     final started = identity;
-    if (!started.isBound) return;
+    if (!started.isBound) return false;
     final bundleUid = bundle['uid'] as String?;
-    if (bundleUid != null && bundleUid.isNotEmpty && bundleUid != started.uid) return;
+    if (bundleUid != null && bundleUid.isNotEmpty && bundleUid != started.uid) return false;
     final destUid = started.uid;
     final backend = _backend;
     final stall = debugStallPush;
-    if (stall != null) await stall();
     try {
+      if (stall != null) await stall();
       await backend.pushLive(destUid, bundle);
-    } catch (_) {}
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> sealVault(String reason, Map<String, dynamic> bundle) async {
