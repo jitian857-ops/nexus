@@ -35,6 +35,128 @@ class RejectingPreferences extends InMemorySharedPreferencesStore {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  for (final destination in ['live', 'device']) {
+    test('stalled $destination of old UID does not block new UID', () async {
+      final previous = SharedPreferencesStorePlatform.instance;
+      final platform = RejectingPreferences();
+      SharedPreferencesStorePlatform.instance = platform;
+      SharedPreferences.resetStatic();
+      final old = NexusCloud();
+      await old.enterGuestSession();
+      final next = NexusCloud();
+      await next.signUp(
+        email: 'independent@example.test',
+        password: 'secret123',
+        displayName: 'Next',
+        occupation: '',
+      );
+      await next.confirmVerification();
+      final store = AppStore.seed();
+      await store.attachCloud(old);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      final gate = Completer<void>();
+      final started = Completer<void>();
+      if (destination == 'live') {
+        old.debugStallPush = () {
+          if (!started.isCompleted) started.complete();
+          return gate.future;
+        };
+      } else {
+        platform.gate = gate;
+        platform.started = started;
+      }
+      addTearDown(() async {
+        if (!gate.isCompleted) gate.complete();
+        old.debugStallPush = null;
+        store.dispose();
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        old.dispose();
+        next.dispose();
+        SharedPreferencesStorePlatform.instance = previous;
+        SharedPreferences.resetStatic();
+      });
+      store.addSubject(name: 'old pending');
+      await started.future;
+      await store.attachCloud(next);
+      store.addSubject(name: 'new account update');
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      // The old UID remains blocked throughout these assertions.
+      final disk = await platform.getAll();
+      expect(disk['flutter.nexus_user_data_v2_${next.uid}'], isNotNull);
+      final device = jsonDecode(
+        disk['flutter.nexus_user_data_v2_${next.uid}'] as String,
+      );
+      expect((device['subjects'] as List).single['name'], 'new account update');
+      final newLive = await next.pullLive();
+      expect(newLive, isNotNull);
+      expect(
+        (newLive!['subjects'] as List).single['name'],
+        'new account update',
+      );
+      expect(store.hasUnsavedChanges, false);
+      await store.retrySave().timeout(const Duration(seconds: 1));
+      expect(store.saveFailed, false);
+    });
+    test(
+      'same UID reattach retains $destination ordering without waiting to attach',
+      () async {
+        final previous = SharedPreferencesStorePlatform.instance;
+        final platform = RejectingPreferences();
+        SharedPreferencesStorePlatform.instance = platform;
+        SharedPreferences.resetStatic();
+        final cloud = NexusCloud();
+        await cloud.enterGuestSession();
+        final store = AppStore.seed();
+        await store.attachCloud(cloud);
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        final gate = Completer<void>();
+        final started = Completer<void>();
+        if (destination == 'live') {
+          cloud.debugStallPush = () {
+            if (!started.isCompleted) started.complete();
+            return gate.future;
+          };
+        } else {
+          platform.gate = gate;
+          platform.started = started;
+        }
+        addTearDown(() async {
+          if (!gate.isCompleted) gate.complete();
+          cloud.debugStallPush = null;
+          store.dispose();
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+          cloud.dispose();
+          SharedPreferencesStorePlatform.instance = previous;
+          SharedPreferences.resetStatic();
+        });
+        store.addSubject(name: 'before reattach');
+        await started.future;
+        await store.attachCloud(cloud).timeout(const Duration(seconds: 1));
+        store.addSubject(name: 'after reattach');
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+        expect(store.hasUnsavedChanges, true);
+        gate.complete();
+        cloud.debugStallPush = null;
+        await store.retrySave();
+        final disk = await platform.getAll();
+        final device = jsonDecode(
+          disk['flutter.nexus_user_data_v2_guest'] as String,
+        );
+        final live = jsonDecode(
+          disk['flutter.nexus_cloud_v1'] as String,
+        )['live']['guest'];
+        expect((device['subjects'] as List).map((x) => x['name']), [
+          'before reattach',
+          'after reattach',
+        ]);
+        expect((live['subjects'] as List).map((x) => x['name']), [
+          'before reattach',
+          'after reattach',
+        ]);
+        expect(store.hasUnsavedChanges, false);
+      },
+    );
+  }
   test('stalled live backup does not block newer device saves', () async {
     final previous = SharedPreferencesStorePlatform.instance;
     final platform = RejectingPreferences();

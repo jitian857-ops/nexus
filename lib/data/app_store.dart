@@ -64,8 +64,8 @@ class AppStore extends ChangeNotifier {
   String? dataUid;
   NexusCloud? _cloud;
   Timer? _cloudPush;
-  Future<bool> _deviceSaveTail = Future<bool>.value(true);
-  Future<bool> _liveSaveTail = Future<bool>.value(true);
+  final Map<String, Future<bool>> _deviceSaveTails = {};
+  final Map<String, Future<bool>> _liveSaveTails = {};
   int _saveRevision = 0;
   bool _disposed = false;
   bool _hasUnsavedChanges = false;
@@ -1565,9 +1565,7 @@ class AppStore extends ChangeNotifier {
       if (token != _attachToken || !_session.sameAs(started)) return;
       if (remote != null && _isRemoteNewer(remote, loaded.data)) {
         _applyOwnedMap(remote, started.uid);
-      } else if (loaded.hasData) {
-        await cloud.pushLive(toCloudMap());
-      } else if (remote != null) {
+      } else if (!loaded.hasData && remote != null) {
         _applyOwnedMap(remote, started.uid);
       }
     } catch (_) {
@@ -1864,15 +1862,19 @@ class AppStore extends ChangeNotifier {
     final token = _attachToken;
     final revision = _saveRevision;
     final cloud = _cloud;
-    // Serialize each destination separately: an older write must never win,
-    // and a stalled network backup must not block device persistence.
+    // Keep ordering per destination AND owner, including across reattachment.
+    // A stalled previous owner must not hold up the current owner.
     final bundle = jsonDecode(jsonEncode(toCloudMap())) as Map<String, dynamic>;
     _hasUnsavedChanges = true;
-    final deviceWrite = _deviceSaveTail = _deviceSaveTail.then(
-      (_) => NexusPrefs.saveBundle(started.uid, bundle),
-    );
+    final deviceWrite = _deviceSaveTails[started.uid] =
+        (_deviceSaveTails[started.uid] ?? Future<bool>.value(true)).then(
+          (_) => NexusPrefs.saveBundle(started.uid, bundle),
+        );
     final liveWrite = pushCloud && cloud != null
-        ? _liveSaveTail = _liveSaveTail.then((_) => cloud.pushLive(bundle))
+        ? _liveSaveTails[started.uid] =
+            (_liveSaveTails[started.uid] ?? Future<bool>.value(true)).then(
+              (_) => cloud.pushLive(bundle),
+            )
         : Future<bool>.value(true);
     return Future.wait([deviceWrite, liveWrite]).then((results) {
       if (_disposed || token != _attachToken || !_isCurrent(started) ||
