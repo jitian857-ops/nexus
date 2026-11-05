@@ -33,18 +33,18 @@ class NexusPrefs {
     return '${legacyKey}_$uid';
   }
 
-  static Future<void> saveBundle(String? uid, Map<String, dynamic> bundle) async {
-    if (uid == null || uid.isEmpty) return;
-    if (debugSave != null) {
-      await debugSave!(uid, bundle);
-      return;
-    }
-    final key = keyFor(uid);
-    if (key == null) return;
+  static Future<bool> saveBundle(String? uid, Map<String, dynamic> bundle) async {
+    if (uid == null || uid.isEmpty) return false;
     try {
+      if (debugSave != null) {
+        await debugSave!(uid, bundle);
+        return true;
+      }
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(key, jsonEncode(bundle));
-    } catch (_) {}
+      return await prefs.setString(keyFor(uid)!, jsonEncode(bundle));
+    } catch (_) {
+      return false;
+    }
   }
 
   static Future<PrefsLoadResult> loadBundle(String? uid) async {

@@ -61,7 +61,9 @@ class LocalBackend implements CloudBackend {
 
   Future<void> _persist() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_key, jsonEncode(_root));
+    if (!await prefs.setString(_key, jsonEncode(_root))) {
+      throw StateError('Local storage rejected the write');
+    }
   }
 
   CloudSession? _sessionFromUid(String uid) {
