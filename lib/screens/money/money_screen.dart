@@ -63,7 +63,7 @@ class _MoneyScreenState extends State<MoneyScreen> {
               buildDefaultDragHandles: false,
               padding: EdgeInsets.zero,
               itemCount: store.visibleBoxes.length,
-              onReorder: store.reorderBoxes,
+              onReorderItem: store.reorderBoxes,
               proxyDecorator: (child, index, animation) {
                 return AnimatedBuilder(
                   animation: animation,
