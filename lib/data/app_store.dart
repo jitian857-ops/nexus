@@ -938,6 +938,14 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setAssignmentDone(String id, bool done) {
+    final index = assignments.indexWhere((assignment) => assignment.id == id);
+    if (index < 0 || assignments[index].done == done) return;
+    assignments[index] = assignments[index].withDone(done);
+    _saveUserData();
+    notifyListeners();
+  }
+
   void addExam({
     required String title,
     required DateTime examAt,

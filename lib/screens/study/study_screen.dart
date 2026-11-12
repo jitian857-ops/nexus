@@ -560,6 +560,13 @@ class _AssignmentRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
+          Checkbox(
+            value: assignment.done,
+            semanticLabel: '${assignment.title}の完了',
+            onChanged: (value) {
+              if (value != null) store.setAssignmentDone(assignment.id, value);
+            },
+          ),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -576,7 +583,7 @@ class _AssignmentRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                daysLeftLabel(assignment.dueAt, today),
+                assignment.done ? '完了' : daysLeftLabel(assignment.dueAt, today),
                 style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600),
               ),
               Text(
