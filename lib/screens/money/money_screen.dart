@@ -43,7 +43,7 @@ class _MoneyScreenState extends State<MoneyScreen> {
             ],
           ),
           const SizedBox(height: 14),
-          const _MoneyBalanceCard(),
+          _MoneyBalanceCard(store: store),
           const SizedBox(height: 14),
           const SectionRow(title: 'ボックス'),
           const SizedBox(height: 8),
@@ -63,7 +63,7 @@ class _MoneyScreenState extends State<MoneyScreen> {
               buildDefaultDragHandles: false,
               padding: EdgeInsets.zero,
               itemCount: store.visibleBoxes.length,
-              onReorder: store.reorderBoxes,
+              onReorderItem: store.reorderBoxes,
               proxyDecorator: (child, index, animation) {
                 return AnimatedBuilder(
                   animation: animation,
@@ -278,11 +278,12 @@ Future<bool> _confirm(BuildContext context, {required String title, required Str
 }
 
 class _MoneyBalanceCard extends StatelessWidget {
-  const _MoneyBalanceCard();
+  const _MoneyBalanceCard({required this.store});
+
+  final AppStore store;
 
   @override
   Widget build(BuildContext context) {
-    final store = AppScope.of(context);
     return GlassCard(
       glowColor: NexusColors.gold,
       borderColor: NexusColors.gold.withValues(alpha: 0.28),

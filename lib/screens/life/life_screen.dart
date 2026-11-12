@@ -397,6 +397,7 @@ Future<void> _openHabitForm(BuildContext context, AppStore store, {Habit? existi
     Icons.self_improvement_rounded,
   ];
   final saved = await showNexusSheet<Object>(
+    waitForExitTransition: true,
     context: context,
     builder: (context) {
       return StatefulBuilder(

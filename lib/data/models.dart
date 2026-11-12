@@ -409,6 +409,14 @@ class Assignment {
   final DateTime dueAt;
   final bool done;
 
+  Assignment withDone(bool value) => Assignment(
+    id: id,
+    subjectId: subjectId,
+    title: title,
+    dueAt: dueAt,
+    done: value,
+  );
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'subjectId': subjectId,

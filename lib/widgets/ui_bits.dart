@@ -174,8 +174,11 @@ Future<T?> showNexusSheet<T>({
   required BuildContext context,
   required WidgetBuilder builder,
   bool useRootNavigator = false,
+  // Some callers dispose text controllers as soon as the sheet returns.
+  bool waitForExitTransition = false,
 }) {
-  return showModalBottomSheet<T>(
+  Future<T?>? exitTransition;
+  final popped = showModalBottomSheet<T>(
     context: context,
     isScrollControlled: true,
     isDismissible: true,
@@ -189,6 +192,9 @@ Future<T?> showNexusSheet<T>({
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
     builder: (sheetContext) {
+      if (waitForExitTransition) {
+        exitTransition ??= ModalRoute.of<T>(sheetContext)?.completed;
+      }
       final media = MediaQuery.of(sheetContext);
       final maxBody = (media.size.height * 0.82 - media.viewInsets.bottom).clamp(160.0, 720.0);
       return Padding(
@@ -220,6 +226,11 @@ Future<T?> showNexusSheet<T>({
       );
     },
   );
+  if (!waitForExitTransition) return popped;
+  return popped.then((result) async {
+    await exitTransition;
+    return result;
+  });
 }
 
 Future<bool> confirmLogout(BuildContext context) async {

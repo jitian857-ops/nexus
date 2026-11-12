@@ -5,6 +5,7 @@ import '../app/theme.dart';
 import '../cloud/cloud_models.dart';
 import '../cloud/nexus_cloud.dart';
 import '../data/app_store.dart';
+import '../widgets/save_status_banner.dart';
 import '../screens/auth/auth_gate.dart';
 
 class NexusApp extends StatefulWidget {
@@ -118,7 +119,14 @@ class _ThemedMaterialAppState extends State<_ThemedMaterialApp> {
       debugShowCheckedModeBanner: false,
       theme: NexusTheme.of(palette),
       builder: (context, child) {
-        return PhoneScope(child: child ?? const SizedBox.shrink());
+        return PhoneScope(
+          child: Column(
+            children: [
+              SaveStatusBanner(store: widget.store),
+              Expanded(child: child ?? const SizedBox.shrink()),
+            ],
+          ),
+        );
       },
       home: const AuthGate(),
     );
