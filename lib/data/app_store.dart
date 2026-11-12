@@ -934,6 +934,7 @@ class AppStore extends ChangeNotifier {
     );
     assignments.sort((a, b) => a.dueAt.compareTo(b.dueAt));
     lastToast = '提出物を追加しました';
+    _saveUserData();
     notifyListeners();
   }
 

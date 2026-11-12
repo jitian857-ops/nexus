@@ -19,6 +19,7 @@ Future<void> openIncomeForm(BuildContext context, AppStore store, {IncomeEntry? 
   var useYear = existing?.useYear ?? store.moneyMonth.year;
   var useMonth = existing?.useMonth ?? store.moneyMonth.month;
   final saved = await showNexusSheet<bool>(
+    waitForExitTransition: true,
     context: context,
     builder: (context) {
       return StatefulBuilder(

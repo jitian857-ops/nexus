@@ -1290,6 +1290,7 @@ Future<void> _addAssignment(BuildContext context, AppStore store) async {
   var subjectId = store.visibleSubjects.first.id;
   var due = store.focusedDate.add(const Duration(days: 3));
   final saved = await showNexusSheet<bool>(
+    waitForExitTransition: true,
     context: context,
     builder: (context) {
       return StatefulBuilder(
