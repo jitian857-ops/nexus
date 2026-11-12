@@ -881,7 +881,7 @@ Future<StudySubject?> promptNewSubject(
   AppStore store, {
   StudySubject? existing,
 }) async {
-  final name = TextEditingController(text: existing?.name ?? '');
+  var name = existing?.name ?? '';
   var icon = existing?.icon ?? kStudyIcons.first;
   var color = existing?.color ?? NexusColors.boxPalette.first;
   final saved = await showNexusSheet<bool>(
@@ -899,8 +899,9 @@ Future<StudySubject?> promptNewSubject(
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 12),
-              TextField(
-                controller: name,
+              TextFormField(
+                initialValue: existing?.name ?? '',
+                onChanged: (value) => name = value,
                 autofocus: existing == null,
                 style: TextStyle(color: NexusColors.text),
                 decoration: const InputDecoration(labelText: '教科名'),
@@ -925,8 +926,7 @@ Future<StudySubject?> promptNewSubject(
       );
     },
   );
-  final text = name.text.trim();
-  name.dispose();
+  final text = name.trim();
   if (saved != true || text.isEmpty) return null;
   if (existing == null) {
     final subject = store.addSubject(name: text, icon: icon, color: color);
