@@ -258,6 +258,7 @@ class LifeScreen extends StatelessWidget {
     if (!context.mounted) return;
     final saved = await showNexusSheet<bool>(
       context: context,
+      waitForExitTransition: true,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setSheet) {
