@@ -455,6 +455,7 @@ Future<void> openAddCard(BuildContext context, AppStore store, {String? boxId}) 
   var fromBalance = false;
   final saved = await showNexusSheet<bool>(
     context: context,
+    waitForExitTransition: true,
     builder: (context) {
       return StatefulBuilder(
         builder: (context, setSheet) {
