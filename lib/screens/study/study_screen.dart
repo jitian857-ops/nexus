@@ -1564,6 +1564,7 @@ Future<void> _recordProblem(BuildContext context, AppStore store) async {
   var subjectId = store.visibleSubjects.first.id;
   final saved = await showNexusSheet<bool>(
     context: context,
+    waitForExitTransition: true,
     builder: (context) {
       return StatefulBuilder(
         builder: (context, setSheet) {

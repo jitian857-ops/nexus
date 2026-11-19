@@ -24,6 +24,7 @@ dependencies:
   speech_to_text: ^7.3.0
 
 dev_dependencies:
+  image_picker_platform_interface: ^2.11.1
   shared_preferences_platform_interface: ^2.4.2
   flutter_test:
     sdk: flutter

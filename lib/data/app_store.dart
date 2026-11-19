@@ -1049,6 +1049,7 @@ class AppStore extends ChangeNotifier {
       ),
     );
     lastToast = '問題を記録し、1日後と5日後の復習カードを作りました';
+    _saveUserData();
     notifyListeners();
     return problem;
   }
