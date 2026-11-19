@@ -1359,6 +1359,7 @@ Future<void> _addExam(BuildContext context, AppStore store) async {
   var examAt = store.focusedDate.add(const Duration(days: 14));
   final saved = await showNexusSheet<bool>(
     context: context,
+    waitForExitTransition: true,
     builder: (context) {
       return StatefulBuilder(
         builder: (context, setSheet) {
@@ -1411,6 +1412,7 @@ Future<void> _addGoal(BuildContext context, AppStore store) async {
   var due = DateTime(store.focusedDate.year, store.focusedDate.month + 3, store.focusedDate.day);
   final saved = await showNexusSheet<bool>(
     context: context,
+    waitForExitTransition: true,
     builder: (context) {
       return StatefulBuilder(
         builder: (context, setSheet) {
