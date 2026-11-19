@@ -15,7 +15,6 @@ import 'package:nexus/screens/life/schedule_bulk_share_page.dart';
 import 'package:nexus/screens/study/focus_timer_page.dart';
 import 'package:nexus/screens/money/money_ledgers.dart';
 import 'package:nexus/screens/settings/app_customize_page.dart';
-import 'package:nexus/screens/settings/settings_screen.dart';
 import 'package:nexus/widgets/nexus_nav_bar.dart';
 import 'package:nexus/widgets/schedule_sheet.dart';
 

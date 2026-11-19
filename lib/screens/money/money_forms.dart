@@ -19,6 +19,7 @@ Future<void> openIncomeForm(BuildContext context, AppStore store, {IncomeEntry? 
   var useYear = existing?.useYear ?? store.moneyMonth.year;
   var useMonth = existing?.useMonth ?? store.moneyMonth.month;
   final saved = await showNexusSheet<bool>(
+    waitForExitTransition: true,
     context: context,
     builder: (context) {
       return StatefulBuilder(
@@ -196,6 +197,7 @@ Future<void> _openBudgetBoxForm(BuildContext context, AppStore store, {BudgetBox
   var tags = [...(existing?.tags ?? const ['その他'])];
   final saved = await showNexusSheet<bool>(
     context: context,
+    waitForExitTransition: true,
     builder: (context) {
       return StatefulBuilder(
         builder: (context, setSheet) {
@@ -312,6 +314,7 @@ Future<void> _openSavingsBoxForm(BuildContext context, AppStore store, {BudgetBo
   var tags = [...(existing?.tags ?? const ['積立', 'その他'])];
   final saved = await showNexusSheet<bool>(
     context: context,
+    waitForExitTransition: true,
     builder: (context) {
       return StatefulBuilder(
         builder: (context, setSheet) {
@@ -454,6 +457,7 @@ Future<void> openAddCard(BuildContext context, AppStore store, {String? boxId}) 
   var fromBalance = false;
   final saved = await showNexusSheet<bool>(
     context: context,
+    waitForExitTransition: true,
     builder: (context) {
       return StatefulBuilder(
         builder: (context, setSheet) {
@@ -615,6 +619,7 @@ Future<void> openEditCard(BuildContext context, AppStore store, MoneyCard card) 
   var kind = card.kind;
   final saved = await showNexusSheet<bool>(
     context: context,
+    waitForExitTransition: true,
     builder: (context) {
       return StatefulBuilder(
         builder: (context, setSheet) {
@@ -723,6 +728,7 @@ Future<String?> promptTagName(BuildContext context) async {
   final saved = await showNexusSheet<bool>(
     context: context,
     useRootNavigator: true,
+    waitForExitTransition: true,
     builder: (context) {
       return Column(
         mainAxisSize: MainAxisSize.min,
@@ -765,6 +771,7 @@ Future<void> openAddPayment(BuildContext context, AppStore store) async {
   var repeat = PaymentRepeat.none;
   final saved = await showNexusSheet<bool>(
     context: context,
+    waitForExitTransition: true,
     builder: (context) {
       return StatefulBuilder(
         builder: (context, setSheet) {

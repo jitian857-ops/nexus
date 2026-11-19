@@ -258,6 +258,7 @@ class LifeScreen extends StatelessWidget {
     if (!context.mounted) return;
     final saved = await showNexusSheet<bool>(
       context: context,
+      waitForExitTransition: true,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setSheet) {
@@ -397,6 +398,7 @@ Future<void> _openHabitForm(BuildContext context, AppStore store, {Habit? existi
     Icons.self_improvement_rounded,
   ];
   final saved = await showNexusSheet<Object>(
+    waitForExitTransition: true,
     context: context,
     builder: (context) {
       return StatefulBuilder(

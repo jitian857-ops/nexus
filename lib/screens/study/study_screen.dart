@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../app/theme.dart';
 import '../../core/format.dart';
+import '../../core/image_compress.dart';
 import '../../data/app_store.dart';
 import '../../data/models.dart';
 import '../../data/nexus_icons.dart';
@@ -45,7 +46,7 @@ class StudyScreen extends StatelessWidget {
             style: TextStyle(color: NexusColors.textSecondary, fontSize: 13),
           ),
           const SizedBox(height: 14),
-          const _TotalStudyCard(),
+          _TotalStudyCard(),
           const SizedBox(height: 12),
           SectionRow(
             title: '科目別・今週の勉強時間',
@@ -70,7 +71,7 @@ class StudyScreen extends StatelessWidget {
                 buildDefaultDragHandles: false,
                 padding: EdgeInsets.zero,
                 itemCount: store.visibleSubjects.length,
-                onReorder: store.reorderSubjects,
+                onReorderItem: store.reorderSubjects,
                 proxyDecorator: (child, index, animation) {
                   return AnimatedBuilder(
                     animation: animation,
@@ -88,36 +89,41 @@ class StudyScreen extends StatelessWidget {
                       child: Stack(
                         children: [
                           Positioned.fill(
-                            child: ReorderableTapDragListener(
-                              index: i,
-                              enabled: store.visibleSubjects.length > 1,
+                            child: Semantics(
+                              container: true,
+                              button: true,
                               onTap: () => openSubjectWeek(context, store, s.id),
-                              child: GlassCard(
-                                borderColor: s.color.withValues(alpha: 0.35),
-                                glowColor: s.color,
-                                padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Container(
-                                      width: 30,
-                                      height: 30,
-                                      alignment: Alignment.center,
-                                      decoration: BoxDecoration(
-                                        color: s.color.withValues(alpha: 0.14),
-                                        borderRadius: BorderRadius.circular(9),
+                              child: ReorderableTapDragListener(
+                                index: i,
+                                enabled: store.visibleSubjects.length > 1,
+                                onTap: () => openSubjectWeek(context, store, s.id),
+                                child: GlassCard(
+                                  borderColor: s.color.withValues(alpha: 0.35),
+                                  glowColor: s.color,
+                                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Container(
+                                        width: 30,
+                                        height: 30,
+                                        alignment: Alignment.center,
+                                        decoration: BoxDecoration(
+                                          color: s.color.withValues(alpha: 0.14),
+                                          borderRadius: BorderRadius.circular(9),
+                                        ),
+                                        child: Icon(s.icon, color: s.color, size: 17),
                                       ),
-                                      child: Icon(s.icon, color: s.color, size: 17),
-                                    ),
-                                    const Spacer(),
-                                    Text(s.name, style: const TextStyle(fontWeight: FontWeight.w700)),
-                                    Text(
-                                      formatStudyHours(s.weekHours),
-                                      style: TextStyle(color: s.color, fontWeight: FontWeight.w700),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    _WeekDots(hours: hours, color: s.color),
-                                  ],
+                                      const Spacer(),
+                                      Text(s.name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                                      Text(
+                                        formatStudyHours(s.weekHours),
+                                        style: TextStyle(color: s.color, fontWeight: FontWeight.w700),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      _WeekDots(hours: hours, color: s.color),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
@@ -125,13 +131,18 @@ class StudyScreen extends StatelessWidget {
                           Positioned(
                             top: 4,
                             right: 4,
-                            child: _TinyDelete(
-                              onTap: () async {
-                                final ok = await _confirmDelete(context, title: '教科を削除', body: '「${s.name}」を削除します。');
-                                if (!ok || !context.mounted) return;
-                                store.deleteSubject(s.id);
-                                showNexusToast(context, store.lastToast);
-                              },
+                            child: Semantics(
+                              container: true,
+                              button: true,
+                              label: '${s.name}を削除',
+                              child: _TinyDelete(
+                                onTap: () async {
+                                  final ok = await _confirmDelete(context, title: '教科を削除', body: '「${s.name}」を削除します。');
+                                  if (!ok || !context.mounted) return;
+                                  store.deleteSubject(s.id);
+                                  showNexusToast(context, store.lastToast);
+                                },
+                              ),
                             ),
                           ),
                         ],
@@ -550,6 +561,13 @@ class _AssignmentRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
+          Checkbox(
+            value: assignment.done,
+            semanticLabel: '${assignment.title}の完了',
+            onChanged: (value) {
+              if (value != null) store.setAssignmentDone(assignment.id, value);
+            },
+          ),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -566,7 +584,7 @@ class _AssignmentRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                daysLeftLabel(assignment.dueAt, today),
+                assignment.done ? '完了' : daysLeftLabel(assignment.dueAt, today),
                 style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600),
               ),
               Text(
@@ -871,7 +889,7 @@ Future<StudySubject?> promptNewSubject(
   AppStore store, {
   StudySubject? existing,
 }) async {
-  final name = TextEditingController(text: existing?.name ?? '');
+  var name = existing?.name ?? '';
   var icon = existing?.icon ?? kStudyIcons.first;
   var color = existing?.color ?? NexusColors.boxPalette.first;
   final saved = await showNexusSheet<bool>(
@@ -889,8 +907,9 @@ Future<StudySubject?> promptNewSubject(
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 12),
-              TextField(
-                controller: name,
+              TextFormField(
+                initialValue: existing?.name ?? '',
+                onChanged: (value) => name = value,
                 autofocus: existing == null,
                 style: TextStyle(color: NexusColors.text),
                 decoration: const InputDecoration(labelText: '教科名'),
@@ -915,8 +934,7 @@ Future<StudySubject?> promptNewSubject(
       );
     },
   );
-  final text = name.text.trim();
-  name.dispose();
+  final text = name.trim();
   if (saved != true || text.isEmpty) return null;
   if (existing == null) {
     final subject = store.addSubject(name: text, icon: icon, color: color);
@@ -1263,6 +1281,7 @@ Future<void> openStudySessionForm(BuildContext context, AppStore store, {StudySe
     return;
   }
   if (saved == false && existing != null) {
+    if (!context.mounted) return;
     final ok = await _confirmDelete(context, title: '学習を削除', body: 'この学習記録を削除します。');
     if (!ok || !context.mounted) return;
     store.deleteStudySession(existing.id);
@@ -1279,6 +1298,7 @@ Future<void> _addAssignment(BuildContext context, AppStore store) async {
   var subjectId = store.visibleSubjects.first.id;
   var due = store.focusedDate.add(const Duration(days: 3));
   final saved = await showNexusSheet<bool>(
+    waitForExitTransition: true,
     context: context,
     builder: (context) {
       return StatefulBuilder(
@@ -1340,6 +1360,7 @@ Future<void> _addExam(BuildContext context, AppStore store) async {
   var examAt = store.focusedDate.add(const Duration(days: 14));
   final saved = await showNexusSheet<bool>(
     context: context,
+    waitForExitTransition: true,
     builder: (context) {
       return StatefulBuilder(
         builder: (context, setSheet) {
@@ -1392,6 +1413,7 @@ Future<void> _addGoal(BuildContext context, AppStore store) async {
   var due = DateTime(store.focusedDate.year, store.focusedDate.month + 3, store.focusedDate.day);
   final saved = await showNexusSheet<bool>(
     context: context,
+    waitForExitTransition: true,
     builder: (context) {
       return StatefulBuilder(
         builder: (context, setSheet) {
@@ -1527,8 +1549,23 @@ Future<Uint8List?> _takeProblemPhoto(BuildContext context) async {
 }
 
 Future<void> _recordProblem(BuildContext context, AppStore store) async {
-  final photo = await _takeProblemPhoto(context);
-  if (photo == null || !context.mounted) return;
+  final rawPhoto = await _takeProblemPhoto(context);
+  if (rawPhoto == null || !context.mounted) return;
+  Uint8List photo;
+  try {
+    photo = (await compressForFirestoreAsync(
+      rawPhoto,
+      byteLimit: ProblemRecord.maxPhotoBytes,
+    )).bytes;
+  } catch (_) {
+    if (context.mounted) showNexusToast(context, '写真を縮小できませんでした。別の写真を選んでください');
+    return;
+  }
+  if (!context.mounted) return;
+  if (photo.isEmpty || photo.length > ProblemRecord.maxPhotoBytes) {
+    showNexusToast(context, '写真を保存できるサイズに縮小できませんでした。別の写真を選んでください');
+    return;
+  }
 
   final title = TextEditingController();
   final answer = TextEditingController();
@@ -1543,6 +1580,7 @@ Future<void> _recordProblem(BuildContext context, AppStore store) async {
   var subjectId = store.visibleSubjects.first.id;
   final saved = await showNexusSheet<bool>(
     context: context,
+    waitForExitTransition: true,
     builder: (context) {
       return StatefulBuilder(
         builder: (context, setSheet) {

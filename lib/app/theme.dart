@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import '../data/models.dart';
 import 'motion.dart';
@@ -423,6 +422,7 @@ class NexusTheme {
     );
 
     final base = ThemeData(
+      fontFamily: 'NotoSansJP',
       useMaterial3: true,
       brightness: palette.brightness,
       colorScheme: scheme,
@@ -463,19 +463,11 @@ class NexusTheme {
       ),
     );
 
-    final textTheme = () {
-      try {
-        return GoogleFonts.notoSansJpTextTheme(base.textTheme).apply(
-          bodyColor: palette.textSecondary,
-          displayColor: palette.text,
-        );
-      } catch (_) {
-        return base.textTheme.apply(
-          bodyColor: palette.textSecondary,
-          displayColor: palette.text,
-        );
-      }
-    }();
+    // Bundle Japanese glyphs so Web rendering does not depend on external fonts.
+    final textTheme = base.textTheme.apply(
+      bodyColor: palette.textSecondary,
+      displayColor: palette.text,
+    );
 
     return base.copyWith(
       textTheme: textTheme,
