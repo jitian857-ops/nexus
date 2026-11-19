@@ -342,7 +342,9 @@ class _MoneyBalanceBody extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        Row(
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
           children: [
             _BalanceStatChip(
               icon: Icons.arrow_upward_rounded,
@@ -350,7 +352,6 @@ class _MoneyBalanceBody extends StatelessWidget {
               color: NexusColors.income,
               onTap: () => openIncomeLedger(context),
             ),
-            const SizedBox(width: 8),
             _BalanceStatChip(
               icon: Icons.arrow_downward_rounded,
               label: '支出 ${yen(-money.expense)}',
