@@ -617,6 +617,7 @@ Future<void> openEditCard(BuildContext context, AppStore store, MoneyCard card) 
   var kind = card.kind;
   final saved = await showNexusSheet<bool>(
     context: context,
+    waitForExitTransition: true,
     builder: (context) {
       return StatefulBuilder(
         builder: (context, setSheet) {
