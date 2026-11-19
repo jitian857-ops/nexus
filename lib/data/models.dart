@@ -505,6 +505,7 @@ class LearningEntry {
 }
 
 class ProblemRecord {
+  static const maxPhotoBytes = 180000;
   const ProblemRecord({
     required this.id,
     required this.subjectId,
@@ -527,7 +528,7 @@ class ProblemRecord {
         'title': title,
         'learnedAt': learnedAt.toIso8601String(),
         'answer': answer,
-        if (photoBytes != null && photoBytes!.length <= 180000) 'photo': base64Encode(photoBytes!),
+        if (photoBytes != null && photoBytes!.length <= maxPhotoBytes) 'photo': base64Encode(photoBytes!),
       };
 
   factory ProblemRecord.fromJson(Map<String, dynamic> json) {

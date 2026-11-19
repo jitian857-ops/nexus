@@ -16,9 +16,10 @@ CompressedImage compressForFirestore(
   List<int> raw, {
   bool avatar = false,
   String mime = 'image/jpeg',
+  int? byteLimit,
 }) {
   final maxSide = avatar ? 320 : 960;
-  final maxBytes = avatar ? 80 * 1024 : 220 * 1024;
+  final maxBytes = byteLimit ?? (avatar ? 80 * 1024 : 220 * 1024);
   final source = Uint8List.fromList(raw);
   if (source.isEmpty) return CompressedImage(bytes: source, mime: mime);
   if (source.length <= maxBytes) {
@@ -52,20 +53,31 @@ Future<CompressedImage> compressForFirestoreAsync(
   List<int> raw, {
   bool avatar = false,
   String mime = 'image/jpeg',
+  int? byteLimit,
 }) async {
   final copy = Uint8List.fromList(raw);
-  final maxBytes = avatar ? 80 * 1024 : 220 * 1024;
+  final maxBytes = byteLimit ?? (avatar ? 80 * 1024 : 220 * 1024);
   if (copy.isEmpty || copy.length <= maxBytes) {
     return CompressedImage(bytes: copy, mime: mime);
   }
   try {
     final result = await Isolate.run(() {
-      final packed = compressForFirestore(copy, avatar: avatar, mime: mime);
+      final packed = compressForFirestore(
+        copy,
+        avatar: avatar,
+        mime: mime,
+        byteLimit: byteLimit,
+      );
       return (packed.bytes, packed.mime);
     });
     return CompressedImage(bytes: result.$1, mime: result.$2);
   } catch (_) {
-    return compressForFirestore(copy, avatar: avatar, mime: mime);
+    return compressForFirestore(
+      copy,
+      avatar: avatar,
+      mime: mime,
+      byteLimit: byteLimit,
+    );
   }
 }
 

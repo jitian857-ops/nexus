@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../app/theme.dart';
 import '../../core/format.dart';
+import '../../core/image_compress.dart';
 import '../../data/app_store.dart';
 import '../../data/models.dart';
 import '../../data/nexus_icons.dart';
@@ -1548,8 +1549,23 @@ Future<Uint8List?> _takeProblemPhoto(BuildContext context) async {
 }
 
 Future<void> _recordProblem(BuildContext context, AppStore store) async {
-  final photo = await _takeProblemPhoto(context);
-  if (photo == null || !context.mounted) return;
+  final rawPhoto = await _takeProblemPhoto(context);
+  if (rawPhoto == null || !context.mounted) return;
+  Uint8List photo;
+  try {
+    photo = (await compressForFirestoreAsync(
+      rawPhoto,
+      byteLimit: ProblemRecord.maxPhotoBytes,
+    )).bytes;
+  } catch (_) {
+    if (context.mounted) showNexusToast(context, '写真を縮小できませんでした。別の写真を選んでください');
+    return;
+  }
+  if (!context.mounted) return;
+  if (photo.isEmpty || photo.length > ProblemRecord.maxPhotoBytes) {
+    showNexusToast(context, '写真を保存できるサイズに縮小できませんでした。別の写真を選んでください');
+    return;
+  }
 
   final title = TextEditingController();
   final answer = TextEditingController();
